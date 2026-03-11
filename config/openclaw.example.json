@@ -1,0 +1,87 @@
+{
+  // Research-Claw Configuration Reference
+  // Copy to openclaw.json and customize.
+  // Environment variables: use ${VAR_NAME} syntax.
+
+  "gateway": {
+    "mode": "local",              // "local" = loopback only, no remote access
+    "port": 18789,                // Default OpenClaw gateway port
+    "controlUi": {
+      "root": "./dashboard/dist"  // Path to built dashboard SPA
+    }
+  },
+
+  "ui": {
+    "assistant": {
+      "name": "Research-Claw"     // Display name in chat
+      // "avatar": "./assets/avatar.png"  // Optional custom avatar
+    }
+  },
+
+  "skills": {
+    "load": {
+      "extraDirs": [
+        "./node_modules/@wentorai/research-plugins/skills",  // 487 research skills
+        "./skills"                                            // Local custom skills
+      ]
+    }
+  },
+
+  "plugins": {
+    "enabled": true,
+    "entries": {
+      "research-claw-core": {
+        "enabled": true,
+        "config": {
+          "dbPath": ".research-claw/library.db",        // SQLite database location
+          "autoTrackGit": true,                          // Auto-commit workspace changes
+          "defaultCitationStyle": "apa",                 // apa | mla | chicago | ieee | bibtex
+          "heartbeatDeadlineWarningHours": 48            // [configurable] Hours before deadline warning
+        }
+      },
+      "wentor-connect": {
+        "enabled": false           // PLACEHOLDER — enable after MVP
+      }
+    }
+  },
+
+  "tools": {
+    "profile": "full",            // Enable all built-in tools
+    "alsoAllow": [
+      // Literature tools
+      "library_add_paper", "library_search", "library_update_paper",
+      "library_get_paper", "library_export_bibtex", "library_reading_stats",
+      // Task tools
+      "task_create", "task_list", "task_complete",
+      "task_update", "task_link", "task_note",
+      // Workspace tools
+      "workspace_save", "workspace_read", "workspace_list",
+      "workspace_diff", "workspace_history", "workspace_restore"
+    ]
+  },
+
+  "agents": {
+    "defaults": {
+      "heartbeat": {
+        "enabled": true,
+        "intervalMinutes": 30     // [configurable] Heartbeat check interval
+      }
+    }
+  },
+
+  "cron": {
+    "enabled": true               // Enable cron jobs (arXiv scan, citation tracking, etc.)
+  },
+
+  // Proxy for China users (uncomment and set):
+  // "env": {
+  //   "vars": {
+  //     "HTTP_PROXY": "http://127.0.0.1:7890",
+  //     "HTTPS_PROXY": "http://127.0.0.1:7890"
+  //   }
+  // }
+
+  "env": {
+    "vars": {}
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "app": {
+    "name": "科研龙虾",
+    "tagline": "AI 驱动的学术科研助手"
+  },
+  "nav": {
+    "library": "文献库",
+    "workspace": "工作区",
+    "tasks": "任务",
+    "radar": "雷达",
+    "settings": "设置"
+  },
+  "chat": {
+    "placeholder": "向你的科研助手提问...",
+    "send": "发送",
+    "thinking": "思考中...",
+    "error": "出了点问题，请重试。"
+  },
+  "library": {
+    "title": "文献库",
+    "pending": "待审阅",
+    "saved": "已收藏",
+    "search": "搜索论文...",
+    "addPaper": "添加论文",
+    "readStatus": {
+      "unread": "未读",
+      "reading": "在读",
+      "read": "已读",
+      "reviewed": "已审阅"
+    }
+  },
+  "tasks": {
+    "title": "任务",
+    "create": "新建任务",
+    "overdue": "已逾期",
+    "upcoming": "即将到期",
+    "completed": "已完成",
+    "perspective": {
+      "all": "全部",
+      "human": "我的任务",
+      "agent": "助手任务"
+    }
+  },
+  "workspace": {
+    "title": "工作区",
+    "sources": "源文件",
+    "outputs": "输出文件",
+    "upload": "上传文件",
+    "history": "版本历史"
+  },
+  "radar": {
+    "title": "科研雷达",
+    "keywords": "追踪关键词",
+    "authors": "追踪作者",
+    "journals": "追踪期刊"
+  },
+  "settings": {
+    "title": "设置",
+    "general": "通用",
+    "model": "模型",
+    "proxy": "代理",
+    "about": "关于"
+  },
+  "setup": {
+    "title": "欢迎使用科研龙虾",
+    "apiKey": "输入你的 API 密钥以开始使用",
+    "provider": "服务商",
+    "key": "API 密钥",
+    "start": "启动科研龙虾"
+  },
+  "status": {
+    "connected": "已连接",
+    "disconnected": "已断开",
+    "reconnecting": "重连中..."
+  }
+}

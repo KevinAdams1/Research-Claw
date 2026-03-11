@@ -1,0 +1,76 @@
+{
+  "app": {
+    "name": "Research-Claw",
+    "tagline": "AI-Powered Academic Research Assistant"
+  },
+  "nav": {
+    "library": "Literature",
+    "workspace": "Workspace",
+    "tasks": "Tasks",
+    "radar": "Radar",
+    "settings": "Settings"
+  },
+  "chat": {
+    "placeholder": "Ask your research assistant...",
+    "send": "Send",
+    "thinking": "Thinking...",
+    "error": "Something went wrong. Please try again."
+  },
+  "library": {
+    "title": "Literature Library",
+    "pending": "Pending Review",
+    "saved": "Saved",
+    "search": "Search papers...",
+    "addPaper": "Add Paper",
+    "readStatus": {
+      "unread": "Unread",
+      "reading": "Reading",
+      "read": "Read",
+      "reviewed": "Reviewed"
+    }
+  },
+  "tasks": {
+    "title": "Tasks",
+    "create": "New Task",
+    "overdue": "Overdue",
+    "upcoming": "Upcoming",
+    "completed": "Completed",
+    "perspective": {
+      "all": "All",
+      "human": "My Tasks",
+      "agent": "Agent Tasks"
+    }
+  },
+  "workspace": {
+    "title": "Workspace",
+    "sources": "Sources",
+    "outputs": "Outputs",
+    "upload": "Upload File",
+    "history": "Version History"
+  },
+  "radar": {
+    "title": "Research Radar",
+    "keywords": "Tracked Keywords",
+    "authors": "Tracked Authors",
+    "journals": "Tracked Journals"
+  },
+  "settings": {
+    "title": "Settings",
+    "general": "General",
+    "model": "Model",
+    "proxy": "Proxy",
+    "about": "About"
+  },
+  "setup": {
+    "title": "Welcome to Research-Claw",
+    "apiKey": "Enter your API key to get started",
+    "provider": "Provider",
+    "key": "API Key",
+    "start": "Start Research-Claw"
+  },
+  "status": {
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "reconnecting": "Reconnecting..."
+  }
+}

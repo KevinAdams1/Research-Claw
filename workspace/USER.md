@@ -1,0 +1,30 @@
+---
+file: USER.md
+version: 1.0
+updated: 2026-03-11
+chars: ~500
+---
+
+# User Profile
+
+## Researcher
+- **Name:** (your name)
+- **Field:** (your primary research field)
+- **Career stage:** (undergraduate / graduate / postdoc / faculty / industry)
+- **Institution:** (your institution, optional)
+
+## Current Projects
+- (project title) — deadline: (date) — stage: (planning/review/writing/...)
+
+## Tools & Databases
+- **Reference manager:** (Zotero / EndNote / Mendeley / none)
+- **Preferred databases:** (PubMed / arXiv / Semantic Scholar / etc.)
+- **Writing tools:** (LaTeX / Word / Overleaf / Google Docs / etc.)
+- **Programming:** (Python / R / MATLAB / Julia / none)
+
+## Preferences
+- **Citation style:** APA
+- **Language:** English
+- **Working hours:** 09:00-18:00
+- **Timezone:** UTC+0
+- **Notification frequency:** daily

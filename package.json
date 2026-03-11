@@ -1,0 +1,38 @@
+{
+  "name": "research-claw",
+  "version": "0.1.0",
+  "description": "Research-Claw (科研龙虾) — AI-powered local academic research assistant, built as an OpenClaw satellite",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "start": "node ./node_modules/openclaw/dist/entry.js gateway run --config ./config/openclaw.json",
+    "dev": "concurrently \"pnpm --filter dashboard dev\" \"pnpm start\"",
+    "build": "pnpm build:extensions && pnpm build:dashboard",
+    "build:dashboard": "pnpm --filter dashboard build",
+    "build:extensions": "pnpm --filter ./extensions/* build",
+    "postinstall": "pnpm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "setup": "bash scripts/setup.sh",
+    "health": "bash scripts/health.sh",
+    "backup": "bash scripts/backup.sh",
+    "sync-upstream": "bash scripts/sync-upstream.sh"
+  },
+  "dependencies": {
+    "openclaw": "2026.3.9"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "openclaw@2026.3.9": "patches/openclaw@2026.3.9.patch"
+    }
+  }
+}
