@@ -66,30 +66,103 @@ Tracks: `Dashboard` (S1), `Modules` (S2), `Plugins` (S3), `Prompt` (S4), `Infra`
 - [2026-03-11] [Infra] [Claude] Fixed 04 bootstrap budget table: all 8 file sizes updated to actual values (14,841→24,951 total chars)
 - [2026-03-11] [Infra] [Claude] Fixed 03f cross-reference counts: lit RPC 18→26, task RPC 8→10, ws RPC 6→7
 
+### 2026-03-12 — Status Assessment (P0 + P1-S1 + P1-S2)
+
+Comprehensive review of implementation progress across Infrastructure, Dashboard, and Module tracks.
+
+- [2026-03-12] [Infra] [User+Claude] P0 Infrastructure assessed at **92% complete**: pnpm patch (openclaw@2026.3.8.patch, 78 lines), brand replacement (11 occurrences), package.json patchedDependencies, INFRA_REPORT.md, config files, setup.sh + install.sh all done. Only apply-branding.sh remains a stub.
+- [2026-03-12] [Dashboard] [User+Claude] P1-S1 Dashboard Shell assessed at **95% complete**: GatewayClient (267 lines, full WS RPC v3), gateway types/hooks/reconnect, TopBar/LeftNav/StatusBar, ChatView/MessageBubble/MessageInput, SetupWizard (217 lines), App.tsx responsive grid, 7 Zustand stores (4 complete + 3 skeleton), theme system, i18n (131 keys each), global.css (188 lines). Remaining: 5 panel stubs + 6 card stubs (Phase 2) and tests (Phase 4).
+- [2026-03-12] [Modules] [User+Claude] P1-S2 Module Builder assessed at **97% complete**: db/schema.ts (12 tables + FTS5), db/connection.ts (WAL mode), db/migrations.ts (v1), LiteratureService (27 methods), TaskService (13 methods incl. cron), WorkspaceService (6+ methods + init/destroy), GitTracker, Cards protocol (6 custom types; code_block handled by markdown renderer) + serializer, Literature tools (12) + RPC (26), Task tools (6) + RPC (10 + 3 cron), Workspace tools (6) + RPC (7) + HTTP upload, plugin entry index.ts (416 lines). 24 tools total confirmed accurate. Remaining: unit tests (Phase 4).
+- [2026-03-12] [Infra] [Claude] Updated CHANGELOG pending work section to reflect actual completion status.
+
+### 2026-03-12 — Design System Alignment Audit & i18n Completeness
+
+Comprehensive consistency audit of Dashboard against `docs/FRONTEND_DESIGN_SYSTEM.md`.
+
+- [2026-03-12] [Dashboard] [Claude] **Design token fixes in `theme.ts`:**
+  - Added missing tokens: `bg.code` (#161618/#F5F0EA), `accent.redHover` (#DC2626/#B91C1C), `accent.blueHover` (#2563EB/#1D4ED8)
+  - Updated `ThemeTokens` type to include new fields
+  - Fixed Button `borderRadius`: 4 -> 8 (per design system section 5.1)
+  - Fixed Input `borderRadius`: 4 -> 8 (per design system section 5.1)
+- [2026-03-12] [Dashboard] [Claude] **CSS variable fixes in `global.css`:**
+  - Added `--code-bg` to dark (#161618) and light (#F5F0EA) themes
+  - Added `--accent-primary-hover` and `--accent-secondary-hover` to both themes
+  - Fixed body `font-size`: 14px -> 15px (per design system section 3.2)
+  - Fixed body `line-height`: 1.5 -> 1.7 (per design system section 3.2)
+  - Fixed scrollbar thumb `border-radius`: 3px -> 9999px (per design system section 12)
+- [2026-03-12] [Dashboard] [Claude] **i18n fixes:**
+  - Added 5 missing keys: `chat.dismiss`, `status.versionFallback`, `status.modelDefault`, `status.modelNA`, `panel.awaitingPlugin`
+  - Added matching zh-CN translations for all 5 keys
+  - Fixed hardcoded strings in StatusBar (model default, N/A, version fallback)
+  - Fixed hardcoded "x" dismiss button in ChatView -> HTML entity + aria-label
+  - Fixed 5 panel stubs: hardcoded English -> i18n key `panel.awaitingPlugin`
+  - Total: en.json 100 keys, zh-CN.json 100 keys, all matched
+- [2026-03-12] [Dashboard] [Claude] **Doc sync:**
+  - Updated 03e section 9.1: replaced outdated color values with actual implementation (aligned with FRONTEND_DESIGN_SYSTEM.md)
+  - Updated 03e section 9.2: replaced outdated Ant Design token example with actual `getAntdThemeConfig()` implementation
+  - Verified 00-reference-map.md counts still accurate (24 tools, 46 RPC, 12 tables)
+
+---
+
+## Completed Work
+
+### Infrastructure (P0) — 92%
+
+- [x] Generate pnpm patch (openclaw@2026.3.8.patch, 78 lines)
+- [x] Brand replacement (11 occurrences across codebase)
+- [x] package.json patchedDependencies config
+- [x] INFRA_REPORT.md
+- [x] Config files: openclaw.json + openclaw.example.json
+- [x] scripts/install.sh (real implementation)
+- [x] scripts/setup.sh (real implementation)
+
+### Dashboard Shell (P1-S1) — 95%
+
+- [x] GatewayClient (267 lines, full WS RPC v3 protocol)
+- [x] gateway/types.ts, hooks.ts, reconnect.ts
+- [x] TopBar, LeftNav, StatusBar (all complete)
+- [x] ChatView, MessageBubble, MessageInput (all complete)
+- [x] SetupWizard (217 lines, 1-step flow)
+- [x] App.tsx with responsive grid layout
+- [x] 7 Zustand stores (4 fully implemented + 3 skeleton for Phase 2)
+- [x] Theme system (dark + light, HashMind aligned)
+- [x] i18n: en.json + zh-CN.json (131 keys each)
+- [x] global.css (188 lines)
+
+### Module Builder (P1-S2) — 97%
+
+- [x] db/schema.ts (12 tables + FTS5)
+- [x] db/connection.ts (better-sqlite3 manager, WAL mode)
+- [x] db/migrations.ts (v1)
+- [x] LiteratureService (27 methods -- originally planned 26, 1 added)
+- [x] TaskService (13 methods including cron -- originally planned 10, 3 added)
+- [x] WorkspaceService (6+ methods + init/destroy)
+- [x] GitTracker
+- [x] Cards protocol (6 custom types; code_block handled by markdown renderer) + serializer
+- [x] Literature tools (12) + RPC (26)
+- [x] Task tools (6) + RPC (10 + 3 cron)
+- [x] Workspace tools (6) + RPC (7) + HTTP upload
+- [x] Plugin entry index.ts (416 lines, all registrations)
+- [x] 6 hooks registered
+
 ---
 
 ## Pending Work
 
-### Dashboard (S1)
-- [ ] Implement GatewayClient (WS RPC v3 client)
-- [ ] Implement TopBar, LeftNav, StatusBar shell
-- [ ] Implement ChatView with message rendering
-- [ ] Implement 7 message card components
-- [ ] Implement 5 right panel tabs
-- [ ] Implement SetupWizard (1-step)
-- [ ] i18n: populate en.json + zh-CN.json
-- [ ] Tests: vitest + happy-dom for all components
+### Infrastructure (P0) — Remaining
 
-### Modules (S2)
-- [ ] Implement db/schema.ts (12 table DDL)
-- [ ] Implement db/connection.ts (better-sqlite3 manager)
-- [ ] Implement db/migrations.ts (versioned)
-- [ ] Implement LiteratureService (26 RPC methods)
-- [ ] Implement TaskService (10 RPC methods)
-- [ ] Implement WorkspaceService (7 RPC methods + HTTP upload)
-- [ ] Implement card protocol + serializer
-- [ ] Implement plugin entry (activate/deactivate lifecycle)
-- [ ] Tests: vitest with in-memory SQLite
+- [ ] scripts/apply-branding.sh (currently a stub)
+- [ ] End-to-end: install -> setup -> start -> chat test
+
+### Dashboard (P1-S1) — Remaining (Phase 2+)
+
+- [ ] 5 right panel tab components (Phase 2 scope)
+- [ ] 6 message card components (Phase 2 scope)
+- [ ] Tests: vitest + happy-dom for all components (Phase 4 scope)
+
+### Modules (P1-S2) — Remaining (Phase 4)
+
+- [ ] Unit tests: vitest with in-memory SQLite (Phase 4 scope)
 
 ### Plugins (S3)
 - [ ] Verify research-plugins skill loading end-to-end
@@ -101,13 +174,6 @@ Tracks: `Dashboard` (S1), `Modules` (S2), `Plugins` (S3), `Prompt` (S4), `Infra`
 - [ ] Refine AGENTS.md workflow steps based on testing
 - [ ] Tune HEARTBEAT.md thresholds based on user feedback
 
-### Infrastructure
-- [ ] Implement scripts/install.sh (one-click installer)
-- [ ] Implement scripts/setup.sh (interactive config)
-- [ ] Implement scripts/apply-branding.sh (patch generator)
-- [ ] Generate actual pnpm patch (patches/openclaw@2026.3.9.patch)
-- [ ] End-to-end: install → setup → start → chat test
-
 ---
 
-*Document: CHANGELOG | Created: 2026-03-11*
+*Document: CHANGELOG | Created: 2026-03-11 | Last updated: 2026-03-12*

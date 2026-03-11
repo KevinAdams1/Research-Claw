@@ -196,7 +196,7 @@ api.registerHttpRoute({
 });
 ```
 
-### 3.6 Plugin HTTP Route Scope (v2026.3.9 Breaking Change)
+### 3.6 Plugin HTTP Route Scope (v2026.3.8 Breaking Change)
 
 OpenClaw commit `a1520d70f` introduced scope enforcement for plugin HTTP handlers:
 

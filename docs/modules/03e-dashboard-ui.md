@@ -1,7 +1,7 @@
 # 03e — Dashboard UI Engineering Spec
 
 > Research-Claw Dashboard — React 18 + Vite + Ant Design 5
-> Based on OpenClaw gateway WS RPC v3 protocol (commit 62d5df28d, version 2026.3.9)
+> Based on OpenClaw gateway WS RPC v3 protocol (commit 62d5df28d, version 2026.3.8)
 
 ---
 
@@ -729,54 +729,86 @@ function CodeBlock({ className, children }: CodeProps) {
 
 ### 9.1 CSS Custom Properties
 
-Defined in `dashboard/src/styles/global.css`:
+Defined in `dashboard/src/styles/global.css`, aligned with `docs/FRONTEND_DESIGN_SYSTEM.md`:
 
 ```css
 :root {
   /* Dark theme (default) — HashMind Terminal Aesthetic */
-  --bg-primary: #0A0A0F;
-  --bg-secondary: #12121A;
-  --bg-surface: #1A1A25;
-  --bg-surface-hover: #222230;
-  --text-primary: #E8E8ED;
-  --text-secondary: #9898A6;
-  --text-muted: #5A5A6E;
-  --border: #2A2A38;
-  --border-hover: #3A3A4A;
-  --accent-red: #EF4444;      /* Lobster Red — primary */
-  --accent-blue: #3B82F6;     /* Academic Blue — secondary */
-  --accent-green: #22C55E;    /* Success / online */
-  --accent-amber: #F59E0B;    /* Warning / pending */
+  --bg: #030303;
+  --surface: #0A0A0B;
+  --surface-hover: #141415;
+  --surface-active: #1C1C1E;
+  --text-primary: #E4E4E7;
+  --text-secondary: #A1A1AA;
+  --text-tertiary: #71717A;
+  --border: rgba(255,255,255,0.08);
+  --border-hover: rgba(255,255,255,0.15);
+  --accent-primary: #EF4444;   /* Lobster Red */
+  --accent-secondary: #3B82F6; /* Academic Blue */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #F43F5E;
+  --code-bg: #161618;
+  --glass-bg: rgba(10,10,11,0.7);
+  --glass-blur: 16px;
+  --glow-red: 0 0 20px rgba(239,68,68,0.3);
+  --glow-blue: 0 0 20px rgba(59,130,246,0.3);
+  --accent-primary-hover: #DC2626;
+  --accent-secondary-hover: #2563EB;
 }
 
 [data-theme='light'] {
-  --bg-primary: #FFFBF5;      /* Warm paper */
-  --bg-secondary: #FFF8EE;
-  --bg-surface: #FFFFFF;
-  --bg-surface-hover: #F5F0E8;
-  --text-primary: #1A1A2E;
-  --text-secondary: #4A4A5E;
-  --text-muted: #8A8A9E;
-  --border: #E0DDD5;
-  --border-hover: #C8C5BD;
+  --bg: #FFFBF5;               /* Warm paper */
+  --surface: #FFF8F0;
+  --surface-hover: #FFF3E8;
+  --surface-active: #FFEDD5;
+  --text-primary: #1C1917;
+  --text-secondary: #78716C;
+  --text-tertiary: #A8A29E;
+  --border: rgba(28,25,23,0.08);
+  --border-hover: rgba(28,25,23,0.15);
+  --accent-primary: #DC2626;
+  --accent-secondary: #2563EB;
+  --success: #059669;
+  --warning: #D97706;
+  --error: #E11D48;
+  --code-bg: #F5F0EA;
+  --glass-bg: rgba(255,251,245,0.85);
+  --glass-blur: 12px;
 }
 ```
 
 ### 9.2 Ant Design Integration
 
 ```typescript
-// In App.tsx
-<ConfigProvider
-  theme={{
-    algorithm: theme === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
-    token: {
-      colorPrimary: '#EF4444',
-      colorInfo: '#3B82F6',
-      borderRadius: 8,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    },
-  }}
->
+// In styles/theme.ts — getAntdThemeConfig()
+{
+  algorithm: mode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+  token: {
+    colorPrimary: tokens.accent.red,
+    colorInfo: tokens.accent.blue,
+    colorSuccess: tokens.accent.green,
+    colorWarning: tokens.accent.amber,
+    colorError: tokens.accent.error,
+    colorBgContainer: tokens.bg.surface,
+    colorBgElevated: tokens.bg.secondary,
+    colorBgLayout: tokens.bg.primary,
+    colorText: tokens.text.primary,
+    colorTextSecondary: tokens.text.secondary,
+    colorTextTertiary: tokens.text.muted,
+    colorBorder: tokens.border.default,
+    colorBorderSecondary: tokens.border.hover,
+    borderRadius: 8,
+    borderRadiusLG: 12,
+    borderRadiusSM: 4,
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontFamilyCode: "'Fira Code', 'JetBrains Mono', Consolas, monospace",
+  },
+  components: {
+    Button: { borderRadius: 8 },
+    Input: { borderRadius: 8 },
+  },
+}
 ```
 
 ### 9.3 Theme Switching

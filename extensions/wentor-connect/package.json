@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "openclaw": "2026.3.9",
+    "openclaw": "2026.3.8",
     "typescript": "^5.7.0"
   },
   "peerDependencies": {

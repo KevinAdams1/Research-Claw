@@ -3,18 +3,39 @@
     "name": "Research-Claw",
     "tagline": "AI-Powered Academic Research Assistant"
   },
+  "topbar": {
+    "notifications": "Notifications",
+    "noNotifications": "No notifications",
+    "markAllRead": "Mark all read",
+    "themeToggle": "Toggle theme",
+    "profile": "Profile"
+  },
   "nav": {
     "library": "Literature",
     "workspace": "Workspace",
     "tasks": "Tasks",
     "radar": "Radar",
-    "settings": "Settings"
+    "settings": "Settings",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar",
+    "project": {
+      "switch": "Switch Project",
+      "default": "Default Project"
+    }
   },
   "chat": {
     "placeholder": "Ask your research assistant...",
     "send": "Send",
     "thinking": "Thinking...",
-    "error": "Something went wrong. Please try again."
+    "streaming": "Generating response...",
+    "error": "Something went wrong. Please try again.",
+    "empty": "Start a conversation with your research assistant.",
+    "abort": "Stop",
+    "retry": "Retry",
+    "you": "You",
+    "assistant": "Assistant",
+    "cardFallback": "Unsupported card type",
+    "dismiss": "Dismiss"
   },
   "library": {
     "title": "Literature Library",
@@ -59,18 +80,59 @@
     "general": "General",
     "model": "Model",
     "proxy": "Proxy",
-    "about": "About"
+    "about": "About",
+    "theme": {
+      "label": "Theme",
+      "dark": "Dark",
+      "light": "Light"
+    },
+    "language": {
+      "label": "Language",
+      "en": "English",
+      "zhCN": "中文"
+    }
   },
   "setup": {
     "title": "Welcome to Research-Claw",
-    "apiKey": "Enter your API key to get started",
+    "subtitle": "Configure your AI research assistant to get started",
     "provider": "Provider",
-    "key": "API Key",
+    "providerPlaceholder": "Select a provider",
+    "endpoint": "API Endpoint",
+    "endpointPlaceholder": "https://api.anthropic.com",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter your API key",
+    "proxy": "HTTP Proxy (optional)",
+    "proxyPlaceholder": "http://127.0.0.1:7890",
+    "test": "Test Connection",
+    "testing": "Testing...",
+    "testSuccess": "Connection successful!",
+    "testFailed": "Connection failed: {{error}}",
     "start": "Start Research-Claw"
   },
   "status": {
     "connected": "Connected",
     "disconnected": "Disconnected",
-    "reconnecting": "Reconnecting..."
+    "connecting": "Connecting...",
+    "reconnecting": "Reconnecting...",
+    "authenticating": "Authenticating...",
+    "model": "Model",
+    "tokensIn": "In",
+    "tokensOut": "Out",
+    "heartbeat": "Heartbeat",
+    "version": "v{{version}}",
+    "versionFallback": "v0.1.0",
+    "modelDefault": "(default)",
+    "modelNA": "N/A"
+  },
+  "agent": {
+    "idle": "Idle",
+    "thinking": "Thinking",
+    "toolRunning": "Running tool",
+    "streaming": "Streaming",
+    "error": "Error",
+    "disconnected": "Disconnected"
+  },
+  "panel": {
+    "awaitingPlugin": "Awaiting plugin implementation"
   }
 }

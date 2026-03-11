@@ -4,7 +4,7 @@
 > **Status**: Draft v1.0
 > **Last Updated**: 2026-03-11
 > **Depends On**: C2 (Engineering Architecture)
-> **SDK Version**: 2026.3.9
+> **SDK Version**: 2026.3.8
 
 ---
 

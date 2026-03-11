@@ -3,18 +3,39 @@
     "name": "科研龙虾",
     "tagline": "AI 驱动的学术科研助手"
   },
+  "topbar": {
+    "notifications": "通知",
+    "noNotifications": "暂无通知",
+    "markAllRead": "全部已读",
+    "themeToggle": "切换主题",
+    "profile": "个人资料"
+  },
   "nav": {
     "library": "文献库",
     "workspace": "工作区",
     "tasks": "任务",
     "radar": "雷达",
-    "settings": "设置"
+    "settings": "设置",
+    "collapse": "折叠侧边栏",
+    "expand": "展开侧边栏",
+    "project": {
+      "switch": "切换项目",
+      "default": "默认项目"
+    }
   },
   "chat": {
     "placeholder": "向你的科研助手提问...",
     "send": "发送",
     "thinking": "思考中...",
-    "error": "出了点问题，请重试。"
+    "streaming": "正在生成回复...",
+    "error": "出了点问题，请重试。",
+    "empty": "开始与你的科研助手对话。",
+    "abort": "停止",
+    "retry": "重试",
+    "you": "你",
+    "assistant": "助手",
+    "cardFallback": "不支持的卡片类型",
+    "dismiss": "关闭"
   },
   "library": {
     "title": "文献库",
@@ -59,18 +80,59 @@
     "general": "通用",
     "model": "模型",
     "proxy": "代理",
-    "about": "关于"
+    "about": "关于",
+    "theme": {
+      "label": "主题",
+      "dark": "深色",
+      "light": "浅色"
+    },
+    "language": {
+      "label": "语言",
+      "en": "English",
+      "zhCN": "中文"
+    }
   },
   "setup": {
     "title": "欢迎使用科研龙虾",
-    "apiKey": "输入你的 API 密钥以开始使用",
+    "subtitle": "配置你的 AI 科研助手以开始使用",
     "provider": "服务商",
-    "key": "API 密钥",
+    "providerPlaceholder": "选择服务商",
+    "endpoint": "API 端点",
+    "endpointPlaceholder": "https://api.anthropic.com",
+    "apiKey": "API 密钥",
+    "apiKeyPlaceholder": "输入你的 API 密钥",
+    "proxy": "HTTP 代理（可选）",
+    "proxyPlaceholder": "http://127.0.0.1:7890",
+    "test": "测试连接",
+    "testing": "测试中...",
+    "testSuccess": "连接成功！",
+    "testFailed": "连接失败：{{error}}",
     "start": "启动科研龙虾"
   },
   "status": {
     "connected": "已连接",
     "disconnected": "已断开",
-    "reconnecting": "重连中..."
+    "connecting": "连接中...",
+    "reconnecting": "重连中...",
+    "authenticating": "认证中...",
+    "model": "模型",
+    "tokensIn": "输入",
+    "tokensOut": "输出",
+    "heartbeat": "心跳",
+    "version": "v{{version}}",
+    "versionFallback": "v0.1.0",
+    "modelDefault": "（默认）",
+    "modelNA": "N/A"
+  },
+  "agent": {
+    "idle": "空闲",
+    "thinking": "思考中",
+    "toolRunning": "工具运行中",
+    "streaming": "输出中",
+    "error": "错误",
+    "disconnected": "已断开"
+  },
+  "panel": {
+    "awaitingPlugin": "等待插件实现"
   }
 }

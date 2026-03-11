@@ -1,2 +1,172 @@
-// db — migrations
-// TODO: Implement per corresponding docs/modules/ spec
+/**
+ * Research-Claw Core — Version-based Migration Runner
+ *
+ * Manages schema evolution for the local SQLite database.
+ *
+ * Strategy:
+ *   - If the `rc_schema_version` table does not exist, the database is
+ *     brand new — apply the full v1 schema (all tables, indexes, FTS,
+ *     triggers) inside a single transaction and record version 1.
+ *   - If it exists, read the current version and apply any incremental
+ *     migrations whose version number is higher.
+ *   - Each migration runs inside its own transaction for atomicity.
+ */
+
+import type BetterSqlite3 from 'better-sqlite3';
+
+import {
+  SCHEMA_VERSION,
+  CREATE_TABLES_SQL,
+  CREATE_INDEXES_SQL,
+  CREATE_FTS_SQL,
+  CREATE_TRIGGERS_SQL,
+} from './schema.js';
+
+// ── Types ───────────────────────────────────────────────────────────
+
+interface SchemaVersionRow {
+  version: number;
+}
+
+interface TableExistsRow {
+  cnt: number;
+}
+
+/** A single incremental migration step. */
+interface Migration {
+  /** Target version number (must be > previous version). */
+  version: number;
+  /** Human-readable name for logging / tracking. */
+  name: string;
+  /** SQL statements to apply. Empty string means no-op (e.g. v1 initial). */
+  sql: string;
+}
+
+// ── Migration registry ──────────────────────────────────────────────
+//
+// Version 1 is the initial schema — it is applied via the full DDL
+// arrays rather than through this list, so its `sql` is empty.
+// Append future migrations here with incrementing version numbers.
+
+const MIGRATIONS: readonly Migration[] = [
+  // {
+  //   version: 2,
+  //   name: 'add_paper_language',
+  //   sql: `ALTER TABLE rc_papers ADD COLUMN language TEXT;`,
+  // },
+];
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Check whether the `rc_schema_version` table exists in the database.
+ */
+function schemaVersionTableExists(db: BetterSqlite3.Database): boolean {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS cnt FROM sqlite_master
+       WHERE type = 'table' AND name = 'rc_schema_version'`
+    )
+    .get() as TableExistsRow | undefined;
+
+  return row !== undefined && row.cnt > 0;
+}
+
+/**
+ * Apply the complete v1 schema: all tables, indexes, FTS virtual
+ * table, and sync triggers. Runs inside a transaction.
+ */
+function applyFullSchema(db: BetterSqlite3.Database): void {
+  const applyInTransaction = db.transaction(() => {
+    // 1. Create all tables (includes rc_schema_version)
+    for (const sql of CREATE_TABLES_SQL) {
+      db.exec(sql);
+    }
+
+    // 2. Create indexes
+    for (const sql of CREATE_INDEXES_SQL) {
+      db.exec(sql);
+    }
+
+    // 3. Create FTS5 virtual table
+    for (const sql of CREATE_FTS_SQL) {
+      db.exec(sql);
+    }
+
+    // 4. Create FTS sync triggers
+    for (const sql of CREATE_TRIGGERS_SQL) {
+      db.exec(sql);
+    }
+
+    // 5. Record version 1
+    db.prepare(
+      `INSERT INTO rc_schema_version (version, applied_at) VALUES (?, datetime('now'))`
+    ).run(SCHEMA_VERSION);
+  });
+
+  applyInTransaction();
+}
+
+/**
+ * Apply a single incremental migration inside a transaction.
+ */
+function applyMigration(db: BetterSqlite3.Database, migration: Migration): void {
+  const applyInTransaction = db.transaction(() => {
+    if (migration.sql.length > 0) {
+      db.exec(migration.sql);
+    }
+
+    db.prepare(
+      `INSERT INTO rc_schema_version (version, applied_at) VALUES (?, datetime('now'))`
+    ).run(migration.version);
+  });
+
+  applyInTransaction();
+}
+
+// ── Public API ──────────────────────────────────────────────────────
+
+/**
+ * Return the current schema version recorded in `rc_schema_version`.
+ * Returns `0` if the table does not exist or is empty.
+ */
+export function getCurrentVersion(db: BetterSqlite3.Database): number {
+  if (!schemaVersionTableExists(db)) {
+    return 0;
+  }
+
+  const row = db
+    .prepare(
+      `SELECT version FROM rc_schema_version ORDER BY version DESC LIMIT 1`
+    )
+    .get() as SchemaVersionRow | undefined;
+
+  return row?.version ?? 0;
+}
+
+/**
+ * Run all pending migrations on the provided database connection.
+ *
+ * - If the database has never been initialized (no `rc_schema_version`
+ *   table), apply the full v1 DDL and record version 1.
+ * - Then apply any incremental migrations whose version exceeds the
+ *   current recorded version.
+ */
+export function runMigrations(db: BetterSqlite3.Database): void {
+  const currentVersion = getCurrentVersion(db);
+
+  if (currentVersion === 0) {
+    // Brand-new database — apply full initial schema
+    applyFullSchema(db);
+  }
+
+  // Re-read version after potential full-schema apply
+  const versionAfterInit = getCurrentVersion(db);
+
+  // Apply incremental migrations
+  for (const migration of MIGRATIONS) {
+    if (migration.version > versionAfterInit) {
+      applyMigration(db, migration);
+    }
+  }
+}

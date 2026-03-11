@@ -1,7 +1,7 @@
 # 00 — Master Reference Map
 
 > Research-Claw Documentation Index
-> Status: Complete | OpenClaw base: `2026.3.9` (commit `62d5df28d`) | Protocol: v3
+> Status: Complete | OpenClaw base: `2026.3.8` (commit `62d5df28d`) | Protocol: v3
 
 ---
 
@@ -79,22 +79,29 @@
 
 ### 3.1 SQLite Tables
 
-| Table | Defining Doc | Purpose |
-|-------|-------------|---------|
-| `rc_papers` | 03a §2.1 | Paper metadata (title, authors, DOI, abstract, etc.) |
-| `rc_tags` | 03a §2.2 | Tag definitions (name, color) |
-| `rc_paper_tags` | 03a §2.3 | Paper–tag junction |
-| `rc_collections` | 03a §2.4 | Named paper collections |
-| `rc_collection_papers` | 03a §2.5 | Collection–paper junction |
-| `rc_smart_groups` | 03a §2.6 | Dynamic filter groups (saved queries) |
-| `rc_reading_sessions` | 03a §2.7 | Reading time tracking |
-| `rc_citations` | 03a §2.8 | Inter-paper citation links |
-| `rc_papers_fts` | 03a §2.9 | FTS5 virtual table on papers |
-| `rc_paper_notes` | 03a §2.10 | Annotation notes on papers |
-| `rc_tasks` | 03b §2 | Task items (deadline-sorted) |
-| `rc_activity_log` | 03b §2 | Event tracking / audit log |
+| # | Table | Defining Doc | Purpose |
+|---|-------|-------------|---------|
+| 1 | `rc_schema_version` | 03a §2.12 | Migration version tracking (version + applied_at) |
+| 2 | `rc_papers` | 03a §2.1 | Paper metadata (title, authors, DOI, abstract, etc.) |
+| 3 | `rc_tags` | 03a §2.2 | Tag definitions (name, color) |
+| 4 | `rc_paper_tags` | 03a §2.3 | Paper–tag junction |
+| 5 | `rc_collections` | 03a §2.4 | Named paper collections |
+| 6 | `rc_collection_papers` | 03a §2.5 | Collection–paper junction (with sort_order) |
+| 7 | `rc_smart_groups` | 03a §2.6 | Dynamic filter groups (saved queries as JSON) |
+| 8 | `rc_reading_sessions` | 03a §2.7 | Reading time tracking (duration_minutes, pages_read) |
+| 9 | `rc_citations` | 03a §2.8 | Inter-paper citation links (citing/cited with context) |
+| 10 | `rc_paper_notes` | 03a §2.10 | Annotation notes on papers (page, highlight) |
+| 11 | `rc_tasks` | 03b §2 | Task items (deadline-sorted, linked to papers via related_paper_id) |
+| 12 | `rc_activity_log` | 03b §2 | Task event tracking / audit log |
+| — | `rc_papers_fts` | 03a §2.9 | FTS5 virtual table on papers (title, authors, abstract, notes) |
 
-All tables prefixed `rc_` to avoid collision with OpenClaw internals. Database located at `.research-claw/library.db` (configured in `openclaw.json`). **12 tables total.**
+All tables prefixed `rc_` to avoid collision with OpenClaw internals. Database located at `.research-claw/library.db` (configured in `openclaw.json`). **12 regular tables + 1 FTS5 virtual table, 3 FTS sync triggers, 23 indexes.** Schema source of truth: `extensions/research-claw-core/src/db/schema.ts`.
+
+**Obsolete tables from earlier specs** (do NOT exist in the actual schema):
+- ~~`rc_meta`~~ — replaced by `rc_schema_version`
+- ~~`rc_task_links`~~ — tasks link to papers directly via `rc_tasks.related_paper_id`
+- ~~`rc_workspace_versions`~~ / ~~`rc_workspace_files`~~ — workspace uses git tracking, not DB tables (see 03c)
+- ~~`rc_config`~~ — config loaded from JSON file (`openclaw.json`), not DB
 
 ### 3.2 RPC Methods (Custom `rc.*` Namespace)
 
@@ -148,7 +155,7 @@ rc.cron.presets.list rc.cron.presets.activate rc.cron.presets.deactivate
 | `task_list` | 03b §3 | List tasks, filter by status/project/deadline |
 | `task_complete` | 03b §3 | Mark task as done |
 | `task_update` | 03b §3 | Update task details |
-| `task_link` | 03b §3 | Link task to papers or other tasks |
+| `task_link` | 03b §3 | Link task to a paper (sets related_paper_id) |
 | `task_note` | 03b §3 | Add note/comment to task |
 | `workspace_save` | 03c §3 | Save content to workspace file |
 | `workspace_read` | 03c §3 | Read a workspace file |
@@ -169,9 +176,8 @@ rc.cron.presets.list rc.cron.presets.activate rc.cron.presets.deactivate
 | `approval_card` | 03d §3.4 | `ApprovalCard.tsx` | Human-in-Loop approval request |
 | `radar_digest` | 03d §3.5 | `RadarDigest.tsx` | Monitoring update, notable papers |
 | `file_card` | 03d §3.6 | `FileCard.tsx` | Workspace file reference |
-| `code_block` | 03d §3.7 | (passthrough) | Code with copy/save actions |
 
-Convention: fenced code blocks with card type as language tag. Unknown types degrade gracefully to default code block.
+Convention: fenced code blocks with card type as language tag. Standard code blocks (e.g., `python`, `typescript`) are handled by the default markdown renderer, not as custom card types (see 03d §3.7). Unknown types degrade gracefully to default code block.
 
 ### 3.5 Bootstrap Files
 
@@ -277,4 +283,4 @@ Finalized decisions that all docs must respect:
 
 ---
 
-*Updated: 2026-03-11 | OpenClaw: 2026.3.9 | Protocol: v3 | RPC: 46 methods | Tables: 12 | Tools: 24 | Cards: 7*
+*Updated: 2026-03-12 | OpenClaw: 2026.3.8 | Protocol: v3 | RPC: 46 methods | Tables: 12 + FTS5 | Tools: 24 | Cards: 6 | Indexes: 23*

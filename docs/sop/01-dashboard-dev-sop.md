@@ -48,7 +48,7 @@ This SOP governs all development on the **Dashboard** — the React + Vite SPA s
 ### 2.4 Center Chat
 
 - Always visible, primary interface ("Chat is the OS")
-- Message types: text, card (7 types), code, file attachment, approval request
+- Message types: text, card (6 custom types), code, file attachment, approval request
 - Slash command menu for shortcuts
 - Drag-drop file upload
 - Streaming rendering with delta/final/aborted states
@@ -80,7 +80,7 @@ This SOP governs all development on the **Dashboard** — the React + Vite SPA s
 - Priority colors: Critical (red), High (amber), Medium (blue), Low (gray)
 - Click -> scroll to related chat message
 
-### 2.9 Message Cards (7 types)
+### 2.9 Message Cards (6 custom types)
 
 | Card Type | Component | Spec |
 |-----------|-----------|------|
@@ -90,9 +90,8 @@ This SOP governs all development on the **Dashboard** — the React + Vite SPA s
 | `approval_card` | `ApprovalCard.tsx` | 03d SS3.4 |
 | `radar_digest` | `RadarDigest.tsx` | 03d SS3.5 |
 | `file_card` | `FileCard.tsx` | 03d SS3.6 |
-| `code_block` | passthrough | 03d SS3.7 |
 
-Convention: fenced code blocks with card type as language tag. Unknown types degrade gracefully.
+Convention: fenced code blocks with card type as language tag. Standard code blocks (e.g., `python`, `typescript`) are handled by the default markdown renderer, not as custom card types (see 03d SS3.7). Unknown types degrade gracefully.
 
 ### 2.10 Theme (FINALIZED)
 

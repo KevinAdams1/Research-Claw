@@ -136,7 +136,7 @@ The Dashboard renders each card inline at its position in the message flow.
 
 ## 3. Card Type Registry
 
-Seven card types are defined in v1.0. Each has a TypeScript interface that serves
+Six custom card types are defined in v1.0. Each has a TypeScript interface that serves
 as the source of truth for both the parser and the renderer.
 
 ### 3.1 `paper_card`

@@ -16,10 +16,14 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
-    "openclaw": "2026.3.9",
     "typescript": "^5.7.0"
   },
   "peerDependencies": {
     "openclaw": ">=2026.3.0"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
   }
 }

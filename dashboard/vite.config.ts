@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
@@ -5,6 +6,9 @@ import { resolve } from 'node:path';
 export default defineConfig({
   plugins: [react()],
   base: './',
+  test: {
+    environment: 'happy-dom',
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -13,6 +17,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          antd: ['antd', '@ant-design/icons'],
+          markdown: ['react-markdown', 'remark-gfm'],
+        },
+      },
+    },
   },
   server: {
     port: 5174,

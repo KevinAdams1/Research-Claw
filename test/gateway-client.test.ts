@@ -1,7 +1,10 @@
 /**
  * Gateway WS RPC Client Tests
  *
- * TODO: Implement after dashboard client (Phase 4)
+ * Phase 4 work item — do NOT implement until Phase 4 (unit test track).
+ * These stubs define the test surface for the gateway WS RPC client.
+ *
+ * Areas to cover:
  * - Connection/reconnection behavior
  * - Request/response correlation
  * - Event subscription

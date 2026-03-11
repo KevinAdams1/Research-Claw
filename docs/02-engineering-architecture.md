@@ -4,7 +4,7 @@
 >
 > Status: DRAFT v1.0 | Last updated: 2026-03-11
 >
-> OpenClaw base: `2026.3.9` (commit `62d5df28d`) | Protocol: v3
+> OpenClaw base: `2026.3.8` (commit `62d5df28d`) | Protocol: v3
 
 ---
 
@@ -68,14 +68,14 @@ Cross-references: [`05` Plugin SDK details](./modules/05-plugin-sdk.md) | [`03e`
  └──────────────────┼────────────────────────────────────────────────────────────┘   │
                     │                                                                │
  ┌─ L3 ────────────┼────────────────────────────────────────────────────────────┐   │
- │  pnpm patch      │  openclaw@2026.3.9.patch   (~20 lines, 7 files)           │   │
+ │  pnpm patch      │  openclaw@2026.3.8.patch   (~20 lines, 7 files)           │   │
  │  (branding)      │  CLI name · process title · system prompt · update URL    │   │
  │                  │  launchd label · systemd unit                              │   │
  └──────────────────┼────────────────────────────────────────────────────────────┘   │
                     │                                                                │
                     │  ┌────────────────────────────────────────────────────────┐    │
                     │  │              OpenClaw (npm dependency)                 │    │
-                    │  │              Version: 2026.3.9                         │    │
+                    │  │              Version: 2026.3.8                         │    │
                     │  │              Commit: 62d5df28d                          │    │
                     │  │              License: MIT                              │    │
                     │  │                                                        │    │
@@ -182,7 +182,7 @@ The most tightly coupled tier. A pnpm patch modifies ~20 lines across 7 files in
 **Upgrade risk: HIGH.** Each OpenClaw version bump requires patch regeneration. Mitigated by:
 1. Patch is small and touches only string literals (no logic changes)
 2. `scripts/sync-upstream.sh` automates update + re-patch + test
-3. Patch file is version-locked: `patches/openclaw@2026.3.9.patch`
+3. Patch file is version-locked: `patches/openclaw@2026.3.8.patch`
 4. pnpm fails loudly if patch cannot apply (no silent breakage)
 
 ### Coupling Cost Matrix
@@ -312,7 +312,7 @@ research-claw/
 │       ├── openclaw.plugin.json
 │       └── package.json
 ├── patches/
-│   └── openclaw@2026.3.9.patch    # L3 — Branding patch
+│   └── openclaw@2026.3.8.patch    # L3 — Branding patch
 ├── scripts/
 │   ├── setup.sh                   # First-run interactive setup
 │   ├── apply-branding.sh          # Generate/regenerate pnpm patch
@@ -468,7 +468,7 @@ The connection lifecycle follows a strict 3-step handshake:
      │         type: "hello-ok",        │
      │         protocol: 3,             │
      │         server: {                │
-     │           version: "2026.3.9",   │
+     │           version: "2026.3.8",   │
      │           connId: "..."          │
      │         },                       │
      │         features: {              │
@@ -1078,102 +1078,163 @@ function openDatabase(dbPath: string): Database.Database {
 
 ### 7.3 Table Schema (all prefixed `rc_`)
 
+> **Source of truth:** `extensions/research-claw-core/src/db/schema.ts`
+> **12 regular tables + 1 FTS5 virtual table, 3 triggers, 23 indexes.**
+>
+> **Obsolete tables from this section's earlier version** (removed):
+> - ~~`rc_meta`~~ — replaced by `rc_schema_version`
+> - ~~`rc_task_links`~~ — tasks link to papers directly via `rc_tasks.related_paper_id`
+> - ~~`rc_workspace_versions`~~ — workspace uses git tracking, not DB (see 03c)
+
 ```sql
--- Migration 001: Initial schema
-
-CREATE TABLE rc_meta (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL
+-- 1. Schema version tracking
+CREATE TABLE IF NOT EXISTS rc_schema_version (
+  version    INTEGER NOT NULL,
+  applied_at TEXT    NOT NULL
 );
-INSERT INTO rc_meta (key, value) VALUES ('schema_version', '1');
 
-CREATE TABLE rc_papers (
-  id           TEXT PRIMARY KEY,   -- UUID v4
-  title        TEXT NOT NULL,
-  authors      TEXT,               -- JSON array of strings
-  abstract     TEXT,
-  doi          TEXT UNIQUE,
-  arxiv_id     TEXT,
-  url          TEXT,
-  pdf_path     TEXT,               -- Local path to downloaded PDF
-  venue        TEXT,
-  year         INTEGER,
-  tags         TEXT,               -- JSON array of strings
-  notes        TEXT,
-  rating       INTEGER,            -- 1-5 stars, NULL = unrated
-  read_status  TEXT DEFAULT 'unread',  -- unread | reading | read
-  added_at     TEXT NOT NULL,      -- ISO 8601
-  updated_at   TEXT NOT NULL,
-  metadata     TEXT                -- JSON blob for extensibility
+-- 2. Paper metadata
+CREATE TABLE IF NOT EXISTS rc_papers (
+  id              TEXT PRIMARY KEY,
+  title           TEXT NOT NULL,
+  authors         TEXT NOT NULL DEFAULT '[]',   -- JSON array of strings
+  abstract        TEXT,
+  doi             TEXT UNIQUE,
+  url             TEXT,
+  arxiv_id        TEXT,
+  pdf_path        TEXT,
+  source          TEXT,                         -- 'semantic_scholar' | 'arxiv' | 'manual' | 'zotero' | 'crossref' | 'openalex'
+  source_id       TEXT,                         -- ID in the source system
+  venue           TEXT,
+  year            INTEGER,
+  added_at        TEXT NOT NULL,                -- ISO 8601
+  updated_at      TEXT NOT NULL,                -- ISO 8601
+  read_status     TEXT NOT NULL DEFAULT 'unread'
+                    CHECK(read_status IN ('unread', 'reading', 'read', 'reviewed')),
+  rating          INTEGER CHECK(rating IS NULL OR (rating BETWEEN 1 AND 5)),
+  notes           TEXT,
+  bibtex_key      TEXT,
+  metadata        TEXT DEFAULT '{}'             -- JSON object for extensible fields
 );
-CREATE INDEX rc_papers_doi ON rc_papers(doi) WHERE doi IS NOT NULL;
-CREATE INDEX rc_papers_added ON rc_papers(added_at);
-CREATE INDEX rc_papers_status ON rc_papers(read_status);
 
-CREATE TABLE rc_reading_sessions (
+-- 3. Tag definitions
+CREATE TABLE IF NOT EXISTS rc_tags (
   id         TEXT PRIMARY KEY,
-  paper_id   TEXT NOT NULL REFERENCES rc_papers(id) ON DELETE CASCADE,
-  started_at TEXT NOT NULL,
-  ended_at   TEXT,
-  duration_s INTEGER,             -- Computed on close
-  notes      TEXT
-);
-CREATE INDEX rc_reading_paper ON rc_reading_sessions(paper_id);
-
-CREATE TABLE rc_tasks (
-  id          TEXT PRIMARY KEY,    -- UUID v4
-  title       TEXT NOT NULL,
-  description TEXT,
-  status      TEXT DEFAULT 'todo', -- todo | in_progress | done | cancelled
-  priority    TEXT DEFAULT 'medium', -- low | medium | high | urgent
-  type        TEXT DEFAULT 'human',  -- human | agent | mixed
-  deadline    TEXT,                -- ISO 8601, NULL = no deadline
-  paper_id    TEXT REFERENCES rc_papers(id) ON DELETE SET NULL,
-  parent_id   TEXT REFERENCES rc_tasks(id) ON DELETE CASCADE,
-  tags        TEXT,                -- JSON array
-  notes       TEXT,
-  created_at  TEXT NOT NULL,
-  updated_at  TEXT NOT NULL,
-  completed_at TEXT
-);
-CREATE INDEX rc_tasks_status ON rc_tasks(status);
-CREATE INDEX rc_tasks_deadline ON rc_tasks(deadline) WHERE deadline IS NOT NULL;
-CREATE INDEX rc_tasks_paper ON rc_tasks(paper_id) WHERE paper_id IS NOT NULL;
-
-CREATE TABLE rc_task_links (
-  task_id    TEXT NOT NULL REFERENCES rc_tasks(id) ON DELETE CASCADE,
-  target_type TEXT NOT NULL,       -- paper | task | url | file
-  target_id   TEXT NOT NULL,
-  label       TEXT,
-  created_at  TEXT NOT NULL,
-  PRIMARY KEY (task_id, target_type, target_id)
-);
-
-CREATE TABLE rc_workspace_versions (
-  id         TEXT PRIMARY KEY,
-  path       TEXT NOT NULL,        -- Relative file path
-  content    BLOB NOT NULL,        -- File content snapshot
-  hash       TEXT NOT NULL,        -- SHA-256 of content
-  message    TEXT,                 -- Version description
-  created_at TEXT NOT NULL,
-  metadata   TEXT                  -- JSON blob
-);
-CREATE INDEX rc_workspace_path ON rc_workspace_versions(path, created_at);
-
-CREATE TABLE rc_activity_log (
-  id         TEXT PRIMARY KEY,
-  type       TEXT NOT NULL,        -- tool_call | agent_run | user_action | cron
-  summary    TEXT,
-  details    TEXT,                 -- JSON blob
-  session_key TEXT,
+  name       TEXT NOT NULL UNIQUE,
+  color      TEXT,                              -- hex color, e.g. '#EF4444'
   created_at TEXT NOT NULL
 );
-CREATE INDEX rc_activity_ts ON rc_activity_log(created_at);
+
+-- 4. Paper-tag junction
+CREATE TABLE IF NOT EXISTS rc_paper_tags (
+  paper_id TEXT NOT NULL REFERENCES rc_papers(id) ON DELETE CASCADE,
+  tag_id   TEXT NOT NULL REFERENCES rc_tags(id)   ON DELETE CASCADE,
+  PRIMARY KEY (paper_id, tag_id)
+);
+
+-- 5. Named paper collections
+CREATE TABLE IF NOT EXISTS rc_collections (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL UNIQUE,
+  description TEXT,
+  color       TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+
+-- 6. Collection-paper junction
+CREATE TABLE IF NOT EXISTS rc_collection_papers (
+  collection_id TEXT NOT NULL REFERENCES rc_collections(id) ON DELETE CASCADE,
+  paper_id      TEXT NOT NULL REFERENCES rc_papers(id)      ON DELETE CASCADE,
+  added_at      TEXT    NOT NULL,
+  sort_order    INTEGER DEFAULT 0,
+  PRIMARY KEY (collection_id, paper_id)
+);
+
+-- 7. Dynamic filter groups (saved queries)
+CREATE TABLE IF NOT EXISTS rc_smart_groups (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL UNIQUE,
+  query_json TEXT NOT NULL,                     -- JSON: { filters, sort, fts_query }
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- 8. Reading time tracking
+CREATE TABLE IF NOT EXISTS rc_reading_sessions (
+  id               TEXT PRIMARY KEY,
+  paper_id         TEXT    NOT NULL REFERENCES rc_papers(id) ON DELETE CASCADE,
+  started_at       TEXT    NOT NULL,
+  ended_at         TEXT,
+  duration_minutes INTEGER,                     -- computed on end, or NULL
+  notes            TEXT,
+  pages_read       INTEGER
+);
+
+-- 9. Inter-paper citation links
+CREATE TABLE IF NOT EXISTS rc_citations (
+  citing_paper_id TEXT NOT NULL REFERENCES rc_papers(id) ON DELETE CASCADE,
+  cited_paper_id  TEXT NOT NULL REFERENCES rc_papers(id) ON DELETE CASCADE,
+  context         TEXT,                         -- sentence containing the citation
+  section         TEXT,                         -- section heading where citation appears
+  PRIMARY KEY (citing_paper_id, cited_paper_id)
+);
+
+-- 10. Annotation notes on papers
+CREATE TABLE IF NOT EXISTS rc_paper_notes (
+  id         TEXT PRIMARY KEY,
+  paper_id   TEXT NOT NULL REFERENCES rc_papers(id) ON DELETE CASCADE,
+  content    TEXT NOT NULL,
+  page       INTEGER,
+  highlight  TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 11. Task items (deadline-sorted)
+CREATE TABLE IF NOT EXISTS rc_tasks (
+  id               TEXT PRIMARY KEY,
+  title            TEXT NOT NULL,
+  description      TEXT,
+  task_type        TEXT NOT NULL CHECK(task_type IN ('human', 'agent', 'mixed')),
+  status           TEXT NOT NULL DEFAULT 'todo'
+                        CHECK(status IN ('todo', 'in_progress', 'blocked', 'done', 'cancelled')),
+  priority         TEXT NOT NULL DEFAULT 'medium'
+                        CHECK(priority IN ('urgent', 'high', 'medium', 'low')),
+  deadline         TEXT,
+  completed_at     TEXT,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL,
+  parent_task_id   TEXT REFERENCES rc_tasks(id)  ON DELETE SET NULL,
+  related_paper_id TEXT REFERENCES rc_papers(id) ON DELETE SET NULL,
+  agent_session_id TEXT,
+  tags             TEXT,                        -- JSON array: '["writing","icml"]'
+  notes            TEXT
+);
+
+-- 12. Task event tracking / audit log
+CREATE TABLE IF NOT EXISTS rc_activity_log (
+  id         TEXT PRIMARY KEY,
+  task_id    TEXT NOT NULL REFERENCES rc_tasks(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL,
+  old_value  TEXT,
+  new_value  TEXT,
+  actor      TEXT NOT NULL CHECK(actor IN ('human', 'agent')),
+  created_at TEXT NOT NULL
+);
+
+-- FTS5 virtual table (full-text search on papers)
+CREATE VIRTUAL TABLE IF NOT EXISTS rc_papers_fts USING fts5(
+  title, authors, abstract, notes,
+  content='rc_papers', content_rowid='rowid'
+);
+
+-- 3 FTS sync triggers: rc_papers_fts_insert, rc_papers_fts_update, rc_papers_fts_delete
+-- 23 indexes (see schema.ts for full list)
 ```
 
 ### 7.4 Migration System
 
-Migrations are versioned integers stored in `rc_meta.schema_version`. Each migration is a function that receives the `Database` instance.
+Migrations are versioned integers stored in `rc_schema_version`. Each migration is a function that receives the `Database` instance.
 
 ```typescript
 interface Migration {
@@ -1188,16 +1249,18 @@ const migrations: Migration[] = [
 ];
 
 function runMigrations(db: Database.Database): void {
-  const currentRow = db.prepare('SELECT value FROM rc_meta WHERE key = ?').get('schema_version');
-  const current = currentRow ? parseInt((currentRow as { value: string }).value, 10) : 0;
+  db.exec('CREATE TABLE IF NOT EXISTS rc_schema_version (version INTEGER NOT NULL, applied_at TEXT NOT NULL)');
+  const current = db.prepare('SELECT MAX(version) as v FROM rc_schema_version').get() as { v: number | null };
+  const currentVersion = current?.v ?? 0;
 
-  const pending = migrations.filter(m => m.version > current);
+  const pending = migrations.filter(m => m.version > currentVersion);
   if (pending.length === 0) return;
 
   const runAll = db.transaction(() => {
     for (const m of pending) {
       m.up(db);
-      db.prepare('INSERT OR REPLACE INTO rc_meta (key, value) VALUES (?, ?)').run('schema_version', String(m.version));
+      db.prepare('INSERT INTO rc_schema_version (version, applied_at) VALUES (?, ?)')
+        .run(m.version, new Date().toISOString());
     }
   });
 
@@ -1481,7 +1544,7 @@ client.onEvent('chat.stream', (payload) => {
 ```bash
 pnpm install
 # 1. Install all dependencies (root + workspace members)
-# 2. pnpm automatically applies patches/openclaw@2026.3.9.patch
+# 2. pnpm automatically applies patches/openclaw@2026.3.8.patch
 # 3. postinstall runs: pnpm run build
 
 # Build step breakdown:
@@ -1497,7 +1560,7 @@ pnpm install
 
 ```
 pnpm install
-  └─► patch: openclaw@2026.3.9.patch applied to node_modules/openclaw/
+  └─► patch: openclaw@2026.3.8.patch applied to node_modules/openclaw/
       └─► postinstall: pnpm run build
           ├─► build:extensions (pnpm --filter ./extensions/* build)
           │   ├─► tsc (research-claw-core)
@@ -1836,7 +1899,7 @@ The SQLite database at `.research-claw/library.db`:
 
 ### 12.5 Dependency Security
 
-- `openclaw` is pinned to exact version `2026.3.9` (no `^` or `~`)
+- `openclaw` is pinned to exact version `2026.3.8` (no `^` or `~`)
 - pnpm's lockfile (`pnpm-lock.yaml`) ensures reproducible installs
 - `pnpm audit` should be run before each release
 - The pnpm patch is version-locked and fails loudly on version mismatch
@@ -1911,7 +1974,7 @@ Performance is measured via:
 
 The pnpm patch modifies string literals in 7 files of the installed `openclaw` package. No logic, no control flow, no API surface is changed. The patch exists purely for branding: ensuring the user sees "Research-Claw" instead of "OpenClaw" in the CLI, process list, system prompt, and system services.
 
-**Patch file:** `patches/openclaw@2026.3.9.patch`
+**Patch file:** `patches/openclaw@2026.3.8.patch`
 
 ### 14.2 Files Modified
 
@@ -1934,7 +1997,7 @@ pnpm applies the patch automatically during `pnpm install`. The patch is configu
 {
   "pnpm": {
     "patchedDependencies": {
-      "openclaw@2026.3.9": "patches/openclaw@2026.3.9.patch"
+      "openclaw@2026.3.8": "patches/openclaw@2026.3.8.patch"
     }
   }
 }
@@ -2026,7 +2089,7 @@ This constraint ensures that Research-Claw remains a true satellite: functionall
 |-----------|---------|-------------|---------|
 | Node.js | 22.12.0 | 22.x LTS | — |
 | pnpm | 9.0.0 | 9.15.0 | — |
-| OpenClaw | 2026.3.9 | 2026.3.9 | 2026.3.x (patch only) |
+| OpenClaw | 2026.3.8 | 2026.3.8 | 2026.3.x (patch only) |
 | TypeScript | 5.7.0 | 5.7.x | — |
 | React | 18.3.0 | 18.3.x | 18.x |
 | Ant Design | 5.23.0 | 5.23.x | 5.x |

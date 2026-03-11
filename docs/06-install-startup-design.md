@@ -49,7 +49,7 @@ config/
   openclaw.json           # Active configuration
   openclaw.example.json   # Annotated reference template
 patches/
-  openclaw@2026.3.9.patch # pnpm patch file (branding overrides)
+  openclaw@2026.3.8.patch # pnpm patch file (branding overrides)
 ```
 
 All scripts use `set -euo pipefail` and are designed to be idempotent: running them

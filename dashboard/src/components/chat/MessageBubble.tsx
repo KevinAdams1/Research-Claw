@@ -1,7 +1,194 @@
-// MessageBubble — Research-Claw Dashboard Component
-// TODO: Implement per docs/modules/03e-dashboard-ui.md
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
+import type { ChatMessage } from '../../gateway/types';
 
-export default function MessageBubble() {
-  return <div>TODO: MessageBubble</div>;
+const { Text } = Typography;
+
+const CARD_TYPES = new Set([
+  'paper_card',
+  'task_card',
+  'progress_card',
+  'approval_card',
+  'radar_digest',
+  'file_card',
+]);
+
+interface MessageBubbleProps {
+  message: ChatMessage;
+  isStreaming?: boolean;
+}
+
+function CardFallback({ type, data }: { type: string; data: string }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      style={{
+        background: 'var(--surface-hover)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        padding: 12,
+        margin: '8px 0',
+      }}
+    >
+      <Text type="secondary" style={{ fontSize: 11, fontFamily: "'Fira Code', 'JetBrains Mono', monospace" }}>
+        [{type}] {t('chat.cardFallback')}
+      </Text>
+      <pre
+        style={{
+          marginTop: 8,
+          padding: 8,
+          background: 'var(--surface)',
+          borderRadius: 4,
+          fontSize: 12,
+          fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
+          overflow: 'auto',
+          maxHeight: 200,
+          color: 'var(--text-secondary)',
+        }}
+      >
+        {data}
+      </pre>
+    </div>
+  );
+}
+
+function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
+  const language = className?.replace('language-', '');
+  const code = String(children).replace(/\n$/, '');
+
+  if (language && CARD_TYPES.has(language)) {
+    return <CardFallback type={language} data={code} />;
+  }
+
+  return (
+    <pre
+      style={{
+        background: 'var(--surface-hover)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        padding: 12,
+        margin: '8px 0',
+        overflow: 'auto',
+        fontSize: 13,
+        fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
+        lineHeight: 1.5,
+      }}
+    >
+      <code>{code}</code>
+    </pre>
+  );
+}
+
+export default function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
+  const { t } = useTranslation();
+  const isUser = message.role === 'user';
+
+  const text =
+    message.text ??
+    message.content
+      ?.filter((c) => c.type === 'text' && c.text)
+      .map((c) => c.text!)
+      .join('') ??
+    '';
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: isUser ? 'flex-end' : 'flex-start',
+        marginBottom: 16,
+      }}
+    >
+      {/* Role label */}
+      <Text
+        type="secondary"
+        style={{
+          fontSize: 11,
+          marginBottom: 4,
+          fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
+        }}
+      >
+        {isUser ? t('chat.you') : t('chat.assistant')}
+      </Text>
+
+      {/* Message body */}
+      <div
+        style={{
+          maxWidth: '80%',
+          padding: '10px 14px',
+          borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+          background: isUser ? 'var(--surface-hover)' : 'var(--surface)',
+          border: `1px solid ${isUser ? 'var(--border-hover)' : 'var(--border)'}`,
+          position: 'relative',
+        }}
+      >
+        {isUser ? (
+          <Text style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.6 }}>{text}</Text>
+        ) : (
+          <div
+            style={{ fontSize: 14, lineHeight: 1.6 }}
+            className="markdown-body"
+          >
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code: ({ className, children, ...props }) => {
+                  const isInline = !className;
+                  if (isInline) {
+                    return (
+                      <code
+                        style={{
+                          background: 'var(--surface-active)',
+                          padding: '2px 4px',
+                          borderRadius: 3,
+                          fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
+                          fontSize: '0.9em',
+                        }}
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    );
+                  }
+                  return <CodeBlock className={className}>{children}</CodeBlock>;
+                },
+                pre: ({ children }) => <>{children}</>,
+                a: ({ href, children }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--accent-secondary)' }}
+                  >
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {text}
+            </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Streaming cursor */}
+        {isStreaming && (
+          <span
+            style={{
+              display: 'inline-block',
+              width: 2,
+              height: 16,
+              background: 'var(--accent-secondary)',
+              marginLeft: 2,
+              animation: 'blink 0.8s step-end infinite',
+              verticalAlign: 'text-bottom',
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
 }

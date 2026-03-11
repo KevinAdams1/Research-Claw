@@ -1,7 +1,24 @@
-// SettingsPanel — Research-Claw Dashboard Component
-// TODO: Implement per docs/modules/03e-dashboard-ui.md
 import React from 'react';
+import { Typography } from 'antd';
+import { SettingOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
+
+const { Text } = Typography;
 
 export default function SettingsPanel() {
-  return <div>TODO: SettingsPanel</div>;
+  const { t } = useTranslation();
+
+  return (
+    <div style={{ padding: 16, textAlign: 'center', paddingTop: 40 }}>
+      <SettingOutlined style={{ fontSize: 32, color: 'var(--text-tertiary)', opacity: 0.5 }} />
+      <div style={{ marginTop: 12 }}>
+        <Text type="secondary">{t('settings.title')}</Text>
+      </div>
+      <div style={{ marginTop: 4 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {t('panel.awaitingPlugin')}
+        </Text>
+      </div>
+    </div>
+  );
 }

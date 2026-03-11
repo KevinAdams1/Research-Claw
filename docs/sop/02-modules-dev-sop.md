@@ -107,7 +107,7 @@ Full canonical method list: see `docs/00-reference-map.md` SS3.2.
 |-------|--------|---------|
 | `/rc/upload` | POST | Multipart file upload for workspace |
 
-### 2.7 Message Card Types (7)
+### 2.7 Message Card Types (6)
 
 | Type | Rendering | Spec |
 |------|-----------|------|
@@ -117,7 +117,8 @@ Full canonical method list: see `docs/00-reference-map.md` SS3.2.
 | `approval_card` | HiL request | 03d SS3.4 |
 | `radar_digest` | Monitoring update | 03d SS3.5 |
 | `file_card` | Workspace file ref | 03d SS3.6 |
-| `code_block` | Passthrough | 03d SS3.7 |
+
+Note: `code_block` is not a custom card type. Standard fenced code blocks are handled by the default markdown renderer (see 03d SS3.7).
 
 ---
 

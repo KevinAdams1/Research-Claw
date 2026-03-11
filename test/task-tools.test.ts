@@ -1,7 +1,7 @@
 /**
  * Task System Tool Tests
  *
- * TODO: Implement after plugin (Phase 4)
+ * Phase 4 work item — do NOT implement until Phase 4 (unit test track).
  * Uses in-memory SQLite for unit tests.
  */
 import { describe, it, expect } from 'vitest';

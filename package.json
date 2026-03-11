@@ -9,12 +9,11 @@
   },
   "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "start": "node ./node_modules/openclaw/dist/entry.js gateway run --config ./config/openclaw.json",
+    "start": "node ./node_modules/openclaw/dist/entry.js gateway run --allow-unconfigured --port 18789",
     "dev": "concurrently \"pnpm --filter dashboard dev\" \"pnpm start\"",
     "build": "pnpm build:extensions && pnpm build:dashboard",
     "build:dashboard": "pnpm --filter dashboard build",
     "build:extensions": "pnpm --filter ./extensions/* build",
-    "postinstall": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "setup": "bash scripts/setup.sh",
@@ -23,7 +22,7 @@
     "sync-upstream": "bash scripts/sync-upstream.sh"
   },
   "dependencies": {
-    "openclaw": "2026.3.9"
+    "openclaw": "2026.3.8"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
@@ -32,7 +31,7 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "openclaw@2026.3.9": "patches/openclaw@2026.3.9.patch"
+      "openclaw@2026.3.8": "patches/openclaw@2026.3.8.patch"
     }
   }
 }
