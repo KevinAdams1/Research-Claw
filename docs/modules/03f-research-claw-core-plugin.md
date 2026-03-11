@@ -28,7 +28,7 @@
 
 `research-claw-core` is the single OpenClaw plugin that aggregates all Research-Claw
 functionality. It acts as the central wiring layer: it owns the SQLite database, registers
-every agent tool (24), every gateway RPC method (~35), the HTTP file-upload route, and six
+every agent tool (24), every gateway RPC method (46), the HTTP file-upload route, and six
 lifecycle hooks. Individual feature modules (literature, tasks, workspace) are plain
 TypeScript modules with no plugin awareness -- this plugin imports them and connects them
 to the OpenClaw runtime via the `OpenClawPluginApi` interface.
@@ -277,7 +277,7 @@ export function activate(api: OpenClawPluginApi): void {
   // ── 10. Done ────────────────────────────────────────────
   log.info(
     'research-claw-core: activated. ' +
-    '24 tools, 35 RPC methods, 1 HTTP route, 6 hooks registered.'
+    '24 tools, 46 RPC methods, 1 HTTP route, 6 hooks registered.'
   );
 }
 ```
@@ -325,7 +325,7 @@ Defined in `src/tasks/tools.ts`. Canonical schemas in doc `03b`.
 
 | # | Tool Name | Parameters Summary | Returns | Notes |
 |---|-----------|-------------------|---------|-------|
-| 13 | `task_create` | `title`, `description?`, `priority?` (`low`/`medium`/`high`/`critical`), `deadline?`, `tags?`, `related_paper_id?` | `{ id, title, created_at }` | Priority defaults to `medium`. |
+| 13 | `task_create` | `title`, `description?`, `priority?` (`low`/`medium`/`high`/`urgent`), `deadline?`, `tags?`, `related_paper_id?` | `{ id, title, created_at }` | Priority defaults to `medium`. |
 | 14 | `task_list` | `status?` (`open`/`done`/`all`), `priority?`, `tags?`, `related_paper_id?`, `sort?`, `limit?` | `{ tasks: Task[], total }` | Default: open tasks sorted by priority desc, deadline asc. |
 | 15 | `task_complete` | `id`, `summary?` | `{ id, completed_at }` | Sets `status = 'done'`, records completion time. |
 | 16 | `task_update` | `id`, `fields` (partial task object) | `{ id, updated_fields }` | Supports changing title, description, priority, deadline, tags. |
@@ -426,58 +426,71 @@ export function registerLitTools(api: OpenClawPluginApi, db: DbService): void {
 All RPC methods registered via `api.registerGatewayMethod()`. These are callable over the
 gateway WebSocket (protocol v3) by the dashboard UI.
 
-### 6.1 Literature RPC Methods (18)
+### 6.1 Literature RPC Methods (26)
 
 Namespace: `rc.lit.*`. Defined in `src/lit/rpc.ts`. Canonical schemas in doc `03a`.
 
 | # | Method | Params | Returns | Notes |
 |---|--------|--------|---------|-------|
-| 1 | `rc.lit.search` | `{ query, filters?, limit?, offset? }` | `{ results: Paper[], total }` | FTS5 search. |
+| 1 | `rc.lit.list` | `{ filters?, sort?, limit?, offset? }` | `{ papers: Paper[], total }` | Paginated listing with optional filters. |
 | 2 | `rc.lit.get` | `{ id }` | `Paper` | Full paper with tags, notes, reading sessions. |
 | 3 | `rc.lit.add` | `{ paper: PaperInput }` | `{ id }` | Same logic as `library_add_paper` tool. |
 | 4 | `rc.lit.update` | `{ id, fields }` | `{ ok }` | Partial update. |
 | 5 | `rc.lit.delete` | `{ id }` | `{ ok }` | Soft delete (sets `deleted_at`). |
-| 6 | `rc.lit.batchAdd` | `{ papers: PaperInput[] }` | `{ added, skipped, errors }` | Max 100. |
-| 7 | `rc.lit.importBibtex` | `{ bibtex: string }` | `{ imported, skipped, errors }` | Parses and inserts. |
-| 8 | `rc.lit.exportBibtex` | `{ paperIds?, collection?, style? }` | `{ bibtex: string }` | Formatted output. |
-| 9 | `rc.lit.tags.list` | `{}` | `{ tags: Tag[] }` | All tags with paper counts. |
-| 10 | `rc.lit.tags.set` | `{ paperId, tags, action }` | `{ tags }` | Add/remove/set tags. |
-| 11 | `rc.lit.collections.list` | `{}` | `{ collections: string[] }` | Collection names. |
-| 12 | `rc.lit.collections.manage` | `{ action, collection, paperId?, newName? }` | `{ ok }` | Create/rename/delete/add/remove. |
-| 13 | `rc.lit.notes.list` | `{ paperId }` | `{ notes: Note[] }` | All notes for a paper. |
-| 14 | `rc.lit.notes.add` | `{ paperId, content, page?, highlight? }` | `{ noteId }` | Creates note. |
-| 15 | `rc.lit.notes.delete` | `{ noteId }` | `{ ok }` | Hard delete. |
-| 16 | `rc.lit.reading.start` | `{ paperId }` | `{ sessionId }` | Opens reading session. |
-| 17 | `rc.lit.reading.stop` | `{ sessionId }` | `{ duration_minutes }` | Closes session, records duration. |
-| 18 | `rc.lit.reading.stats` | `{ period?, paperId? }` | `{ total_hours, sessions, streak }` | Aggregated stats. |
+| 6 | `rc.lit.status` | `{ id, status }` | `{ ok }` | Update reading status (unread/reading/read). |
+| 7 | `rc.lit.rate` | `{ id, rating }` | `{ ok }` | Set paper rating. |
+| 8 | `rc.lit.tags` | `{}` | `{ tags: Tag[] }` | All tags with paper counts. |
+| 9 | `rc.lit.tag` | `{ paperId, tag }` | `{ ok }` | Add a tag to a paper. |
+| 10 | `rc.lit.untag` | `{ paperId, tag }` | `{ ok }` | Remove a tag from a paper. |
+| 11 | `rc.lit.reading.start` | `{ paperId }` | `{ sessionId }` | Opens reading session. |
+| 12 | `rc.lit.reading.end` | `{ sessionId }` | `{ duration_minutes }` | Closes session, records duration. |
+| 13 | `rc.lit.reading.list` | `{ paperId?, period? }` | `{ sessions: ReadingSession[] }` | Reading session history. |
+| 14 | `rc.lit.cite` | `{ paperId, style? }` | `{ citation: string }` | Generate formatted citation. |
+| 15 | `rc.lit.citations` | `{ paperIds, style? }` | `{ citations: string[] }` | Batch citation generation. |
+| 16 | `rc.lit.stats` | `{ period? }` | `{ total_papers, total_hours, streak }` | Aggregated library stats. |
+| 17 | `rc.lit.search` | `{ query, filters?, limit?, offset? }` | `{ results: Paper[], total }` | FTS5 search. |
+| 18 | `rc.lit.duplicate_check` | `{ paper: PaperInput }` | `{ duplicates: Paper[] }` | Check for existing duplicates by DOI/title. |
+| 19 | `rc.lit.batch_add` | `{ papers: PaperInput[] }` | `{ added, skipped, errors }` | Max 100. |
+| 20 | `rc.lit.import_bibtex` | `{ bibtex: string }` | `{ imported, skipped, errors }` | Parses and inserts. |
+| 21 | `rc.lit.export_bibtex` | `{ paperIds?, collection?, style? }` | `{ bibtex: string }` | Formatted output. |
+| 22 | `rc.lit.collections.list` | `{}` | `{ collections: string[] }` | Collection names. |
+| 23 | `rc.lit.collections.manage` | `{ action, collection, paperId?, newName? }` | `{ ok }` | Create/rename/delete/add/remove. |
+| 24 | `rc.lit.notes.list` | `{ paperId }` | `{ notes: Note[] }` | All notes for a paper. |
+| 25 | `rc.lit.notes.add` | `{ paperId, content, page?, highlight? }` | `{ noteId }` | Creates note. |
+| 26 | `rc.lit.notes.delete` | `{ noteId }` | `{ ok }` | Hard delete. |
 
-### 6.2 Task RPC Methods (8)
+### 6.2 Task RPC Methods (10)
 
 Namespace: `rc.task.*`. Defined in `src/tasks/rpc.ts`. Canonical schemas in doc `03b`.
 
 | # | Method | Params | Returns | Notes |
 |---|--------|--------|---------|-------|
-| 19 | `rc.task.list` | `{ status?, priority?, tags?, sort?, limit? }` | `{ tasks: Task[], total }` | Filterable list. |
-| 20 | `rc.task.get` | `{ id }` | `Task` | Full task with notes. |
-| 21 | `rc.task.create` | `{ title, description?, priority?, deadline?, tags?, relatedPaperId? }` | `{ id }` | Creates task. |
-| 22 | `rc.task.update` | `{ id, fields }` | `{ ok }` | Partial update. |
-| 23 | `rc.task.complete` | `{ id, summary? }` | `{ ok }` | Sets status to done. |
-| 24 | `rc.task.delete` | `{ id }` | `{ ok }` | Soft delete. |
-| 25 | `rc.task.link` | `{ taskId, paperId }` | `{ ok }` | Links task to paper. |
-| 26 | `rc.task.notes.add` | `{ taskId, content }` | `{ noteId }` | Appends note. |
+| 27 | `rc.task.list` | `{ status?, priority?, tags?, sort?, limit? }` | `{ tasks: Task[], total }` | Filterable list. |
+| 28 | `rc.task.get` | `{ id }` | `Task` | Full task with notes. |
+| 29 | `rc.task.create` | `{ title, description?, priority?, deadline?, tags?, relatedPaperId? }` | `{ id }` | Creates task. |
+| 30 | `rc.task.update` | `{ id, fields }` | `{ ok }` | Partial update. |
+| 31 | `rc.task.complete` | `{ id, summary? }` | `{ ok }` | Sets status to done. |
+| 32 | `rc.task.delete` | `{ id }` | `{ ok }` | Soft delete. |
+| 33 | `rc.task.upcoming` | `{ days?, limit? }` | `{ tasks: Task[] }` | Tasks due within N days. |
+| 34 | `rc.task.overdue` | `{ limit? }` | `{ tasks: Task[] }` | Tasks past deadline. |
+| 35 | `rc.task.link` | `{ taskId, paperId }` | `{ ok }` | Links task to paper. |
+| 36 | `rc.task.notes.add` | `{ taskId, content }` | `{ noteId }` | Appends note. |
 
-### 6.3 Workspace RPC Methods (6)
+### 6.3 Workspace RPC Methods (7)
 
 Namespace: `rc.ws.*`. Defined in `src/ws/rpc.ts`. Canonical schemas in doc `03c`.
+`rc.ws.upload` is HTTP POST (see §7); listed here for namespace completeness but not
+registered via `registerGatewayMethod`.
 
 | # | Method | Params | Returns | Notes |
 |---|--------|--------|---------|-------|
-| 27 | `rc.ws.list` | `{ directory?, pattern?, recursive? }` | `{ files: FileEntry[] }` | Glob listing. |
-| 28 | `rc.ws.read` | `{ path, version? }` | `{ content, version }` | File contents. |
-| 29 | `rc.ws.save` | `{ path, content, message? }` | `{ version }` | Write + optional commit. |
-| 30 | `rc.ws.diff` | `{ path, from?, to? }` | `{ diff }` | Unified diff. |
-| 31 | `rc.ws.history` | `{ path?, limit? }` | `{ entries: HistoryEntry[] }` | Git log. |
-| 32 | `rc.ws.restore` | `{ path, version }` | `{ ok }` | Checkout + commit. |
+| 37 | `rc.ws.tree` | `{ directory?, pattern?, recursive? }` | `{ files: FileEntry[] }` | Directory tree listing. |
+| 38 | `rc.ws.read` | `{ path, version? }` | `{ content, version }` | File contents. |
+| 39 | `rc.ws.history` | `{ path?, limit? }` | `{ entries: HistoryEntry[] }` | Git log. |
+| 40 | `rc.ws.diff` | `{ path, from?, to? }` | `{ diff }` | Unified diff. |
+| 41 | `rc.ws.restore` | `{ path, version }` | `{ ok }` | Checkout + commit. |
+| 42 | `rc.ws.upload` | -- | -- | **HTTP POST only** (see §7). Not a WS RPC method. |
+| 43 | `rc.ws.save` | `{ path, content, message? }` | `{ version }` | Write + optional commit. |
 
 ### 6.4 Cron Preset RPC Methods (3)
 
@@ -486,9 +499,13 @@ pre-configured cron job templates for common research workflows.
 
 | # | Method | Params | Returns | Notes |
 |---|--------|--------|---------|-------|
-| 33 | `rc.cron.presets.list` | `{}` | `{ presets: CronPreset[] }` | Returns all available presets with descriptions. |
-| 34 | `rc.cron.presets.get` | `{ id }` | `CronPreset` | Single preset with full config. |
-| 35 | `rc.cron.presets.apply` | `{ id, overrides? }` | `{ cronJobId }` | Creates a cron job from the preset template. |
+| 44 | `rc.cron.presets.list` | `{}` | `{ presets: CronPreset[] }` | Returns all available presets with descriptions. |
+| 45 | `rc.cron.presets.activate` | `{ id, overrides? }` | `{ cronJobId }` | Activates a preset cron job. |
+| 46 | `rc.cron.presets.deactivate` | `{ id }` | `{ ok }` | Deactivates a preset cron job. |
+
+**Total: 46 RPC methods** (26 lit + 10 task + 7 ws + 3 cron). Note: `rc.ws.upload` (#42) is
+HTTP POST only (see §7) -- it is listed for namespace completeness but is not registered as
+a gateway RPC method.
 
 ### RPC Registration Pattern
 
@@ -519,7 +536,7 @@ export function registerLitRpc(api: OpenClawPluginApi, db: DbService): void {
     return addPaper(conn, params.paper);
   });
 
-  // ... remaining 15 methods follow identical pattern
+  // ... remaining 23 methods follow identical pattern
 }
 ```
 
@@ -1590,7 +1607,7 @@ Summary of `OpenClawPluginApi` methods used by this plugin. Full reference in do
 | Method | Signature | Usage in This Plugin |
 |--------|-----------|---------------------|
 | `registerTool` | `(tool: ToolDefinition, opts?: ToolOpts) => void` | 24 calls (12 lit + 6 task + 6 ws) |
-| `registerGatewayMethod` | `(method: string, handler: RpcHandler) => void` | 35 calls across 4 namespaces |
+| `registerGatewayMethod` | `(method: string, handler: RpcHandler) => void` | 46 calls across 4 namespaces |
 | `registerHttpRoute` | `(params: HttpRouteParams) => void` | 1 call (file upload) |
 | `registerService` | `(service: ServiceDefinition) => void` | 1 call (research-claw-db) |
 | `on` | `(hookName: HookName, handler: HookHandler) => void` | 6 calls |

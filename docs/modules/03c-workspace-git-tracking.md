@@ -9,7 +9,7 @@
 | **Status** | Draft |
 | **Depends on** | `02` (Engineering Architecture — HTTP route registration, RPC protocol) |
 | **Consumed by** | `03b` (task-file linking), `03e` (WorkspacePanel component), `03f` (plugin aggregation) |
-| **Namespace** | `rc.ws.*` (6 RPC methods) |
+| **Namespace** | `rc.ws.*` (7 RPC methods) |
 | **Agent tools** | 6 (`workspace_save`, `workspace_read`, `workspace_list`, `workspace_diff`, `workspace_history`, `workspace_restore`) |
 | **HTTP routes** | 1 (`POST /rc/upload`) |
 
@@ -528,6 +528,8 @@ interface RcWsRestoreResult {
 
 ### 4.6 `rc.ws.upload`
 
+> Note: rc.ws.upload is an HTTP POST endpoint (see §5), not a WS RPC method.
+
 Handle a file uploaded via the HTTP endpoint. Called internally after the HTTP
 handler receives and validates the multipart upload.
 
@@ -555,6 +557,13 @@ interface RcWsUploadResult {
 - If a file with the same name already exists, append a numeric suffix:
   `smith2024.pdf` -> `smith2024_1.pdf`.
 - Auto-commit with message: `Upload: <filename> to <destination>`.
+
+### 4.7 `rc.ws.save`
+
+Write content to a workspace file with optional auto-commit.
+
+- **Params:** `{ path: string, content: string, message?: string }`
+- **Returns:** `{ path: string, size: number, committed: boolean }`
 
 ---
 
@@ -1164,7 +1173,7 @@ All errors follow the JSON-RPC error object format. Codes in the -32000 to
 | `03b` — Task System | Tasks can link to workspace files via `task_link` tool. The `resource_type: 'file'` + `resource_id: <workspace_path>` pattern connects tasks to outputs. |
 | `03e` — Dashboard UI | `WorkspacePanel` component consumes `rc.ws.tree`, `rc.ws.read`, `rc.ws.history`. Timeline component defined in section 6 of this document is rendered inside `WorkspacePanel`. |
 | `03d` — Message Card Protocol | The `file_card` message card type renders a workspace file preview in the chat. It uses `FileEntry` fields for display. |
-| `03f` — Plugin Aggregation | All 6 agent tools and 6 RPC methods are registered in the `research-claw-core` plugin's `activate()` function. |
+| `03f` — Plugin Aggregation | All 6 agent tools and 7 RPC methods are registered in the `research-claw-core` plugin's `activate()` function. |
 | `04` — Prompt Design | `AGENTS.md` instructs the agent to use `workspace_save` for all file outputs and to prefer the `outputs/` subtree for generated content. |
 
 ---

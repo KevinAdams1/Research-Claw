@@ -244,7 +244,21 @@ CREATE TRIGGER IF NOT EXISTS rc_papers_au AFTER UPDATE ON rc_papers BEGIN
 END;
 ```
 
-### 2.10 Indexes
+### 2.10 `rc_paper_notes`
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | TEXT | PK | ULID |
+| `paper_id` | TEXT | FK→rc_papers, NOT NULL | Parent paper |
+| `content` | TEXT | NOT NULL | Note body (Markdown) |
+| `page` | INTEGER | | PDF page reference (nullable) |
+| `highlight` | TEXT | | Highlighted text (nullable) |
+| `created_at` | TEXT | NOT NULL DEFAULT (datetime('now')) | Creation timestamp |
+
+Indexes:
+- `idx_paper_notes_paper` ON `rc_paper_notes(paper_id)`
+
+### 2.11 Indexes
 
 ```sql
 CREATE INDEX IF NOT EXISTS idx_rc_papers_doi       ON rc_papers(doi);
@@ -272,7 +286,7 @@ CREATE INDEX IF NOT EXISTS idx_rc_collection_papers_collection
   ON rc_collection_papers(collection_id);
 ```
 
-### 2.11 Schema Version Table
+### 2.12 Schema Version Table
 
 ```sql
 CREATE TABLE IF NOT EXISTS rc_schema_version (
@@ -283,7 +297,7 @@ CREATE TABLE IF NOT EXISTS rc_schema_version (
 
 Current schema version: **1**.
 
-### 2.12 PRAGMA Settings
+### 2.13 PRAGMA Settings
 
 Applied on every connection open:
 
@@ -1320,6 +1334,46 @@ Type.Object({
 2. **arXiv ID exact match**: `WHERE arxiv_id = ?` -- confidence 1.0
 3. **Title exact match**: `WHERE LOWER(title) = LOWER(?)` -- confidence 0.95
 4. **Title fuzzy match**: FTS5 `MATCH` on title -- confidence 0.5-0.9 based on rank
+
+### 5.19 `rc.lit.batch_add`
+Batch add multiple papers.
+- **Params:** `{ papers: Array<{doi?: string, title?: string, bibtex?: string}> }`
+- **Returns:** `{ added: number, duplicates: number, errors: Array<{index: number, reason: string}> }`
+
+### 5.20 `rc.lit.import_bibtex`
+Import papers from BibTeX string or file content.
+- **Params:** `{ bibtex: string }`
+- **Returns:** `{ imported: number, skipped: number }`
+
+### 5.21 `rc.lit.export_bibtex`
+Export selected papers as BibTeX.
+- **Params:** `{ paperIds?: string[], tag?: string, collection?: string, all?: boolean }`
+- **Returns:** `{ bibtex: string, count: number }`
+
+### 5.22 `rc.lit.collections.list`
+List all collections with paper counts.
+- **Params:** `{}`
+- **Returns:** `{ collections: Array<{id, name, description, paperCount, createdAt}> }`
+
+### 5.23 `rc.lit.collections.manage`
+Create, update, or delete a collection.
+- **Params:** `{ action: "create"|"update"|"delete", id?: string, name?: string, description?: string }`
+- **Returns:** `{ id: string, action: string }`
+
+### 5.24 `rc.lit.notes.list`
+List notes for a paper.
+- **Params:** `{ paperId: string }`
+- **Returns:** `{ notes: Array<{id, content, page, highlight, createdAt}> }`
+
+### 5.25 `rc.lit.notes.add`
+Add a note to a paper.
+- **Params:** `{ paperId: string, content: string, page?: number, highlight?: string }`
+- **Returns:** `{ id: string }`
+
+### 5.26 `rc.lit.notes.delete`
+Delete a note.
+- **Params:** `{ noteId: string }`
+- **Returns:** `{ deleted: true }`
 
 ---
 

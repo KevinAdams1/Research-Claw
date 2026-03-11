@@ -9,7 +9,7 @@
 | Version     | 1.0                                       |
 | Depends on  | `02` (engineering architecture), `03a` (literature library) |
 | Depended by | `03d` (task_card type), `03f` (plugin aggregation), `04` (HEARTBEAT.md) |
-| Defines     | `rc_tasks`, `rc_activity_log` tables; 6 agent tools; 8 `rc.task.*` RPC; 3 `rc.cron.presets.*` RPC |
+| Defines     | `rc_tasks`, `rc_activity_log` tables; 6 agent tools; 10 `rc.task.*` RPC; 3 `rc.cron.presets.*` RPC |
 
 ---
 
@@ -344,7 +344,7 @@ export const TOOL_TASK_NOTE = {
 
 ## 5. Plugin RPC Methods
 
-Eight methods under `rc.task.*`, called via gateway WebSocket (protocol in `02`).
+Ten methods under `rc.task.*`, called via gateway WebSocket (protocol in `02`).
 
 ### 5.1 `rc.task.list`
 
@@ -412,7 +412,17 @@ WHERE status NOT IN ('done','cancelled')
 ORDER BY deadline ASC;
 ```
 
-### 5.9 Error Codes
+### 5.9 `rc.task.link`
+Link a task to a paper.
+- **Params:** `{ taskId: string, paperId: string }`
+- **Returns:** `{ linked: true }`
+
+### 5.10 `rc.task.notes.add`
+Add a note to a task.
+- **Params:** `{ taskId: string, content: string }`
+- **Returns:** `{ id: string }`
+
+### 5.11 Error Codes
 
 | Code     | Meaning                     | Used by                         |
 |----------|----------------------------|---------------------------------|
@@ -648,7 +658,7 @@ export function validateTransition(from: TaskStatus, to: TaskStatus): void {
 
 - `rc_tasks` and `rc_activity_log` table schemas
 - 6 agent tools: `task_create`, `task_list`, `task_complete`, `task_update`, `task_link`, `task_note`
-- 8 RPC methods: `rc.task.{list,get,create,update,complete,delete,upcoming,overdue}`
+- 10 RPC methods: `rc.task.{list,get,create,update,complete,delete,upcoming,overdue,link,notes.add}`
 - 3 RPC methods: `rc.cron.presets.{list,activate,deactivate}`
 - Status state machine (transitions + side effects)
 - 3 cron presets: `arxiv_daily_scan`, `citation_tracking_weekly`, `deadline_reminders_daily`

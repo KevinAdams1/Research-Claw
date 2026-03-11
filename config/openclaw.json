@@ -56,7 +56,13 @@
       "workspace_list",
       "workspace_diff",
       "workspace_history",
-      "workspace_restore"
+      "workspace_restore",
+      "library_batch_add",
+      "library_manage_collection",
+      "library_tag_paper",
+      "library_add_note",
+      "library_import_bibtex",
+      "library_citation_graph"
     ]
   },
   "agents": {

@@ -56,7 +56,10 @@
       "task_update", "task_link", "task_note",
       // Workspace tools
       "workspace_save", "workspace_read", "workspace_list",
-      "workspace_diff", "workspace_history", "workspace_restore"
+      "workspace_diff", "workspace_history", "workspace_restore",
+      // Extended tools (batch, collection, annotation, citation graph)
+      "library_batch_add", "library_manage_collection", "library_tag_paper",
+      "library_add_note", "library_import_bibtex", "library_citation_graph"
     ]
   },
 

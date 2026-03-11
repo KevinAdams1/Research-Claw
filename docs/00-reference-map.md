@@ -21,8 +21,13 @@
 | 04 | `docs/04-prompt-design-framework.md` | 1561 | Bootstrap file system | 02 |
 | 05 | `docs/05-plugin-integration-guide.md` | 2151 | Plugin development guide | 02 |
 | 06 | `docs/06-install-startup-design.md` | 1818 | Scripts & deployment | 02 |
+| S1 | `docs/sop/01-dashboard-dev-sop.md` | — | Dashboard development SOP & operation log | 01, 03d, 03e |
+| S2 | `docs/sop/02-modules-dev-sop.md` | — | Plugin modules development SOP & operation log | 03a–03f |
+| S3 | `docs/sop/03-plugin-integration-sop.md` | — | Plugin ecosystem integration SOP | 05 |
+| S4 | `docs/sop/04-prompt-behavior-sop.md` | — | Prompt/bootstrap development SOP | 04 |
+| S5 | `docs/sop/CHANGELOG.md` | — | Global operation log (all tracks) | All |
 
-**Total:** ~17,534 lines across 12 documents.
+**Total:** ~17,534 lines across 12 design documents + 5 SOP documents.
 
 ---
 
@@ -85,18 +90,19 @@
 | `rc_reading_sessions` | 03a §2.7 | Reading time tracking |
 | `rc_citations` | 03a §2.8 | Inter-paper citation links |
 | `rc_papers_fts` | 03a §2.9 | FTS5 virtual table on papers |
+| `rc_paper_notes` | 03a §2.10 | Annotation notes on papers |
 | `rc_tasks` | 03b §2 | Task items (deadline-sorted) |
 | `rc_activity_log` | 03b §2 | Event tracking / audit log |
 
-All tables prefixed `rc_` to avoid collision with OpenClaw internals. Database located at `.research-claw/library.db` (configured in `openclaw.json`).
+All tables prefixed `rc_` to avoid collision with OpenClaw internals. Database located at `.research-claw/library.db` (configured in `openclaw.json`). **12 tables total.**
 
 ### 3.2 RPC Methods (Custom `rc.*` Namespace)
 
 | Namespace | Count | Defining Doc | Notes |
 |-----------|------:|-------------|-------|
-| `rc.lit.*` | 18 | 03a §4 | Literature CRUD, search, tags, reading sessions, citations |
-| `rc.task.*` | 8 | 03b §4 | Task CRUD, complete, upcoming, overdue |
-| `rc.ws.*` | 6 | 03c §4 | Workspace tree, read, history, diff, restore, upload |
+| `rc.lit.*` | 26 | 03a §5 | Literature CRUD, search, tags, reading sessions, citations, notes, collections, batch/import/export |
+| `rc.task.*` | 10 | 03b §5 | Task CRUD, complete, upcoming, overdue, link, notes |
+| `rc.ws.*` | 7 | 03c §4 | Workspace tree, read, history, diff, restore, save (+ HTTP upload) |
 | `rc.cron.*` | 3 | 03b §5 | Cron preset list, activate, deactivate |
 
 **Full RPC method list** (canonical names from module docs):
@@ -107,12 +113,17 @@ rc.lit.delete        rc.lit.status        rc.lit.rate          rc.lit.tags
 rc.lit.tag           rc.lit.untag         rc.lit.reading.start rc.lit.reading.end
 rc.lit.reading.list  rc.lit.cite          rc.lit.citations     rc.lit.stats
 rc.lit.search        rc.lit.duplicate_check
+rc.lit.batch_add     rc.lit.import_bibtex rc.lit.export_bibtex
+rc.lit.collections.list  rc.lit.collections.manage
+rc.lit.notes.list    rc.lit.notes.add     rc.lit.notes.delete
 
 rc.task.list         rc.task.get          rc.task.create       rc.task.update
 rc.task.complete     rc.task.delete       rc.task.upcoming     rc.task.overdue
+rc.task.link         rc.task.notes.add
 
 rc.ws.tree           rc.ws.read           rc.ws.history        rc.ws.diff
-rc.ws.restore        rc.ws.upload
+rc.ws.restore        rc.ws.save
+(rc.ws.upload is HTTP POST, not WS RPC — see §3.6)
 
 rc.cron.presets.list rc.cron.presets.activate rc.cron.presets.deactivate
 ```
@@ -146,7 +157,7 @@ rc.cron.presets.list rc.cron.presets.activate rc.cron.presets.deactivate
 | `workspace_history` | 03c §3 | Show file edit history |
 | `workspace_restore` | 03c §3 | Restore previous file version |
 
-**Config `tools.alsoAllow`** lists 18 base tools. Additional tools (batch_add, manage_collection, etc.) are defined in module docs and registered by the plugin but may require explicit allowlisting during implementation.
+**Config `tools.alsoAllow`** lists 24 tools (18 base + 6 extended: `library_batch_add`, `library_manage_collection`, `library_tag_paper`, `library_add_note`, `library_import_bibtex`, `library_citation_graph`).
 
 ### 3.4 Message Card Types
 
@@ -266,4 +277,4 @@ Finalized decisions that all docs must respect:
 
 ---
 
-*Generated: 2026-03-11 | OpenClaw: 2026.3.9 | Protocol: v3 | Files: 105 | Docs: 17,534 lines*
+*Updated: 2026-03-11 | OpenClaw: 2026.3.9 | Protocol: v3 | RPC: 46 methods | Tables: 12 | Tools: 24 | Cards: 7*
