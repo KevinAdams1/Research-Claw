@@ -209,8 +209,8 @@ Four layers of defense-in-depth. The first three are hard constraints enforced i
 │      native read = unrestricted (papers/code)│
 ├──────────────────────────────────────────────┤
 │  L3  Exec Guard  (before_tool_call hook)     │
-│      block: rm -rf / · dd of=/dev/ · fork   │
-│      allow: python · git · npm · single rm  │
+│      block: rm -rf / · dd of=/dev/ · fork    │
+│      allow: python · git · npm · single rm   │
 ├──────────────────────────────────────────────┤
 │  L4  Git Versioning                          │
 │      auto-commit all workspace changes       │
@@ -304,7 +304,7 @@ Join our community on Xiaohongshu (小红书)
 
 ## License
 
-[BSL 1.1](LICENSE) — Free for personal and academic research use. Commercial use requires a separate license from [Wentor AI](https://wentor.ai) (team@wentor.ai). Converts to Apache 2.0 on 2030-03-12.
+[BSL 1.1](LICENSE) — Free for personal and academic research use. Commercial use requires a separate license from [Wentor AI](https://wentor.ai) (help@wentor.ai). Converts to Apache 2.0 on 2030-03-12.
 
 ---
 
