@@ -304,7 +304,7 @@ research-claw/
 
 ## 许可证
 
-[BSL 1.1](LICENSE) — 个人及学术研究免费使用。商业用途需单独授权，联系 [team@wentor.ai](mailto:team@wentor.ai)。2030-03-12 自动转为 Apache 2.0 开源。
+[BSL 1.1](LICENSE) — 个人及学术研究免费使用。商业用途需单独授权，联系 [team@wentor.ai](mailto:help@wentor.ai)。2030-03-12 自动转为 Apache 2.0 开源。
 
 ---
 
