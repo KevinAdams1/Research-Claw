@@ -10,12 +10,18 @@ AI-powered local academic research assistant — an [OpenClaw](https://openclaw.
 - pnpm >= 9.0
 - git
 
-### Install
+### One-Click Install (macOS / Linux)
 
 ```bash
-git clone https://github.com/wentorai/research-claw.git
-cd research-claw
-pnpm install
+curl -fsSL https://wentor.ai/install.sh | bash
+```
+
+### Manual Install
+
+```bash
+git clone https://github.com/wentorai/Research-Claw.git
+cd Research-Claw
+pnpm install && pnpm build
 ```
 
 ### Setup
