@@ -162,7 +162,7 @@ openclaw plugins install @wentorai/research-plugins
 │   L0  workspace/                  L2  dashboard/                    │
 │       ├─ SOUL.md                      React 18 + Vite 6             │
 │       ├─ AGENTS.md                    Ant Design 5 + Zustand 5      │
-│       ├─ TOOLS.md                     21 卡片类型 · 6 面板           │
+│       ├─ TOOLS.md                     21 卡片类型 · 6 面板            │
 │       ├─ HEARTBEAT.md                 WebSocket RPC v3 客户端        │
 │       └─ (8 bootstrap files)          245 i18n keys (EN + ZH-CN)    │
 │                                             │                       │
@@ -198,28 +198,28 @@ openclaw plugins install @wentorai/research-plugins
 四层纵深防御，前三层为代码级硬约束：
 
 ```
-┌──────────────────────────────────────────────┐
-│  L1  网络隔离                                 │
-│      loopback only · 无远程端口暴露           │
-│      无 telemetry · 无云端回传                │
-├──────────────────────────────────────────────┤
-│  L2  Workspace 沙箱                           │
-│      原生 write/edit 工具由 config 层禁用      │
-│      插件写文件 = 强制路径校验（拒绝 ../）    │
-│      原生 read 保持开放（可读论文/代码）       │
-├──────────────────────────────────────────────┤
-│  L3  命令执行防护（before_tool_call hook）    │
-│      拦截：rm -rf / · dd of=/dev/ · fork bomb │
-│      放行：python · git · npm · 单文件 rm     │
-├──────────────────────────────────────────────┤
-│  L4  Git 版本控制备份                         │
-│      workspace 变更自动提交（5s debounce）    │
-│      纯本地 · 无 push · 支持全历史回滚        │
-├──────────────────────────────────────────────┤
-│  L+  提示词级协议（软约束）                   │
-│      SOUL.md：禁止伪造引用/数据               │
-│      AGENTS.md：不可逆操作需 Human-in-Loop    │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────
+│  L1  网络隔离                                 
+│      loopback only · 无远程端口暴露            
+│      无 telemetry · 无云端回传                 
+├──────────────────────────────────────────────
+│  L2  Workspace 沙箱                           
+│      原生 write/edit 工具由 config 层禁用       
+│      插件写文件 = 强制路径校验（拒绝 ../）        
+│      原生 read 保持开放（可读论文/代码）         
+├──────────────────────────────────────────────
+│  L3  命令执行防护（before_tool_call hook）      
+│      拦截：rm -rf / · dd of=/dev/ · fork bomb 
+│      放行：python · git · npm · 单文件 rm      
+├──────────────────────────────────────────────
+│  L4  Git 版本控制备份                          
+│      workspace 变更自动提交（5s debounce）      
+│      纯本地 · 无 push · 支持全历史回滚           
+├──────────────────────────────────────────────
+│  L+  提示词级协议（软约束）                     
+│      SOUL.md：禁止伪造引用/数据                 
+│      AGENTS.md：不可逆操作需 Human-in-Loop     
+└──────────────────────────────────────────────
 ```
 
 ---
