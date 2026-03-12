@@ -1,134 +1,185 @@
-# Research-Claw 科研龙虾
+<div align="center">
 
-AI-powered local academic research assistant — an [OpenClaw](https://openclaw.ai) satellite.
+<img src="assets/logo.png" width="200" alt="科研龙虾 · Research-Claw" />
 
-## Quick Start
+# 科研龙虾 · Research-Claw
 
-### Prerequisites
+**本地 AI 科研助手 — 数据不离机，算力不上云**
 
-- Node.js >= 22.12
-- pnpm >= 9.0
-- git
+[![Version](https://img.shields.io/badge/version-v0.1.0-EF4444?style=flat-square&logo=github)](https://github.com/wentorai/Research-Claw/releases)
+[![License](https://img.shields.io/badge/license-BSL_1.1-3B82F6?style=flat-square)](LICENSE)
+[![Node](https://img.shields.io/badge/Node.js-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![Platform](https://img.shields.io/badge/platform-macOS_%7C_Linux-lightgrey?style=flat-square)](#)
+[![Skills](https://img.shields.io/badge/skills-487-EF4444?style=flat-square)](https://www.npmjs.com/package/@wentorai/research-plugins)
 
-### One-Click Install (macOS / Linux)
+[🌐 wentor.ai](https://wentor.ai) · [🇬🇧 English](README.en.md) · [📖 文档](docs/00-reference-map.md) · [🪲 问题反馈](https://github.com/wentorai/Research-Claw/issues)
+
+</div>
+
+---
 
 ```bash
 curl -fsSL https://wentor.ai/install.sh | bash
 ```
 
-### Manual Install
+> **同一条命令，三种场景：首次安装 · 版本更新 · 重新启动**
+> 首次运行：克隆仓库 → 安装依赖 → 构建 → 注册技能 → 打开浏览器
+> 再次运行：`git pull` → 重新构建 → 重启（自动踢掉旧进程）
+>
+> Windows 用户 → [手动安装指南](docs/WINDOWS_INSTALL.md)（推荐 WSL2）
+
+---
+
+## 这是什么
+
+科研龙虾是一个完全运行在你本机的 AI 学术研究助手。它整合了全球主流学术数据库的检索、文献管理、任务追踪和写作辅助，通过自然语言对话驱动整个科研工作流。
+
+**你的论文库、笔记、研究数据，全部保存在你自己的机器上。不需要账号，不需要联网，不需要信任任何云服务。**
+
+---
+
+## 核心能力
+
+| 模块 | 功能 |
+|:--|:--|
+| **文献管理** | 本地全文检索（SQLite + FTS5）· BibTeX / RIS / CSV 导入导出 · 引用图谱 · 阅读统计 |
+| **学术检索** | Semantic Scholar · arXiv · OpenAlex · CrossRef · PubMed · Unpaywall（13 个 API）|
+| **任务系统** | 截止日期追踪 · 四级优先级 · 48h 预警通知 · 任务与文献双向关联 |
+| **研究雷达** | 关键词 / 作者 / 期刊监控 · 定时扫描 · Dashboard 新论文推送 |
+| **工作区** | Git 追踪文件操作 · 版本历史回溯 · 沙箱路径隔离 |
+| **技能生态** | 487 个学术技能 · 13 个 Agent 工具 · 150 个 MCP 配置 |
+
+---
+
+## 架构设计
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Research-Claw                               │
+│                                                                     │
+│   L0  workspace/                  L2  dashboard/                    │
+│       ├─ SOUL.md                      React 18 + Vite 6             │
+│       ├─ AGENTS.md                    Ant Design 5 + Zustand 5      │
+│       ├─ TOOLS.md                     21 卡片类型 · 6 面板           │
+│       ├─ HEARTBEAT.md                 WebSocket RPC v3 客户端        │
+│       └─ (8 bootstrap files)          245 i18n keys (EN + ZH-CN)    │
+│                                             │                       │
+│   L1  extensions/                           │ ws://127.0.0.1:28789  │
+│       └─ research-claw-core                 │                       │
+│          ├─ 28 tools                        │                       │
+│          ├─ 52 WS RPC interfaces            │                       │
+│          └─ 13 SQLite tables + FTS5         ▼                       │
+│       ╔═══════════════════════════════════════════════════╗         │
+│       ║           OpenClaw  (npm dependency)              ║         │
+│       ║         Gateway · WS RPC v3 · Port 28789          ║         │
+│       ╚═══════════════════════════════════════════════════╝         │
+│                              │                                      │
+│   L3  patches/               ▼                                      │
+│       ~20 lines · 7 files    @wentorai/research-plugins             │
+│                              487 skills · 13 tools · 150 MCP        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 核心设计决策
+
+| 决策 | 原因 |
+|:--|:--|
+| **Satellite 而非 Fork** | OpenClaw 作为 npm 依赖引入，上游可随时升级，耦合面控制在 ~20 行 pnpm patch |
+| **4 层耦合，从外到内** | L0 文件系统 → L1 插件 SDK → L2 WS RPC → L3 patch，每层独立，可单独替换 |
+| **本地优先** | SQLite + WAL 模式，无需数据库服务，断网可完整运行 |
+| **技能 > 裸提示词** | 487 个 SKILL.md 结构化封装学术场景，可按研究方向安装/卸载 |
+| **端口与上游错开** | 28789（科研龙虾）vs 18789（OpenClaw 默认），两者可并存 |
+| **浏览器配置一切** | 无需编辑配置文件，所有设置通过 Setup Wizard 在浏览器完成 |
+
+---
+
+## 快速上手
+
+### 系统要求
+
+- macOS（Intel / Apple Silicon）或 Linux
+- Git（install 脚本会自动安装）
+- Node.js >= 22（install 脚本会自动安装，使用 fnm）
+- LLM API Key（推荐 Anthropic Claude 或 OpenAI）
+
+### 安装与启动
 
 ```bash
+# 方式一：一键安装（推荐）
+curl -fsSL https://wentor.ai/install.sh | bash
+
+# 方式二：手动安装
 git clone https://github.com/wentorai/Research-Claw.git
 cd Research-Claw
 pnpm install && pnpm build
-```
-
-### Setup
-
-```bash
-pnpm setup
-# Follow prompts to configure your API key and preferences
-```
-
-### Start
-
-```bash
 pnpm start
-# Dashboard: http://127.0.0.1:28789
 ```
 
-### Build
+安装完成后浏览器自动打开 `http://127.0.0.1:28789`，在 **Setup Wizard** 中配置 API Key，无需编辑任何配置文件。
+
+### 常用命令
 
 ```bash
-pnpm install && pnpm build && pnpm start
+pnpm start          # 启动（不更新）
+pnpm dev            # 开发模式（Dashboard: localhost:5175）
+pnpm test           # 运行单元测试
+pnpm health         # 检查运行状态
+pnpm backup         # 备份数据库
 ```
 
-### Development
+### 更新
 
 ```bash
-pnpm dev
-# Dashboard dev server: http://localhost:5175
-# Gateway: http://127.0.0.1:28789
+# 重新执行安装脚本即可（自动 git pull + 重新构建）
+curl -fsSL https://wentor.ai/install.sh | bash
 ```
 
-### Test
+---
 
-```bash
-cd dashboard && npx vitest run      # Unit tests
-cd dashboard && npx tsc --noEmit    # Type check
-```
-
-## Project Structure
+## 项目结构
 
 ```
 research-claw/
-├── config/                  # OpenClaw configuration overlay
-│   ├── openclaw.json        # Active config (gitignored if contains secrets)
-│   └── openclaw.example.json
-├── dashboard/               # React + Vite + Ant Design 5 dashboard
-│   ├── src/
-│   │   ├── components/      # UI components (TopBar, LeftNav, ChatView, panels, cards)
-│   │   ├── gateway/         # WebSocket RPC v3 client + hooks
-│   │   ├── i18n/            # en.json + zh-CN.json locale files
-│   │   ├── stores/          # Zustand stores (chat, config, ui, tasks, library, sessions)
-│   │   ├── styles/          # Theme tokens + global CSS
-│   │   └── types/           # Card type definitions
-│   └── vite.config.ts
-├── extensions/              # OpenClaw plugin scaffolds
-├── patches/                 # pnpm patch for branding (~20 lines)
-├── scripts/                 # install, setup, build, branding scripts
-├── skills/                  # SKILL.md files
-└── workspace/               # Bootstrap files (SOUL.md, AGENTS.md, etc.)
+├── config/           # OpenClaw 配置覆盖层
+│   ├── openclaw.example.json
+│   └── openclaw.json          (gitignored)
+├── dashboard/        # React + Vite Dashboard
+│   └── src/
+│       ├── components/        # TopBar, LeftNav, ChatView, panels, cards
+│       ├── gateway/           # WS RPC v3 client + hooks
+│       ├── i18n/              # en.json + zh-CN.json
+│       ├── stores/            # Zustand stores × 7
+│       └── types/             # 21 Card type definitions
+├── extensions/
+│   └── research-claw-core/    # 28 tools · 52 RPC · 13 tables
+├── patches/                   # pnpm patch (~20 lines, 7 files)
+├── scripts/                   # install / health / backup / sync
+├── skills/                    # 自定义 SKILL.md 文件
+└── workspace/                 # Bootstrap files (SOUL.md, AGENTS.md …)
 ```
 
-## Configuration
+---
 
-Edit `config/openclaw.json` to customize:
+## 社区
 
-- **provider** / **model** / **apiKey** — LLM provider settings
-- **gateway.port** — WebSocket gateway port (default: 28789)
-- **proxy** — HTTP proxy for API calls
-- **plugins** — Enabled plugin list
+<div align="center">
 
-Copy from template: `cp config/openclaw.example.json config/openclaw.json`
+扫码加入**科研龙虾 · WentorOS** 小红书群聊
 
-## Architecture
+<img src="assets/community-qr.jpg" width="260" alt="小红书社群二维码" />
 
-```
-┌─────────────────────────────────────────────────┐
-│                Research-Claw                     │
-│                                                  │
-│  ┌──────────┐  ┌─────────────┐  ┌────────────┐ │
-│  │ Bootstrap │  │  Dashboard   │  │  Plugin    │ │
-│  │  Files    │  │  React+Vite  │  │  research- │ │
-│  │ (L0)      │  │  (L2)        │  │  claw-core │ │
-│  └─────┬─────┘  └──────┬──────┘  │  (L1)      │ │
-│        │               │         └──────┬─────┘ │
-│        ▼               ▼                ▼       │
-│  ┌──────────────────────────────────────────┐   │
-│  │           OpenClaw (npm dep)             │   │
-│  │     Gateway WS RPC v3 · Port 28789      │   │
-│  └──────────────────────────────────────────┘   │
-│        │                                         │
-│  ┌─────┴─────┐                                  │
-│  │ pnpm patch │  ~20 lines, 7 files (L3)       │
-│  └───────────┘                                   │
-└─────────────────────────────────────────────────┘
-```
+[wentor.ai](https://wentor.ai) · [GitHub Issues](https://github.com/wentorai/Research-Claw/issues)
 
-**Coupling Tiers:**
-- **L0** — Filesystem: bootstrap files, skills, config overlay
-- **L1** — Plugin SDK: tools, RPC methods, hooks, services
-- **L2** — WS RPC: Dashboard communicates via gateway WebSocket
-- **L3** — pnpm patch: minimal branding changes (~20 lines)
+</div>
 
-## Documentation
+---
 
-See [`docs/00-reference-map.md`](docs/00-reference-map.md) for the complete documentation index.
+## 许可证
 
-## License
+[BSL 1.1](LICENSE) — 个人及学术研究免费使用。商业用途需单独授权，联系 [team@wentor.ai](mailto:team@wentor.ai)。2030-03-12 自动转为 Apache 2.0 开源。
 
-[BSL 1.1](LICENSE) — Free for personal and academic research use.
-Commercial use requires a separate license from [Wentor AI](https://wentor.ai).
-Converts to Apache 2.0 on 2030-03-12.
+---
+
+<div align="center">
+<sub>Built with ❤️ by <a href="https://wentor.ai">Wentor AI</a></sub>
+</div>
