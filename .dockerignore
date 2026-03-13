@@ -1,0 +1,31 @@
+# Dependencies — reinstalled fresh in image
+node_modules
+**/node_modules
+
+# Build outputs — rebuilt in image
+dashboard/dist
+extensions/*/dist
+
+# User config — volume-mounted at runtime (template is kept separately)
+config/openclaw.json
+
+# User data — volume-mounted at runtime
+.research-claw
+workspace/.openclaw
+workspace/memory
+workspace/sources
+workspace/skills_collection
+workspace/*.csv
+workspace/*.bib
+workspace/*.json
+
+# Git
+.git
+.gitignore
+
+# Secrets / env
+.env
+
+# Misc
+*.log
+test/

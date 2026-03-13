@@ -45,8 +45,8 @@
           "heartbeatDeadlineWarningHours": 48            // [configurable] Hours before deadline warning
         }
       },
-      "wentor-connect": {
-        "enabled": false           // PLACEHOLDER — enable after MVP
+      "research-plugins": {
+        "enabled": true
       }
     }
   },
