@@ -1,32 +1,39 @@
 #!/usr/bin/env bash
 # Update OpenClaw dependency and re-apply branding patch
-#
-# Full logic defined in docs/06-install-startup-design.md
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+
 echo "=== Syncing upstream OpenClaw ==="
+
+OLD_VERSION=$(node -e "console.log(require('./node_modules/openclaw/package.json').version)")
+echo "Current OpenClaw version: $OLD_VERSION"
 
 # 1. Update openclaw to latest
 pnpm update openclaw
 
-# 2. Check if patch still applies
-echo "Checking patch compatibility..."
 NEW_VERSION=$(node -e "console.log(require('./node_modules/openclaw/package.json').version)")
 echo "New OpenClaw version: $NEW_VERSION"
 
-# 3. Re-apply branding if version changed
-# TODO: Regenerate patch if needed
+# 2. Check if patch still applies
+if [ "$OLD_VERSION" != "$NEW_VERSION" ]; then
+  echo "Version changed — checking if branding patch needs regeneration..."
+  PATCH_FILE="patches/openclaw@${OLD_VERSION}.patch"
+  if [ -f "$PATCH_FILE" ]; then
+    echo "WARNING: Old patch exists at $PATCH_FILE"
+    echo "  Run: ./scripts/apply-branding.sh to regenerate for v$NEW_VERSION"
+  fi
+fi
 
-# 4. Build extensions
+# 3. Build
 echo "Building extensions..."
-pnpm build:extensions
+pnpm run build:extensions
 
-# 5. Build dashboard
 echo "Building dashboard..."
-pnpm build:dashboard
+pnpm run build:dashboard
 
-# 6. Run tests
+# 4. Run tests
 echo "Running tests..."
 pnpm test
 
-echo "=== Sync complete ==="
+echo "=== Sync complete (OpenClaw v$NEW_VERSION) ==="

@@ -19,6 +19,7 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/research-claw}"
 PORT=28789
 REPO="https://github.com/wentorai/Research-Claw.git"
 NODE_MIN=22
+PNPM_VERSION=9
 
 # --- Colors (disabled in pipes) ---
 if [ -t 1 ] && [ -t 2 ]; then
@@ -53,10 +54,13 @@ esac
 info "Platform: $OS / $(uname -m)"
 
 # --- Git ---
-command -v git &>/dev/null || {
-  [ "$OSTYPE" = linux ] && { sudo apt-get update -qq && sudo apt-get install -y -qq git; } \
-    || die "git not found. Run: xcode-select --install"
-}
+if ! command -v git &>/dev/null; then
+  if [ "$OSTYPE" = linux ]; then
+    sudo apt-get update -qq && sudo apt-get install -y -qq git
+  else
+    die "git not found. Run: xcode-select --install"
+  fi
+fi
 ok "git"
 
 # --- Node.js 22+ ---
@@ -83,26 +87,35 @@ install_node() {
 
 if command -v node &>/dev/null; then
   NODE_V="$(node -v | sed 's/^v//' | cut -d. -f1)"
-  [ "$NODE_V" -ge "$NODE_MIN" ] && ok "Node.js $(node -v)" || install_node
+  if [ "$NODE_V" -ge "$NODE_MIN" ] 2>/dev/null; then
+    ok "Node.js $(node -v)"
+  else
+    install_node
+  fi
 else
   install_node
 fi
 ok "Node.js $(node -v)"
 
 # --- pnpm ---
-command -v pnpm &>/dev/null || npm install -g pnpm@latest 2>/dev/null
+if ! command -v pnpm &>/dev/null; then
+  npm install -g "pnpm@$PNPM_VERSION" 2>/dev/null
+fi
 ok "pnpm $(pnpm -v)"
 
 # --- Build tools (Linux) ---
-[ "$OSTYPE" = linux ] && ! (command -v make &>/dev/null && command -v g++ &>/dev/null) && {
-  info "Installing build-essential..."
-  sudo apt-get update -qq && sudo apt-get install -y -qq build-essential python3
-}
+if [ "$OSTYPE" = linux ]; then
+  if ! (command -v make &>/dev/null && command -v g++ &>/dev/null); then
+    info "Installing build-essential..."
+    sudo apt-get update -qq && sudo apt-get install -y -qq build-essential python3
+  fi
+fi
 
 # --- Clone or update ---
 if [ -d "$INSTALL_DIR/.git" ]; then
   info "Updating existing installation..."
-  cd "$INSTALL_DIR" && git pull --rebase --autostash 2>/dev/null || git pull
+  cd "$INSTALL_DIR"
+  git pull --rebase --autostash 2>/dev/null || git pull
   ok "Updated"
 else
   info "Cloning to $INSTALL_DIR ..."
@@ -116,8 +129,10 @@ info "Installing dependencies..."
 pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 ok "Dependencies installed"
 
-[ ! -f config/openclaw.json ] && [ -f config/openclaw.example.json ] && \
-  cp config/openclaw.example.json config/openclaw.json && ok "Config created"
+if [ ! -f config/openclaw.json ] && [ -f config/openclaw.example.json ]; then
+  cp config/openclaw.example.json config/openclaw.json
+  ok "Config created"
+fi
 
 info "Building..."
 pnpm build 2>&1 | tail -3
@@ -134,18 +149,23 @@ printf "  ${B}Location:${N}   $INSTALL_DIR\n"
 printf "  ${B}Start:${N}      cd $INSTALL_DIR && pnpm start\n"
 printf "  ${B}Update:${N}     curl -fsSL https://wentor.ai/install.sh | bash\n\n"
 
-[ "${SKIP_START:-0}" = "1" ] && exit 0
+if [ "${SKIP_START:-0}" = "1" ]; then
+  exit 0
+fi
 
 # --- Launch ---
 info "Starting gateway..."
 
 # Open browser when ready (background)
 (for _ in $(seq 1 30); do
-  curl -sf "http://127.0.0.1:$PORT/healthz" &>/dev/null && {
-    [ "$OSTYPE" = mac ] && open "http://127.0.0.1:$PORT" 2>/dev/null
-    [ "$OSTYPE" = linux ] && (xdg-open "http://127.0.0.1:$PORT" 2>/dev/null || true)
+  if curl -sf "http://127.0.0.1:$PORT/healthz" &>/dev/null; then
+    if [ "$OSTYPE" = mac ]; then
+      open "http://127.0.0.1:$PORT" 2>/dev/null || true
+    else
+      xdg-open "http://127.0.0.1:$PORT" 2>/dev/null || true
+    fi
     exit 0
-  }
+  fi
   sleep 1
 done) &
 
