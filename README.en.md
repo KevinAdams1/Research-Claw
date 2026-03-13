@@ -268,9 +268,8 @@ docker compose up -d --build
 
 **Option B: Pull pre-built image** (fast outside China)
 
-> Pre-built images on GHCR are coming soon. For now, please use the local build method above.
+No need to clone — one command to run:
 
-<!--
 ```bash
 docker pull ghcr.io/wentorai/research-claw:latest
 
@@ -281,7 +280,6 @@ docker run -d --name research-claw \
   -v rc-workspace:/app/workspace \
   ghcr.io/wentorai/research-claw:latest
 ```
--->
 
 Visit `http://127.0.0.1:28789` → Setup Wizard → enter your API key.
 
