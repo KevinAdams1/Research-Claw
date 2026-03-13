@@ -204,6 +204,7 @@
     "baseUrlPlaceholder": "https://open.bigmodel.cn/api/paas/v4",
     "apiKey": "API 密钥",
     "apiKeyPlaceholder": "输入你的 API 密钥",
+    "apiKeyExisting": "已有密钥将保留 — 输入新密钥可替换",
     "modelName": "文本模型",
     "modelNamePlaceholder": "例如 glm-5、gpt-4o、claude-sonnet-4-5",
     "visionModel": "视觉模型（可选）",
@@ -217,7 +218,8 @@
     "gatewayRestarting": "网关重启中...",
     "restartHint": "保存后 gateway 将自动重启，仪表盘会自动重连。",
     "start": "启动科研龙虾",
-    "configuring": "配置中..."
+    "configuring": "配置中...",
+    "skipToDashboard": "跳过，进入 Dashboard \u2192"
   },
   "boot": {
     "connecting": "正在连接网关...",

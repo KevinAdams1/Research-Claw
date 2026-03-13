@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button, Input, Typography, Space, Alert, Card, Divider, Segmented } from 'antd';
 import {
   ApiOutlined,
@@ -8,7 +8,8 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useGatewayStore } from '../../stores/gateway';
-import { buildConfigPatch } from '../../utils/config-patch';
+import { useConfigStore } from '../../stores/config';
+import { buildConfigPatch, extractConfigFields } from '../../utils/config-patch';
 
 const { Title, Text } = Typography;
 
@@ -16,6 +17,9 @@ export default function SetupWizard() {
   const { t } = useTranslation();
   const client = useGatewayStore((s) => s.client);
   const connState = useGatewayStore((s) => s.state);
+
+  const gatewayConfig = useConfigStore((s) => s.gatewayConfig);
+  const bootState = useConfigStore((s) => s.bootState);
 
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -30,8 +34,52 @@ export default function SetupWizard() {
   const [restarting, setRestarting] = useState(false);
   const [error, setError] = useState('');
 
+  // Track whether we already pre-filled to avoid overwriting user edits
+  const prefilled = useRef(false);
+  // True when pre-filled from an existing config (apiKey may have been redacted → empty)
+  const hasExistingConfig = useRef(false);
+
+  // Pre-fill from existing config (mirrors SettingsPanel pattern)
+  // Note: gateway redacts apiKeys as __OPENCLAW_REDACTED__ → extractConfigFields strips to ''
+  useEffect(() => {
+    if (!gatewayConfig || prefilled.current) return;
+    const configRecord = gatewayConfig as unknown as Record<string, unknown>;
+    const fields = extractConfigFields(configRecord);
+
+    if (fields.baseUrl || fields.textModel) {
+      setBaseUrl(fields.baseUrl);
+      // apiKey may be '' if redacted — leave empty, user sees placeholder
+      if (fields.apiKey) setApiKey(fields.apiKey);
+      setTextModel(fields.textModel);
+      setVisionModel(fields.visionModel);
+      if (fields.useDifferentVisionEndpoint) {
+        setUseDifferentEndpoint(true);
+        setVisionBaseUrl(fields.visionBaseUrl);
+        if (fields.visionApiKey) setVisionApiKey(fields.visionApiKey);
+      }
+      if (fields.proxyUrl) {
+        setProxyEnabled(true);
+        setProxyUrl(fields.proxyUrl);
+      }
+      prefilled.current = true;
+      hasExistingConfig.current = true;
+    }
+  }, [gatewayConfig]);
+
+  // After gateway restart: when we're in restarting state and WS reconnects,
+  // force a config reload to attempt auto-transition to dashboard.
+  // App.tsx will unmount this wizard when bootState becomes 'ready'.
+  useEffect(() => {
+    if (!restarting || connState !== 'connected') return;
+    const timer = setTimeout(() => {
+      useConfigStore.getState().loadGatewayConfig();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [restarting, connState]);
+
+  // apiKey is optional when re-configuring — empty apiKey means "keep existing"
   const canStart =
-    apiKey.trim().length > 0 &&
+    (apiKey.trim().length > 0 || hasExistingConfig.current) &&
     baseUrl.trim().length > 0 &&
     textModel.trim().length > 0;
 
@@ -44,7 +92,7 @@ export default function SetupWizard() {
     try {
       const patch = buildConfigPatch({
         baseUrl: baseUrl.trim(),
-        apiKey: apiKey.trim(),
+        apiKey: apiKey.trim() || undefined, // undefined = preserve existing key via deep merge
         textModel: textModel.trim(),
         visionModel: visionModel.trim() || undefined,
         visionBaseUrl: useDifferentEndpoint ? visionBaseUrl.trim() || undefined : undefined,
@@ -69,6 +117,10 @@ export default function SetupWizard() {
     }
   };
 
+  const handleSkipToDashboard = () => {
+    useConfigStore.getState().setBootState('ready');
+  };
+
   // While restarting, show overlay — the gateway store's onHello will auto-fetch config
   // and evaluateConfig will set bootState to 'ready', which unmounts this wizard
   if (restarting) {
@@ -89,6 +141,16 @@ export default function SetupWizard() {
         <Text type="secondary" style={{ fontSize: 12 }}>
           {connState === 'connected' ? t('status.connected') : t('status.reconnecting')}
         </Text>
+        {/* Safety valve: if connected but still stuck here, let user skip */}
+        {connState === 'connected' && (
+          <Button
+            type="link"
+            onClick={handleSkipToDashboard}
+            style={{ marginTop: 16 }}
+          >
+            {t('setup.skipToDashboard')}
+          </Button>
+        )}
       </div>
     );
   }
@@ -143,7 +205,7 @@ export default function SetupWizard() {
             <Input.Password
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={t('setup.apiKeyPlaceholder')}
+              placeholder={hasExistingConfig.current && !apiKey ? t('setup.apiKeyExisting') : t('setup.apiKeyPlaceholder')}
               prefix={<ApiOutlined />}
             />
           </div>
@@ -264,7 +326,15 @@ export default function SetupWizard() {
             style={{ fontSize: 12 }}
           />
 
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Skip: visible when existing config is present (e.g. __resetSetup, re-configure) */}
+            {gatewayConfig ? (
+              <Button type="link" onClick={handleSkipToDashboard} style={{ padding: 0 }}>
+                {t('setup.skipToDashboard')}
+              </Button>
+            ) : (
+              <span />
+            )}
             <Button
               type="primary"
               onClick={handleStart}

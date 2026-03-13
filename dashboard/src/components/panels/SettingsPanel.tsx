@@ -183,7 +183,7 @@ export default function SettingsPanel() {
     const client = useGatewayStore.getState().client;
     if (!client?.isConnected) return;
 
-    if (!baseUrl.trim() || !apiKey.trim() || !textModel.trim()) {
+    if (!baseUrl.trim() || !textModel.trim()) {
       message.error(t('settings.saveFailed'));
       return;
     }
@@ -192,7 +192,7 @@ export default function SettingsPanel() {
     try {
       const patch = buildConfigPatch({
         baseUrl: baseUrl.trim(),
-        apiKey: apiKey.trim(),
+        apiKey: apiKey.trim() || undefined, // undefined = preserve existing key via deep merge
         textModel: textModel.trim(),
         visionModel: visionModel.trim() || undefined,
         visionBaseUrl: useDifferentEndpoint ? visionBaseUrl.trim() || undefined : undefined,

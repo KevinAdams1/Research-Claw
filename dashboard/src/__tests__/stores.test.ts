@@ -23,9 +23,9 @@ describe('configStore', () => {
     expect(localStorage.getItem('rc-theme')).toBe('light');
   });
 
-  it('evaluateConfig sets needs_setup when no config', async () => {
+  it('evaluateConfig sets needs_setup when no config and retries exhausted', async () => {
     const { useConfigStore } = await import('../stores/config');
-    useConfigStore.setState({ gatewayConfig: null });
+    useConfigStore.setState({ gatewayConfig: null, _configRetryCount: 3 });
     useConfigStore.getState().evaluateConfig();
     expect(useConfigStore.getState().bootState).toBe('needs_setup');
   });

@@ -204,6 +204,7 @@
     "baseUrlPlaceholder": "https://open.bigmodel.cn/api/paas/v4",
     "apiKey": "API Key",
     "apiKeyPlaceholder": "Enter your API key",
+    "apiKeyExisting": "Existing key preserved — enter new to replace",
     "modelName": "Text Model",
     "modelNamePlaceholder": "e.g. glm-5, gpt-4o, claude-sonnet-4-5",
     "visionModel": "Vision Model (optional)",
@@ -217,7 +218,8 @@
     "gatewayRestarting": "Gateway restarting...",
     "restartHint": "After saving, the gateway will restart automatically. The dashboard reconnects on its own.",
     "start": "Start Research-Claw",
-    "configuring": "Configuring..."
+    "configuring": "Configuring...",
+    "skipToDashboard": "Skip to Dashboard \u2192"
   },
   "boot": {
     "connecting": "Connecting to gateway...",

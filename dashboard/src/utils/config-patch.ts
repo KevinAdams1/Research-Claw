@@ -9,9 +9,13 @@
 export const RC_PROVIDER = 'rc';
 export const RC_VISION_PROVIDER = 'rc-vision';
 
+/** Sentinel value OpenClaw uses to redact secrets in resolved config */
+export const REDACTED_SENTINEL = '__OPENCLAW_REDACTED__';
+
 export interface ConfigPatchInput {
   baseUrl: string;
-  apiKey: string;
+  /** Omit or empty to preserve existing key via config.patch deep merge */
+  apiKey?: string;
   textModel: string;
   visionModel?: string;
   /** When set (and differs from baseUrl), creates a second provider for vision */
@@ -54,22 +58,30 @@ export function buildConfigPatch(input: ConfigPatchInput): Record<string, unknow
     rcModels.push(makeModelDef(input.visionModel!, ['text', 'image']));
   }
 
+  const rcProvider: Record<string, unknown> = {
+    baseUrl,
+    api: 'openai-completions',
+    models: rcModels,
+  };
+  // Only include apiKey when provided — omitting it lets config.patch deep merge preserve the existing key
+  if (input.apiKey) {
+    rcProvider.apiKey = input.apiKey;
+  }
+
   const providers: Record<string, unknown> = {
-    [RC_PROVIDER]: {
-      baseUrl,
-      apiKey: input.apiKey,
-      api: 'openai-completions',
-      models: rcModels,
-    },
+    [RC_PROVIDER]: rcProvider,
   };
 
   if (useSeparateEndpoint) {
-    providers[RC_VISION_PROVIDER] = {
+    const visionProv: Record<string, unknown> = {
       baseUrl: input.visionBaseUrl!.replace(/\/+$/, '').replace(/\/chat\/completions$/, ''),
-      apiKey: input.visionApiKey || input.apiKey,
       api: 'openai-completions',
       models: [makeModelDef(input.visionModel!, ['text', 'image'])],
     };
+    if (input.visionApiKey || input.apiKey) {
+      visionProv.apiKey = input.visionApiKey || input.apiKey;
+    }
+    providers[RC_VISION_PROVIDER] = visionProv;
   }
 
   // --- Agent model refs ---
@@ -155,13 +167,19 @@ export function extractConfigFields(
   const env = config.env as Record<string, string> | undefined;
   const proxyUrl = env?.HTTP_PROXY || env?.HTTPS_PROXY || '';
 
+  // Strip redacted sentinel — treat as "value exists but not shown"
+  const deRedact = (v: unknown): string => {
+    const s = (v as string) ?? '';
+    return s === REDACTED_SENTINEL ? '' : s;
+  };
+
   return {
     baseUrl: (textProvider?.baseUrl as string) ?? '',
-    apiKey: (textProvider?.apiKey as string) ?? '',
+    apiKey: deRedact(textProvider?.apiKey),
     textModel,
     visionModel: visionModel !== textModel ? visionModel : '',
     visionBaseUrl: (visionProvider?.baseUrl as string) ?? '',
-    visionApiKey: (visionProvider?.apiKey as string) ?? '',
+    visionApiKey: deRedact(visionProvider?.apiKey),
     proxyUrl,
     useDifferentVisionEndpoint,
   };
@@ -169,6 +187,7 @@ export function extractConfigFields(
 
 /**
  * Check if a gateway config has a valid model + matching provider.
+ * Strict validation: requires both model ref AND a matching provider entry.
  */
 export function isConfigValid(config: Record<string, unknown> | null): boolean {
   if (!config) return false;
@@ -186,4 +205,19 @@ export function isConfigValid(config: Record<string, unknown> | null): boolean {
   const providers = (config.models as Record<string, unknown> | undefined)
     ?.providers as Record<string, Record<string, unknown>> | undefined;
   return !!providers?.[providerKey];
+}
+
+/**
+ * Relaxed config check: only verifies that a model reference exists.
+ * Used as a fallback when the gateway is running (hello-ok received)
+ * but strict validation fails due to resolved config structure differences.
+ * If the gateway started successfully, its config is valid — it validates on startup.
+ */
+export function hasModelConfigured(config: Record<string, unknown> | null): boolean {
+  if (!config) return false;
+  const agents = config.agents as Record<string, unknown> | undefined;
+  const defaults = agents?.defaults as Record<string, unknown> | undefined;
+  const modelDef = defaults?.model as { primary?: string } | undefined;
+  const primary = modelDef?.primary ?? '';
+  return primary.length > 0 && primary.includes('/');
 }

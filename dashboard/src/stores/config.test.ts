@@ -1,8 +1,8 @@
 /**
  * Config store unit tests.
- * Tests theme, locale, bootState, evaluateConfig, and localStorage persistence.
+ * Tests theme, locale, bootState, evaluateConfig (3-level fallback), and localStorage persistence.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useConfigStore } from './config';
 
 // Mock i18n
@@ -12,18 +12,19 @@ vi.mock('../i18n', () => ({
   },
 }));
 
-// Mock gateway store
+// Mock gateway store — connState controlled via mockGatewayState
+let mockGatewayState: { client: null; state: string } = { client: null, state: 'disconnected' };
+
 vi.mock('./gateway', () => ({
   useGatewayStore: {
-    getState: () => ({
-      client: null,
-    }),
+    getState: () => mockGatewayState,
   },
 }));
 
 describe('Config store', () => {
   beforeEach(() => {
     localStorage.clear();
+    mockGatewayState = { client: null, state: 'disconnected' };
     useConfigStore.setState({
       theme: 'dark',
       locale: 'zh-CN',
@@ -31,7 +32,13 @@ describe('Config store', () => {
       bootState: 'pending',
       gatewayConfig: null,
       gatewayConfigLoading: false,
+      _configRetryCount: 0,
     });
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('setTheme', () => {
@@ -84,32 +91,7 @@ describe('Config store', () => {
   });
 
   describe('evaluateConfig', () => {
-    it('sets bootState to needs_setup when gatewayConfig is null', () => {
-      useConfigStore.setState({ gatewayConfig: null });
-      useConfigStore.getState().evaluateConfig();
-      expect(useConfigStore.getState().bootState).toBe('needs_setup');
-    });
-
-    it('sets bootState to needs_setup when no model primary', () => {
-      useConfigStore.setState({
-        gatewayConfig: { agents: { defaults: {} }, models: { providers: {} } },
-      });
-      useConfigStore.getState().evaluateConfig();
-      expect(useConfigStore.getState().bootState).toBe('needs_setup');
-    });
-
-    it('sets bootState to needs_setup when provider missing', () => {
-      useConfigStore.setState({
-        gatewayConfig: {
-          agents: { defaults: { model: { primary: 'rc/gpt-4o' } } },
-          models: { providers: {} },
-        },
-      });
-      useConfigStore.getState().evaluateConfig();
-      expect(useConfigStore.getState().bootState).toBe('needs_setup');
-    });
-
-    it('sets bootState to ready when config is valid', () => {
+    it('sets bootState to ready when config is valid (Level 1: strict)', () => {
       useConfigStore.setState({
         gatewayConfig: {
           agents: { defaults: { model: { primary: 'rc/gpt-4o' } } },
@@ -122,6 +104,84 @@ describe('Config store', () => {
       });
       useConfigStore.getState().evaluateConfig();
       expect(useConfigStore.getState().bootState).toBe('ready');
+      expect(useConfigStore.getState()._configRetryCount).toBe(0);
+    });
+
+    it('sets bootState to ready when gateway connected + model exists but provider missing (Level 2: relaxed)', () => {
+      mockGatewayState = { client: null, state: 'connected' };
+      useConfigStore.setState({
+        gatewayConfig: {
+          agents: { defaults: { model: { primary: 'rc/glm-5' } } },
+          models: { providers: {} },
+        },
+      });
+      useConfigStore.getState().evaluateConfig();
+      expect(useConfigStore.getState().bootState).toBe('ready');
+    });
+
+    it('sets bootState to ready when gateway connected + model exists but no providers section (Level 2)', () => {
+      mockGatewayState = { client: null, state: 'connected' };
+      useConfigStore.setState({
+        gatewayConfig: {
+          agents: { defaults: { model: { primary: 'rc/google/gemini-3.1-pro-preview' } } },
+        },
+      });
+      useConfigStore.getState().evaluateConfig();
+      expect(useConfigStore.getState().bootState).toBe('ready');
+    });
+
+    it('retries when gateway disconnected and config invalid (Level 3: retry)', () => {
+      mockGatewayState = { client: null, state: 'disconnected' };
+      useConfigStore.setState({
+        gatewayConfig: {
+          agents: { defaults: { model: { primary: 'rc/gpt-4o' } } },
+          models: { providers: {} },
+        },
+        _configRetryCount: 0,
+      });
+      useConfigStore.getState().evaluateConfig();
+      // Should increment retry count, not set needs_setup yet
+      expect(useConfigStore.getState()._configRetryCount).toBe(1);
+      expect(useConfigStore.getState().bootState).toBe('pending');
+    });
+
+    it('sets needs_setup after max retries exhausted', () => {
+      mockGatewayState = { client: null, state: 'disconnected' };
+      useConfigStore.setState({
+        gatewayConfig: null,
+        _configRetryCount: 3,
+      });
+      useConfigStore.getState().evaluateConfig();
+      expect(useConfigStore.getState().bootState).toBe('needs_setup');
+      expect(useConfigStore.getState()._configRetryCount).toBe(0);
+    });
+
+    it('sets needs_setup when gatewayConfig is null and retries exhausted', () => {
+      useConfigStore.setState({ gatewayConfig: null, _configRetryCount: 3 });
+      useConfigStore.getState().evaluateConfig();
+      expect(useConfigStore.getState().bootState).toBe('needs_setup');
+    });
+
+    it('sets needs_setup when no model primary and retries exhausted', () => {
+      useConfigStore.setState({
+        gatewayConfig: { agents: { defaults: {} }, models: { providers: {} } },
+        _configRetryCount: 3,
+      });
+      useConfigStore.getState().evaluateConfig();
+      expect(useConfigStore.getState().bootState).toBe('needs_setup');
+    });
+
+    it('resets retry count on successful validation', () => {
+      useConfigStore.setState({
+        gatewayConfig: {
+          agents: { defaults: { model: { primary: 'rc/gpt-4o' } } },
+          models: { providers: { rc: { baseUrl: 'https://api.openai.com' } } },
+        },
+        _configRetryCount: 2,
+      });
+      useConfigStore.getState().evaluateConfig();
+      expect(useConfigStore.getState().bootState).toBe('ready');
+      expect(useConfigStore.getState()._configRetryCount).toBe(0);
     });
   });
 

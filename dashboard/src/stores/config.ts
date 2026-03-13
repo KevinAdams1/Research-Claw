@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import i18n from '../i18n';
 import { useGatewayStore } from './gateway';
-import { isConfigValid } from '../utils/config-patch';
+import { isConfigValid, hasModelConfigured } from '../utils/config-patch';
 
 /** Model definition from openclaw.json providers */
 export interface GatewayModelDef {
@@ -39,6 +39,10 @@ export interface GatewayConfig {
 
 export type BootState = 'pending' | 'ready' | 'needs_setup' | 'gateway_unreachable';
 
+/** Maximum retries for config loading after reconnect (handles race with gateway startup) */
+const CONFIG_RETRY_MAX = 3;
+const CONFIG_RETRY_DELAY_MS = 1500;
+
 interface ConfigState {
   theme: 'dark' | 'light';
   locale: 'en' | 'zh-CN';
@@ -48,6 +52,9 @@ interface ConfigState {
   /** Live config from gateway (via config.get RPC) */
   gatewayConfig: GatewayConfig | null;
   gatewayConfigLoading: boolean;
+
+  /** Internal retry counter for config loading after reconnect */
+  _configRetryCount: number;
 
   setTheme: (t: 'dark' | 'light') => void;
   setLocale: (l: 'en' | 'zh-CN') => void;
@@ -79,6 +86,7 @@ export const useConfigStore = create<ConfigState>()((set, get) => {
     bootState: 'pending',
     gatewayConfig: null,
     gatewayConfigLoading: false,
+    _configRetryCount: 0,
 
     setTheme: (t: 'dark' | 'light') => {
       document.documentElement.setAttribute('data-theme', t);
@@ -134,12 +142,37 @@ export const useConfigStore = create<ConfigState>()((set, get) => {
     },
 
     evaluateConfig: () => {
-      const { gatewayConfig } = get();
-      if (isConfigValid(gatewayConfig as Record<string, unknown> | null)) {
-        set({ bootState: 'ready' });
-      } else {
-        set({ bootState: 'needs_setup' });
+      const { gatewayConfig, _configRetryCount } = get();
+      const configRecord = gatewayConfig as Record<string, unknown> | null;
+
+      // Level 1: Strict validation — model ref + matching provider
+      if (isConfigValid(configRecord)) {
+        set({ bootState: 'ready', _configRetryCount: 0 });
+        return;
       }
+
+      // Level 2: Relaxed validation — gateway is connected and has a model configured.
+      // If the gateway responded to hello-ok, it validated its own config on startup.
+      // The dashboard may fail strict validation due to resolved config structure differences.
+      const gwConnected = useGatewayStore.getState().state === 'connected';
+      if (gwConnected && hasModelConfigured(configRecord)) {
+        console.warn('[config] Strict validation failed but gateway is connected with model — accepting config');
+        set({ bootState: 'ready', _configRetryCount: 0 });
+        return;
+      }
+
+      // Level 3: Retry — gateway may not have fully loaded its config yet (race condition).
+      if (_configRetryCount < CONFIG_RETRY_MAX) {
+        set({ _configRetryCount: _configRetryCount + 1 });
+        setTimeout(() => {
+          get().loadGatewayConfig();
+        }, CONFIG_RETRY_DELAY_MS);
+        // Keep current bootState (pending or needs_setup) while retrying
+        return;
+      }
+
+      // All levels exhausted — genuinely needs setup
+      set({ bootState: 'needs_setup', _configRetryCount: 0 });
     },
 
     setBootState: (s: BootState) => {
