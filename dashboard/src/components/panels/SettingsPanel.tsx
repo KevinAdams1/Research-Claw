@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AutoComplete,
   Button,
   Divider,
   Input,
   Segmented,
+  Select,
   Spin,
   Typography,
   message,
@@ -14,8 +16,18 @@ import { useConfigStore } from '../../stores/config';
 import { useGatewayStore } from '../../stores/gateway';
 import { getThemeTokens } from '../../styles/theme';
 import { buildConfigPatch, extractConfigFields } from '../../utils/config-patch';
+import { PROVIDER_PRESETS, detectPresetFromProvider, getPreset } from '../../utils/provider-presets';
 
 const { Text } = Typography;
+
+/** Shared filter for provider Select: searches both label and id */
+const providerFilterOption = (input: string, option?: { label?: unknown; value?: unknown }) => {
+  const search = input.toLowerCase();
+  return (
+    String(option?.label ?? '').toLowerCase().includes(search) ||
+    String(option?.value ?? '').toLowerCase().includes(search)
+  );
+};
 
 // --- Setting row layout ---
 
@@ -134,18 +146,68 @@ export default function SettingsPanel() {
   const systemPromptAppend = useConfigStore((s) => s.systemPromptAppend);
   const setSystemPromptAppend = useConfigStore((s) => s.setSystemPromptAppend);
 
-  // Editable config fields
+  // --- Text endpoint ---
+  const [provider, setProvider] = useState('custom');
   const [baseUrl, setBaseUrl] = useState('');
+  const [api, setApi] = useState('openai-completions');
   const [apiKey, setApiKey] = useState('');
   const [textModel, setTextModel] = useState('');
+
+  // --- Vision ---
+  const [visionEnabled, setVisionEnabled] = useState(false);
+  const [visionProvider, setVisionProvider] = useState('custom');
   const [visionModel, setVisionModel] = useState('');
-  const [useDifferentEndpoint, setUseDifferentEndpoint] = useState(false);
   const [visionBaseUrl, setVisionBaseUrl] = useState('');
+  const [visionApi, setVisionApi] = useState('openai-completions');
   const [visionApiKey, setVisionApiKey] = useState('');
+
+  // Track whether the gateway has configured keys (even if redacted)
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
+  const [visionApiKeyConfigured, setVisionApiKeyConfigured] = useState(false);
+
+  // --- Network ---
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [proxyUrl, setProxyUrl] = useState('http://127.0.0.1:7890');
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
+
+  const handleProviderChange = (id: string) => {
+    setProvider(id);
+    const preset = getPreset(id);
+    if (preset.baseUrl) setBaseUrl(preset.baseUrl);
+    setApi(preset.api);
+    if (preset.models.length > 0) {
+      setTextModel(preset.models[0].id);
+    }
+  };
+
+  const handleVisionProviderChange = (id: string) => {
+    setVisionProvider(id);
+    const preset = getPreset(id);
+    if (preset.baseUrl) setVisionBaseUrl(preset.baseUrl);
+    setVisionApi(preset.api);
+    const visionCapable = preset.models.filter((m) => m.input?.includes('image'));
+    if (visionCapable.length > 0) {
+      setVisionModel(visionCapable[0].id);
+    } else if (preset.models.length > 0) {
+      setVisionModel(preset.models[0].id);
+    }
+  };
+
+  const currentPreset = getPreset(provider);
+  const modelOptions = currentPreset.models.map((m) => ({
+    value: m.id,
+    label: `${m.id} — ${m.name}`,
+  }));
+
+  const visionPreset = getPreset(visionProvider);
+  const visionModelOptions = visionPreset.models.map((m) => ({
+    value: m.id,
+    label: `${m.id} — ${m.name}`,
+  }));
+
+  // Whether vision uses a different provider (show separate baseUrl/apiKey)
+  const visionSeparateProvider = visionProvider !== provider;
 
   // Load gateway config when connected
   useEffect(() => {
@@ -159,12 +221,28 @@ export default function SettingsPanel() {
     if (!gatewayConfig) return;
     const fields = extractConfigFields(gatewayConfig as unknown as Record<string, unknown>);
     setBaseUrl(fields.baseUrl);
+    setApi(fields.api);
     setApiKey(fields.apiKey);
+    setApiKeyConfigured(fields.apiKeyConfigured);
     setTextModel(fields.textModel);
-    setVisionModel(fields.visionModel);
-    setUseDifferentEndpoint(fields.useDifferentVisionEndpoint);
-    setVisionBaseUrl(fields.visionBaseUrl);
-    setVisionApiKey(fields.visionApiKey);
+    setProvider(detectPresetFromProvider(fields.provider, fields.baseUrl));
+
+    if (fields.visionEnabled) {
+      setVisionEnabled(true);
+      setVisionModel(fields.visionModel);
+      setVisionProvider(detectPresetFromProvider(fields.visionProvider, fields.visionBaseUrl));
+      setVisionBaseUrl(fields.visionBaseUrl || fields.baseUrl);
+      setVisionApi(fields.visionApi);
+      setVisionApiKey(fields.visionApiKey);
+      setVisionApiKeyConfigured(fields.visionApiKeyConfigured);
+    } else {
+      setVisionEnabled(false);
+      setVisionModel('');
+      setVisionBaseUrl('');
+      setVisionApiKey('');
+      setVisionApiKeyConfigured(false);
+    }
+
     if (fields.proxyUrl) {
       setProxyEnabled(true);
       setProxyUrl(fields.proxyUrl);
@@ -191,17 +269,20 @@ export default function SettingsPanel() {
     setSaving(true);
     try {
       const patch = buildConfigPatch({
+        provider,
         baseUrl: baseUrl.trim(),
-        apiKey: apiKey.trim() || undefined, // undefined = preserve existing key via deep merge
+        api,
+        apiKey: apiKey.trim() || undefined,
         textModel: textModel.trim(),
-        visionModel: visionModel.trim() || undefined,
-        visionBaseUrl: useDifferentEndpoint ? visionBaseUrl.trim() || undefined : undefined,
-        visionApiKey: useDifferentEndpoint ? visionApiKey.trim() || undefined : undefined,
+        visionEnabled,
+        visionProvider: visionEnabled ? visionProvider : undefined,
+        visionModel: visionEnabled ? visionModel.trim() || undefined : undefined,
+        visionBaseUrl: visionEnabled && visionSeparateProvider ? visionBaseUrl.trim() || undefined : undefined,
+        visionApiKey: visionEnabled && visionSeparateProvider ? (visionApiKey.trim() || undefined) : undefined,
+        visionApi: visionEnabled && visionSeparateProvider ? visionApi : undefined,
         proxyUrl: proxyEnabled ? proxyUrl.trim() : '',
       });
 
-      // Gateway requires baseHash for config.patch (optimistic locking).
-      // Always fetch fresh hash right before patching.
       const configSnapshot = await client.request<{ hash: string }>('config.get', {});
 
       await client.request('config.patch', {
@@ -210,14 +291,13 @@ export default function SettingsPanel() {
       });
 
       message.success(t('settings.saved'));
-      // Gateway will SIGUSR1 restart → WS reconnects → onHello → config.get → UI refreshes
       setRestarting(true);
     } catch {
       message.error(t('settings.saveFailed'));
     } finally {
       setSaving(false);
     }
-  }, [baseUrl, apiKey, textModel, visionModel, useDifferentEndpoint, visionBaseUrl, visionApiKey, proxyEnabled, proxyUrl, t]);
+  }, [baseUrl, api, apiKey, provider, textModel, visionEnabled, visionProvider, visionModel, visionBaseUrl, visionApi, visionApiKey, visionSeparateProvider, proxyEnabled, proxyUrl, t]);
 
   const handleSavePrompt = useCallback(() => {
     message.success(t('settings.saved'));
@@ -260,7 +340,22 @@ export default function SettingsPanel() {
 
       <Divider style={{ margin: '4px 0 8px' }} />
 
-      {/* ── Model section ── */}
+      {/* ── Provider + Model section ── */}
+      <SettingRow label={t('settings.provider')}>
+        <Select
+          showSearch
+          value={provider}
+          onChange={handleProviderChange}
+          size="small"
+          style={{ width: 220 }}
+          filterOption={providerFilterOption}
+          options={PROVIDER_PRESETS.map((p) => ({
+            value: p.id,
+            label: p.id === 'custom' ? t('setup.providerCustom') : p.label,
+          }))}
+        />
+      </SettingRow>
+
       <SettingRow label={t('settings.baseUrl')}>
         <Input
           value={baseUrl}
@@ -271,40 +366,52 @@ export default function SettingsPanel() {
         />
       </SettingRow>
 
+      {provider === 'custom' && (
+        <SettingRow label={t('settings.apiProtocol')}>
+          <Select
+            value={api}
+            onChange={setApi}
+            size="small"
+            style={{ width: 220 }}
+            options={[
+              { value: 'openai-completions', label: 'OpenAI Compatible' },
+              { value: 'anthropic-messages', label: 'Anthropic Compatible' },
+            ]}
+          />
+        </SettingRow>
+      )}
+
       <SettingRow label={t('settings.apiKeyLabel')}>
-        <Input.Password
+        <Input
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           size="small"
           style={{ width: 220 }}
+          placeholder={apiKeyConfigured && !apiKey ? t('setup.apiKeyExisting') : t('setup.apiKeyPlaceholder')}
         />
       </SettingRow>
 
       <SettingRow label={t('settings.primaryModel')}>
-        <Input
+        <AutoComplete
           value={textModel}
-          onChange={(e) => setTextModel(e.target.value)}
+          onChange={setTextModel}
+          options={modelOptions}
           size="small"
           style={{ width: 220 }}
           placeholder="glm-5"
+          filterOption={(input, option) =>
+            (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+          }
         />
       </SettingRow>
 
       {/* ── Vision section ── */}
-      <SettingRow label={t('settings.visionModel')} description={t('settings.visionModelHint')}>
-        <Input
-          value={visionModel}
-          onChange={(e) => setVisionModel(e.target.value)}
-          size="small"
-          style={{ width: 220 }}
-          placeholder={t('settings.noVisionModel')}
-        />
-      </SettingRow>
+      <Divider style={{ margin: '4px 0 8px' }} />
 
-      <SettingRow label={t('settings.differentEndpoint')}>
+      <SettingRow label={t('settings.enableVision')} description={!visionEnabled ? t('settings.visionModelHint') : undefined}>
         <Segmented
-          value={useDifferentEndpoint ? 'on' : 'off'}
-          onChange={(v) => setUseDifferentEndpoint(v === 'on')}
+          value={visionEnabled ? 'on' : 'off'}
+          onChange={(v) => setVisionEnabled(v === 'on')}
           options={[
             { label: 'OFF', value: 'off' },
             { label: 'ON', value: 'on' },
@@ -313,25 +420,61 @@ export default function SettingsPanel() {
         />
       </SettingRow>
 
-      {useDifferentEndpoint && (
+      {visionEnabled && (
         <>
-          <SettingRow label={t('settings.visionBaseUrl')}>
-            <Input
-              value={visionBaseUrl}
-              onChange={(e) => setVisionBaseUrl(e.target.value)}
+          <SettingRow label={t('settings.visionProvider')}>
+            <Select
+              showSearch
+              value={visionProvider}
+              onChange={handleVisionProviderChange}
               size="small"
               style={{ width: 220 }}
-              placeholder="https://api.openai.com/v1"
+              filterOption={providerFilterOption}
+              options={PROVIDER_PRESETS.map((p) => ({
+                value: p.id,
+                label: p.id === 'custom' ? t('setup.providerCustom') : p.label,
+              }))}
             />
           </SettingRow>
-          <SettingRow label={t('settings.visionApiKey')}>
-            <Input.Password
-              value={visionApiKey}
-              onChange={(e) => setVisionApiKey(e.target.value)}
+
+          <SettingRow label={t('settings.visionModel')}>
+            <AutoComplete
+              value={visionModel}
+              onChange={setVisionModel}
+              options={visionModelOptions}
               size="small"
               style={{ width: 220 }}
+              placeholder={t('settings.noVisionModel')}
+              filterOption={(input, option) =>
+                (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             />
           </SettingRow>
+
+          {/* Vision API URL + Key — only when different provider */}
+          {visionSeparateProvider && (
+            <>
+              <SettingRow label={t('settings.visionBaseUrl')}>
+                <Input
+                  value={visionBaseUrl}
+                  onChange={(e) => setVisionBaseUrl(e.target.value)}
+                  size="small"
+                  style={{ width: 220 }}
+                  placeholder="https://api.openai.com/v1"
+                />
+              </SettingRow>
+
+              <SettingRow label={t('settings.visionApiKey')}>
+                <Input
+                  value={visionApiKey}
+                  onChange={(e) => setVisionApiKey(e.target.value)}
+                  size="small"
+                  style={{ width: 220 }}
+                  placeholder={visionApiKeyConfigured && !visionApiKey ? t('setup.apiKeyExisting') : t('setup.apiKeyPlaceholder')}
+                />
+              </SettingRow>
+            </>
+          )}
         </>
       )}
 

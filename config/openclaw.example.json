@@ -21,7 +21,6 @@
   "skills": {
     "load": {
       "extraDirs": [
-        "./node_modules/@wentorai/research-plugins/skills",  // 487 research skills
         "./skills"                                            // Local custom skills
       ]
     }
@@ -31,10 +30,11 @@
     "enabled": true,
     "load": {
       "paths": [
-        "./extensions/research-claw-core",
-        "./node_modules/@wentorai/research-plugins"
+        "./extensions/research-claw-core"
       ]
     },
+    // research-plugins is installed via: openclaw plugins install @wentorai/research-plugins
+    // It auto-discovers from ~/.openclaw/extensions/ (no node_modules needed).
     "entries": {
       "research-claw-core": {
         "enabled": true,
@@ -44,9 +44,6 @@
           "defaultCitationStyle": "apa",                 // apa | mla | chicago | ieee | bibtex
           "heartbeatDeadlineWarningHours": 48            // [configurable] Hours before deadline warning
         }
-      },
-      "research-plugins": {
-        "enabled": true
       }
     }
   },

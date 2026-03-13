@@ -1,106 +1,115 @@
 ---
 file: TOOLS.md
-version: 2.0
-updated: 2026-03-12
+version: 3.0
+updated: 2026-03-13
 ---
 
 # Tool Reference
 
-## Paper Database APIs
+## §1 Local Tools (27)
 
-These external APIs are available for literature search. Use multiple databases
-for comprehensive coverage. Prefer Semantic Scholar for citation graphs and
-arXiv for preprints.
+### Library (12 tools)
 
-| API | Coverage | Best For | Rate Limits |
-|:---|:---|:---|:---|
-| **Semantic Scholar** | 200M+ papers | Citation graphs, recommendations | 100 req/5min |
-| **arXiv** | CS, physics, math, bio preprints | Latest preprints, full-text | 3 req/sec |
-| **OpenAlex** | 250M+ works | Broad coverage, institutions | 10 req/sec |
-| **CrossRef** | 130M+ DOIs | DOI resolution, metadata | 50 req/sec (polite) |
-| **PubMed / NCBI** | Biomedical literature | Medical, life sciences | 3 req/sec |
-| **Unpaywall** | OA availability for DOIs | Legal open-access full text | 100K/day |
+| Tool | Purpose |
+|:-----|:--------|
+| `library_add_paper` | Add a paper to local library (DOI, title, or BibTeX) |
+| `library_search` | Full-text search across title, abstract, authors |
+| `library_update_paper` | Update metadata, status, annotations |
+| `library_get_paper` | Retrieve full details by DOI or internal ID |
+| `library_export_bibtex` | Export library or subset as BibTeX |
+| `library_reading_stats` | Reading activity summary |
+| `library_batch_add` | Batch import multiple papers at once |
+| `library_manage_collection` | Create, update, or delete paper collections |
+| `library_tag_paper` | Add or remove tags on a paper |
+| `library_add_note` | Add annotation note to a paper |
+| `library_import_bibtex` | Import papers from BibTeX content |
+| `library_citation_graph` | Query citation relationships between papers |
 
-## Local Library Tools (12 tools)
+### Tasks (6 tools)
 
-Provided by the `research-claw-core` plugin. Data stored in
-`.research-claw/library.db` (SQLite).
+| Tool | Purpose |
+|:-----|:--------|
+| `task_create` | Create a task with optional deadline |
+| `task_list` | List tasks, filter by status/priority/deadline |
+| `task_complete` | Mark a task as complete |
+| `task_update` | Update task details |
+| `task_link` | Link a task to a paper in the library |
+| `task_note` | Add a timestamped note to a task |
 
-| Tool | Purpose | Example |
-|:---|:---|:---|
-| `library_add_paper` | Add a paper to local library | Provide DOI, title, or BibTeX |
-| `library_search` | Search library by keyword (full-text across title, abstract, authors) | `library_search(query="attention", limit=20)` |
-| `library_update_paper` | Update paper metadata, status, annotations | Change status to "read", add notes |
-| `library_get_paper` | Retrieve full details of a specific paper | By DOI or internal ID |
-| `library_export_bibtex` | Export library or subset as BibTeX | Filter by tag, project, or list |
-| `library_reading_stats` | Reading activity summary | Papers read this week, total count |
-| `library_batch_add` | Batch import multiple papers at once | Provide array of DOIs or metadata objects |
-| `library_manage_collection` | Create, update, or delete paper collections | `library_manage_collection(action="create", name="Survey Papers")` |
-| `library_tag_paper` | Add or remove a tag on a paper | `library_tag_paper(paper_id="...", tag_name="ml", action="add")` |
-| `library_add_note` | Add an annotation note to a paper | `library_add_note(paper_id="...", note_text="Key insight on p.5", page=5)` |
-| `library_import_bibtex` | Import papers from BibTeX content | `library_import_bibtex(bibtex_content="@article{...}")` |
-| `library_citation_graph` | Query citation relationships between papers | `library_citation_graph(paper_id="...", direction="both", depth=1)` |
+### Workspace (6 tools)
 
-## Task Management Tools (6 tools)
+| Tool | Purpose |
+|:-----|:--------|
+| `workspace_save` | Save content to a workspace file (returns file_card) |
+| `workspace_read` | Read a workspace file |
+| `workspace_list` | List files in workspace directory |
+| `workspace_diff` | Show changes since last commit |
+| `workspace_history` | Show file edit history |
+| `workspace_restore` | Restore a previous version of a file |
 
-| Tool | Purpose | Example |
-|:---|:---|:---|
-| `task_create` | Create a new task with optional deadline | `task_create(title="Review Ch.3", deadline="2026-03-15", task_type="human")` |
-| `task_list` | List tasks, filter by status/priority/deadline | `task_list(status="todo", priority="high")` |
-| `task_complete` | Mark a task as complete | `task_complete(id="t-001")` |
-| `task_update` | Update task details (title, deadline, priority, status) | `task_update(id="t-001", priority="urgent")` |
-| `task_link` | Link a task to a paper in the library | `task_link(task_id="t-001", paper_id="p-001")` |
-| `task_note` | Add a timestamped note to a task | `task_note(task_id="t-001", note="Methodology looks solid")` |
+### Radar (3 tools)
 
-## Workspace Tools (6 tools)
+| Tool | Purpose |
+|:-----|:--------|
+| `radar_configure` | Set tracking keywords, authors, journals, sources |
+| `radar_get_config` | Read current radar configuration |
+| `radar_scan` | Scan arXiv/S2 for new papers matching config |
 
-For managing files in the research workspace.
+**Radar notes:** `radar_configure` persists to the database — the dashboard reads
+from there, not chat history. `radar_scan` returns papers but does NOT auto-add them
+to the library.
 
-| Tool | Purpose | Example |
-|:---|:---|:---|
-| `workspace_save` | Save content to a workspace file (returns file_card — include it verbatim) | `workspace_save(path="notes/ch3.md", content="...")` |
-| `workspace_read` | Read a workspace file | `workspace_read(path="notes/ch3.md")` |
-| `workspace_list` | List files in workspace directory | `workspace_list(directory="notes/", recursive=true)` |
-| `workspace_diff` | Show changes to a file since last commit | `workspace_diff(path="notes/ch3.md")` |
-| `workspace_history` | Show file edit history | `workspace_history(path="notes/ch3.md")` |
-| `workspace_restore` | Restore a previous version of a file | `workspace_restore(path="notes/ch3.md", commit_hash="abc1234")` |
+## §2 API Tools (13)
 
-## Research Radar Tools (3 tools)
+Six external databases, accessed via API tools:
 
-For configuring and scanning with the research radar. Config is persisted in
-`.research-claw/library.db` and displayed on the dashboard Radar panel.
+| Database | Coverage | Best for |
+|:---------|:---------|:---------|
+| **Semantic Scholar** | 200M+ papers | Citation graphs, recommendations |
+| **arXiv** | CS, physics, math, bio preprints | Latest preprints, full-text |
+| **OpenAlex** | 250M+ works | Broad coverage, institutions |
+| **CrossRef** | 130M+ DOIs | DOI resolution, metadata |
+| **PubMed / NCBI** | Biomedical literature | Medical, life sciences |
+| **Unpaywall** | OA availability for DOIs | Legal open-access full text |
 
-| Tool | Purpose | Example |
-|:---|:---|:---|
-| `radar_configure` | Set tracking keywords, authors, journals, sources | `radar_configure(keywords=["transformer", "LLM"], authors=["Vaswani"])` |
-| `radar_get_config` | Read current radar configuration | `radar_get_config()` |
-| `radar_scan` | Scan arXiv/Semantic Scholar for new papers matching config | `radar_scan()` or `radar_scan(sources=["arxiv"], max_results=10)` |
+API tools by database:
+- **Semantic Scholar**: `search_papers`, `get_paper`, `get_citations`
+- **OpenAlex**: `search_openalex`, `get_work`, `get_author_openalex`
+- **CrossRef**: `search_crossref`, `resolve_doi`
+- **arXiv**: `search_arxiv`, `get_arxiv_paper`
+- **PubMed**: `search_pubmed`, `get_article`
+- **Unpaywall**: `find_oa_version`
 
-**Important:** When the user asks to configure/update their research radar, you
-MUST use the `radar_configure` tool to persist the settings. Do NOT just output
-text — the dashboard reads from the database, not from chat history.
+## §3 Special Tools
 
-**Important:** When the user asks to check for new papers or scan their radar,
-you MUST use the `radar_scan` tool. Papers are returned but NOT auto-added to
-the library — use `library_add_paper` or `library_batch_add` to save interesting ones.
+### send_notification
+- **Auto-use:** Only for heartbeat reminders and deadline alerts.
+- **All other cases:** Requires explicit user request.
 
-## Tool Count Summary
+### cron (built-in)
+- **Use only** when the user explicitly asks for a recurring or scheduled task.
+- Never set up cron jobs proactively.
 
-Total: **27 tools** (12 library + 6 task + 6 workspace + 3 radar), all registered in
-`openclaw.json` under `tools.alsoAllow`.
+### gateway (built-in)
+- **Query config:** Allowed freely.
+- **gateway.restart:** MUST present `approval_card` (risk_level: high) first.
+- Never restart the gateway without explicit user request and confirmation.
 
-## Citation and Export
+## §4 Skill Router
 
-- **Supported citation styles:** APA, MLA, Chicago, IEEE, Vancouver, Harvard,
-  Nature, ACM, ACS, custom CSL
+Methodology, workflows, and domain-specific guidance are provided by 488
+research-plugins skills. Access them through the **skill-router** skill using its
+3-step protocol (match → read catalog → read skill). Tools always take priority
+over skill guidance.
+
+## §5 Citation & Export
+
+- **Citation styles:** APA, MLA, Chicago, IEEE, Vancouver, Harvard, Nature, ACM,
+  ACS, custom CSL
 - **Export formats:** BibTeX (.bib), RIS (.ris), CSV (.csv), JSON, Markdown
 - **Import formats:** PDF, BibTeX (.bib), RIS (.ris), CSV, DOI list
 
-## Configuration
+## §6 Tool Count
 
-Citation style is configured in `openclaw.json` at
-`plugins.entries.research-claw-core.config.defaultCitationStyle`.
-
-Tool availability depends on the `tools.profile` setting:
-- `"full"` -- All built-in tools + research tools (default)
-- `"minimal"` -- Built-in tools only, no research-specific tools
+27 local + 13 API = **40 registered tools**, all in `openclaw.json` `tools.alsoAllow`.
+488 skills accessible on-demand via skill-router.

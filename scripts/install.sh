@@ -140,9 +140,72 @@ info "Building..."
 pnpm build 2>&1 | tail -3
 ok "Build complete"
 
-# --- Register plugins ---
-node ./node_modules/openclaw/dist/entry.js plugins install @wentorai/research-plugins 2>/dev/null || true
-ok "Research-plugins (487 skills)"
+# --- Rebuild native modules if ABI mismatch ---
+# better-sqlite3 is a C++ addon compiled against a specific Node ABI.
+# The gateway may run under a different Node (e.g. conda) than system node,
+# so we detect the actual Node that openclaw uses and rebuild with THAT one.
+SQLITE_NODE="node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+if ls $SQLITE_NODE &>/dev/null; then
+  # Detect which Node the gateway actually uses
+  GW_NODE="node"
+  if command -v openclaw &>/dev/null; then
+    OC_PATH="$(command -v openclaw)"
+    # Follow shims/symlinks to find the real interpreter
+    if [ -L "$OC_PATH" ]; then OC_PATH="$(readlink -f "$OC_PATH")"; fi
+    OC_DIR="$(dirname "$OC_PATH")"
+    if [ -x "$OC_DIR/node" ]; then
+      GW_NODE="$OC_DIR/node"
+    fi
+  fi
+  if ! "$GW_NODE" -e "require('better-sqlite3')" 2>/dev/null; then
+    info "Rebuilding native modules for $("$GW_NODE" -v) (gateway Node)..."
+    SQLITE_DIR=$(dirname "$(dirname "$(ls $SQLITE_NODE | head -1)")")
+    # Use node-gyp from the gateway Node's npm to ensure ABI match
+    GW_NPM_ROOT="$("$GW_NODE" -e "console.log(require('child_process').execSync('npm root -g', {env:{...process.env,PATH:process.env.PATH}}).toString().trim())" 2>/dev/null || echo "")"
+    GW_NODEGYP=""
+    if [ -n "$GW_NPM_ROOT" ] && [ -f "$GW_NPM_ROOT/npm/node_modules/node-gyp/bin/node-gyp.js" ]; then
+      GW_NODEGYP="$GW_NPM_ROOT/npm/node_modules/node-gyp/bin/node-gyp.js"
+    fi
+    if [ -n "$GW_NODEGYP" ]; then
+      (cd "$SQLITE_DIR" && "$GW_NODE" "$GW_NODEGYP" rebuild 2>&1 | tail -1)
+    else
+      (cd "$SQLITE_DIR" && npx --yes node-gyp rebuild 2>&1 | tail -1)
+    fi
+    ok "Native modules rebuilt"
+  fi
+fi
+
+# --- Register research-plugins (skills + agent tools) ---
+# Installed via OpenClaw's plugin system (npm pack → ~/.openclaw/extensions/).
+# NOT loaded from node_modules — avoids pnpm hardlink rejection.
+OPENCLAW="node ./node_modules/openclaw/dist/entry.js"
+PLUGIN_DIR="$HOME/.openclaw/extensions/research-plugins"
+info "Installing research-plugins..."
+if [ -d "$PLUGIN_DIR" ]; then
+  # Update existing: remove old version, install latest
+  CURRENT_VER=$(node -e "console.log(require('$PLUGIN_DIR/package.json').version)" 2>/dev/null || echo "unknown")
+  rm -rf "$PLUGIN_DIR"
+  if $OPENCLAW plugins install @wentorai/research-plugins 2>&1; then
+    NEW_VER=$(node -e "console.log(require('$PLUGIN_DIR/package.json').version)" 2>/dev/null || echo "unknown")
+    if [ "$CURRENT_VER" = "$NEW_VER" ]; then
+      ok "Research-plugins v${NEW_VER} (488 skills, 13 tools)"
+    else
+      ok "Research-plugins updated: v${CURRENT_VER} → v${NEW_VER}"
+    fi
+  else
+    printf "  ${R}  ⚠${N} research-plugins update failed. You can retry later:\n"
+    printf "    openclaw plugins install @wentorai/research-plugins\n"
+  fi
+else
+  # Fresh install
+  if $OPENCLAW plugins install @wentorai/research-plugins 2>&1; then
+    NEW_VER=$(node -e "console.log(require('$PLUGIN_DIR/package.json').version)" 2>/dev/null || echo "unknown")
+    ok "Research-plugins v${NEW_VER} (488 skills, 13 tools)"
+  else
+    printf "  ${R}  ⚠${N} research-plugins install failed (offline?). You can retry later:\n"
+    printf "    openclaw plugins install @wentorai/research-plugins\n"
+  fi
+fi
 
 # --- Done ---
 printf "\n  ${G}${B}Ready!${N}\n\n"

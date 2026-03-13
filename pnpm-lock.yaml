@@ -13,9 +13,6 @@ importers:
 
   .:
     dependencies:
-      '@wentorai/research-plugins':
-        specifier: ^1.0.0
-        version: 1.1.0(openclaw@2026.3.8(patch_hash=ihhabkbauuy4vtqpztlmythb2e)(@napi-rs/canvas@0.1.96)(@types/express@5.0.6)(hono@4.12.7)(node-llama-cpp@3.16.2(typescript@5.9.3)))
       openclaw:
         specifier: 2026.3.8
         version: 2026.3.8(patch_hash=ihhabkbauuy4vtqpztlmythb2e)(@napi-rs/canvas@0.1.96)(@types/express@5.0.6)(hono@4.12.7)(node-llama-cpp@3.16.2(typescript@5.9.3))
@@ -2087,15 +2084,6 @@ packages:
   '@vitest/utils@3.2.4':
     resolution: {integrity: sha512-fB2V0JFrQSMsCo9HiSq3Ezpdv4iYaXRG1Sx8edX3MwxfyNn83mKiGzOcH+Fkxt4MHxr3y42fQi1oeAInqgX2QA==}
 
-  '@wentorai/research-plugins@1.1.0':
-    resolution: {integrity: sha512-L9M769QdcoTxKcq0OuUPAmgm9UkIXD78GNoQK3msZFM1MyIxM4vRVUQxjnUkej11UNpCl35ru5LAyhP7hftClQ==}
-    engines: {node: '>=22.6.0'}
-    peerDependencies:
-      openclaw: '*'
-    peerDependenciesMeta:
-      openclaw:
-        optional: true
-
   '@whiskeysockets/baileys@7.0.0-rc.9':
     resolution: {integrity: sha512-YFm5gKXfDP9byCXCW3OPHKXLzrAKzolzgVUlRosHHgwbnf2YOO3XknkMm6J7+F0ns8OA0uuSBhgkRHTDtqkacw==}
     engines: {node: '>=20.0.0'}
@@ -2112,8 +2100,8 @@ packages:
       link-preview-js:
         optional: true
 
-  '@whiskeysockets/libsignal-node@git+https://git@github.com:whiskeysockets/libsignal-node.git#1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67':
-    resolution: {commit: 1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67, repo: git@github.com:whiskeysockets/libsignal-node.git, type: git}
+  '@whiskeysockets/libsignal-node@https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67':
+    resolution: {tarball: https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67}
     version: 2.0.1
 
   abort-controller@3.0.0:
@@ -7298,18 +7286,12 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 2.0.0
 
-  '@wentorai/research-plugins@1.1.0(openclaw@2026.3.8(patch_hash=ihhabkbauuy4vtqpztlmythb2e)(@napi-rs/canvas@0.1.96)(@types/express@5.0.6)(hono@4.12.7)(node-llama-cpp@3.16.2(typescript@5.9.3)))':
-    dependencies:
-      '@sinclair/typebox': 0.34.48
-    optionalDependencies:
-      openclaw: 2026.3.8(patch_hash=ihhabkbauuy4vtqpztlmythb2e)(@napi-rs/canvas@0.1.96)(@types/express@5.0.6)(hono@4.12.7)(node-llama-cpp@3.16.2(typescript@5.9.3))
-
   '@whiskeysockets/baileys@7.0.0-rc.9(sharp@0.34.5)':
     dependencies:
       '@cacheable/node-cache': 1.7.6
       '@hapi/boom': 9.1.4
       async-mutex: 0.5.0
-      libsignal: '@whiskeysockets/libsignal-node@git+https://git@github.com:whiskeysockets/libsignal-node.git#1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67'
+      libsignal: '@whiskeysockets/libsignal-node@https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67'
       lru-cache: 11.2.6
       music-metadata: 11.12.1
       p-queue: 9.1.0
@@ -7322,7 +7304,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@whiskeysockets/libsignal-node@git+https://git@github.com:whiskeysockets/libsignal-node.git#1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67':
+  '@whiskeysockets/libsignal-node@https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67':
     dependencies:
       curve25519-js: 0.0.4
       protobufjs: 6.8.8

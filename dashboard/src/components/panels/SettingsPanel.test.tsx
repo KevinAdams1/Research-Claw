@@ -64,7 +64,7 @@ describe('SettingsPanel', () => {
     expect(screen.queryByText('settings.about')).toBeNull();
   });
 
-  it('renders vision endpoint toggle', () => {
+  it('renders vision enable toggle', () => {
     useGatewayStore.setState({
       state: 'connected',
       client: { isConnected: true, request: vi.fn() } as unknown as ReturnType<typeof useGatewayStore.getState>['client'],
@@ -77,6 +77,6 @@ describe('SettingsPanel', () => {
     });
 
     render(<SettingsPanel />);
-    expect(screen.getByText('settings.differentEndpoint')).toBeTruthy();
+    expect(screen.getByText('settings.enableVision')).toBeTruthy();
   });
 });

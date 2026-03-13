@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Button, Input, Typography, Space, Alert, Card, Divider, Segmented } from 'antd';
+import { AutoComplete, Button, Input, Select, Typography, Space, Alert, Card, Divider, Segmented } from 'antd';
 import {
   ApiOutlined,
   GlobalOutlined,
@@ -10,8 +10,18 @@ import { useTranslation } from 'react-i18next';
 import { useGatewayStore } from '../../stores/gateway';
 import { useConfigStore } from '../../stores/config';
 import { buildConfigPatch, extractConfigFields } from '../../utils/config-patch';
+import { PROVIDER_PRESETS, detectPresetFromProvider, getPreset } from '../../utils/provider-presets';
 
 const { Title, Text } = Typography;
+
+/** Shared filter for provider Select: searches both label and id */
+const providerFilterOption = (input: string, option?: { label?: unknown; value?: unknown }) => {
+  const search = input.toLowerCase();
+  return (
+    String(option?.label ?? '').toLowerCase().includes(search) ||
+    String(option?.value ?? '').toLowerCase().includes(search)
+  );
+};
 
 export default function SetupWizard() {
   const { t } = useTranslation();
@@ -19,28 +29,60 @@ export default function SetupWizard() {
   const connState = useGatewayStore((s) => s.state);
 
   const gatewayConfig = useConfigStore((s) => s.gatewayConfig);
-  const bootState = useConfigStore((s) => s.bootState);
 
+  // --- Text endpoint ---
+  const [provider, setProvider] = useState('zai');
   const [baseUrl, setBaseUrl] = useState('');
+  const [api, setApi] = useState('openai-completions');
   const [apiKey, setApiKey] = useState('');
   const [textModel, setTextModel] = useState('');
+
+  // --- Vision ---
+  const [visionEnabled, setVisionEnabled] = useState(false);
+  const [visionProvider, setVisionProvider] = useState('zai');
   const [visionModel, setVisionModel] = useState('');
-  const [useDifferentEndpoint, setUseDifferentEndpoint] = useState(false);
   const [visionBaseUrl, setVisionBaseUrl] = useState('');
+  const [visionApi, setVisionApi] = useState('openai-completions');
   const [visionApiKey, setVisionApiKey] = useState('');
+
+  // --- Network ---
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [proxyUrl, setProxyUrl] = useState('http://127.0.0.1:7890');
+
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [error, setError] = useState('');
 
-  // Track whether we already pre-filled to avoid overwriting user edits
   const prefilled = useRef(false);
-  // True when pre-filled from an existing config (apiKey may have been redacted → empty)
   const hasExistingConfig = useRef(false);
 
-  // Pre-fill from existing config (mirrors SettingsPanel pattern)
-  // Note: gateway redacts apiKeys as __OPENCLAW_REDACTED__ → extractConfigFields strips to ''
+  // Apply text provider preset
+  const handleProviderChange = (id: string) => {
+    setProvider(id);
+    const preset = getPreset(id);
+    if (preset.baseUrl) setBaseUrl(preset.baseUrl);
+    setApi(preset.api);
+    if (preset.models.length > 0 && !textModel) {
+      setTextModel(preset.models[0].id);
+    }
+  };
+
+  // Apply vision provider preset
+  const handleVisionProviderChange = (id: string) => {
+    setVisionProvider(id);
+    const preset = getPreset(id);
+    if (preset.baseUrl) setVisionBaseUrl(preset.baseUrl);
+    setVisionApi(preset.api);
+    // Auto-fill first vision-capable model
+    const visionCapable = preset.models.filter((m) => m.input?.includes('image'));
+    if (visionCapable.length > 0) {
+      setVisionModel(visionCapable[0].id);
+    } else if (preset.models.length > 0 && !visionModel) {
+      setVisionModel(preset.models[0].id);
+    }
+  };
+
+  // Pre-fill from existing config
   useEffect(() => {
     if (!gatewayConfig || prefilled.current) return;
     const configRecord = gatewayConfig as unknown as Record<string, unknown>;
@@ -48,27 +90,31 @@ export default function SetupWizard() {
 
     if (fields.baseUrl || fields.textModel) {
       setBaseUrl(fields.baseUrl);
-      // apiKey may be '' if redacted — leave empty, user sees placeholder
+      setApi(fields.api);
       if (fields.apiKey) setApiKey(fields.apiKey);
       setTextModel(fields.textModel);
-      setVisionModel(fields.visionModel);
-      if (fields.useDifferentVisionEndpoint) {
-        setUseDifferentEndpoint(true);
-        setVisionBaseUrl(fields.visionBaseUrl);
+      setProvider(detectPresetFromProvider(fields.provider, fields.baseUrl));
+
+      if (fields.visionEnabled) {
+        setVisionEnabled(true);
+        setVisionModel(fields.visionModel);
+        setVisionProvider(detectPresetFromProvider(fields.visionProvider, fields.visionBaseUrl));
+        setVisionBaseUrl(fields.visionBaseUrl || fields.baseUrl);
+        setVisionApi(fields.visionApi);
         if (fields.visionApiKey) setVisionApiKey(fields.visionApiKey);
       }
+
       if (fields.proxyUrl) {
         setProxyEnabled(true);
         setProxyUrl(fields.proxyUrl);
       }
+
       prefilled.current = true;
       hasExistingConfig.current = true;
     }
   }, [gatewayConfig]);
 
-  // After gateway restart: when we're in restarting state and WS reconnects,
-  // force a config reload to attempt auto-transition to dashboard.
-  // App.tsx will unmount this wizard when bootState becomes 'ready'.
+  // After gateway restart: force config reload
   useEffect(() => {
     if (!restarting || connState !== 'connected') return;
     const timer = setTimeout(() => {
@@ -77,7 +123,6 @@ export default function SetupWizard() {
     return () => clearTimeout(timer);
   }, [restarting, connState]);
 
-  // apiKey is optional when re-configuring — empty apiKey means "keep existing"
   const canStart =
     (apiKey.trim().length > 0 || hasExistingConfig.current) &&
     baseUrl.trim().length > 0 &&
@@ -91,17 +136,20 @@ export default function SetupWizard() {
 
     try {
       const patch = buildConfigPatch({
+        provider,
         baseUrl: baseUrl.trim(),
-        apiKey: apiKey.trim() || undefined, // undefined = preserve existing key via deep merge
+        api,
+        apiKey: apiKey.trim() || undefined,
         textModel: textModel.trim(),
-        visionModel: visionModel.trim() || undefined,
-        visionBaseUrl: useDifferentEndpoint ? visionBaseUrl.trim() || undefined : undefined,
-        visionApiKey: useDifferentEndpoint ? visionApiKey.trim() || undefined : undefined,
+        visionEnabled,
+        visionProvider: visionEnabled ? visionProvider : undefined,
+        visionModel: visionEnabled ? visionModel.trim() || undefined : undefined,
+        visionBaseUrl: visionEnabled && visionProvider !== provider ? visionBaseUrl.trim() || undefined : undefined,
+        visionApiKey: visionEnabled && visionProvider !== provider ? (visionApiKey.trim() || undefined) : undefined,
+        visionApi: visionEnabled && visionProvider !== provider ? visionApi : undefined,
         proxyUrl: proxyEnabled ? proxyUrl.trim() : '',
       });
 
-      // Gateway requires baseHash for config.patch (optimistic locking).
-      // Always fetch fresh hash right before patching.
       const configSnapshot = await client.request<{ hash: string }>('config.get', {});
 
       await client.request('config.patch', {
@@ -109,7 +157,6 @@ export default function SetupWizard() {
         baseHash: configSnapshot.hash,
       });
 
-      // Gateway will SIGUSR1 restart → WS drops → auto reconnect → onHello → config.get → evaluateConfig → bootState='ready'
       setRestarting(true);
     } catch (err) {
       setSaving(false);
@@ -121,8 +168,22 @@ export default function SetupWizard() {
     useConfigStore.getState().setBootState('ready');
   };
 
-  // While restarting, show overlay — the gateway store's onHello will auto-fetch config
-  // and evaluateConfig will set bootState to 'ready', which unmounts this wizard
+  // Current preset's model suggestions for AutoComplete
+  const currentPreset = getPreset(provider);
+  const modelOptions = currentPreset.models.map((m) => ({
+    value: m.id,
+    label: `${m.id} — ${m.name}`,
+  }));
+
+  const visionPreset = getPreset(visionProvider);
+  const visionModelOptions = visionPreset.models.map((m) => ({
+    value: m.id,
+    label: `${m.id} — ${m.name}`,
+  }));
+
+  // Whether vision uses a different provider (show separate baseUrl/apiKey)
+  const visionSeparateProvider = visionProvider !== provider;
+
   if (restarting) {
     return (
       <div
@@ -141,7 +202,6 @@ export default function SetupWizard() {
         <Text type="secondary" style={{ fontSize: 12 }}>
           {connState === 'connected' ? t('status.connected') : t('status.reconnecting')}
         </Text>
-        {/* Safety valve: if connected but still stuck here, let user skip */}
         {connState === 'connected' && (
           <Button
             type="link"
@@ -186,7 +246,25 @@ export default function SetupWizard() {
             <Text type="secondary">{t('setup.subtitle')}</Text>
           </div>
 
-          {/* ── Model ── */}
+          {/* ── Provider selector (searchable) ── */}
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 4 }}>
+              {t('setup.provider')}
+            </Text>
+            <Select
+              showSearch
+              value={provider}
+              onChange={handleProviderChange}
+              style={{ width: '100%' }}
+              filterOption={providerFilterOption}
+              options={PROVIDER_PRESETS.map((p) => ({
+                value: p.id,
+                label: p.id === 'custom' ? t('setup.providerCustom') : p.label,
+              }))}
+            />
+          </div>
+
+          {/* ── API URL ── */}
           <div>
             <Text strong style={{ display: 'block', marginBottom: 4 }}>
               {t('setup.baseUrl')}
@@ -198,11 +276,29 @@ export default function SetupWizard() {
             />
           </div>
 
+          {/* ── API Protocol (shown for Custom only) ── */}
+          {provider === 'custom' && (
+            <div>
+              <Text strong style={{ display: 'block', marginBottom: 4 }}>
+                {t('setup.apiProtocol')}
+              </Text>
+              <Select
+                value={api}
+                onChange={setApi}
+                style={{ width: '100%' }}
+                options={[
+                  { value: 'openai-completions', label: 'OpenAI Compatible' },
+                  { value: 'anthropic-messages', label: 'Anthropic Compatible' },
+                ]}
+              />
+            </div>
+          )}
+
           <div>
             <Text strong style={{ display: 'block', marginBottom: 4 }}>
               {t('setup.apiKey')}
             </Text>
-            <Input.Password
+            <Input
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder={hasExistingConfig.current && !apiKey ? t('setup.apiKeyExisting') : t('setup.apiKeyPlaceholder')}
@@ -214,34 +310,27 @@ export default function SetupWizard() {
             <Text strong style={{ display: 'block', marginBottom: 4 }}>
               {t('setup.modelName')}
             </Text>
-            <Input
+            <AutoComplete
               value={textModel}
-              onChange={(e) => setTextModel(e.target.value)}
+              onChange={setTextModel}
+              options={modelOptions}
               placeholder={t('setup.modelNamePlaceholder')}
+              style={{ width: '100%' }}
+              filterOption={(input, option) =>
+                (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             />
           </div>
 
-          {/* ── Vision ── */}
-          <div>
-            <Text strong style={{ display: 'block', marginBottom: 4 }}>
-              {t('setup.visionModel')}
-            </Text>
-            <Input
-              value={visionModel}
-              onChange={(e) => setVisionModel(e.target.value)}
-              placeholder={t('setup.visionModelPlaceholder')}
-            />
-            <Text type="secondary" style={{ fontSize: 11, marginTop: 2, display: 'block' }}>
-              {t('setup.visionModelHint')}
-            </Text>
-          </div>
+          <Divider style={{ margin: '4px 0' }} />
 
+          {/* ── Vision toggle ── */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: 13 }}>{t('setup.differentEndpoint')}</Text>
+              <Text style={{ fontSize: 13 }}>{t('setup.enableVision')}</Text>
               <Segmented
-                value={useDifferentEndpoint ? 'on' : 'off'}
-                onChange={(v) => setUseDifferentEndpoint(v === 'on')}
+                value={visionEnabled ? 'on' : 'off'}
+                onChange={(v) => setVisionEnabled(v === 'on')}
                 options={[
                   { label: 'OFF', value: 'off' },
                   { label: 'ON', value: 'on' },
@@ -249,31 +338,77 @@ export default function SetupWizard() {
                 size="small"
               />
             </div>
+            {!visionEnabled && (
+              <Text type="secondary" style={{ fontSize: 11, marginTop: 2, display: 'block' }}>
+                {t('setup.visionModelHint')}
+              </Text>
+            )}
           </div>
 
-          {useDifferentEndpoint && (
+          {visionEnabled && (
             <>
+              {/* Vision provider (searchable) */}
               <div>
                 <Text strong style={{ display: 'block', marginBottom: 4 }}>
-                  {t('setup.visionBaseUrl')}
+                  {t('setup.visionProvider')}
                 </Text>
-                <Input
-                  value={visionBaseUrl}
-                  onChange={(e) => setVisionBaseUrl(e.target.value)}
-                  placeholder={t('setup.baseUrlPlaceholder')}
+                <Select
+                  showSearch
+                  value={visionProvider}
+                  onChange={handleVisionProviderChange}
+                  style={{ width: '100%' }}
+                  filterOption={providerFilterOption}
+                  options={PROVIDER_PRESETS.map((p) => ({
+                    value: p.id,
+                    label: p.id === 'custom' ? t('setup.providerCustom') : p.label,
+                  }))}
                 />
               </div>
+
+              {/* Vision model */}
               <div>
                 <Text strong style={{ display: 'block', marginBottom: 4 }}>
-                  {t('setup.visionApiKey')}
+                  {t('setup.visionModel')}
                 </Text>
-                <Input.Password
-                  value={visionApiKey}
-                  onChange={(e) => setVisionApiKey(e.target.value)}
-                  placeholder={t('setup.apiKeyPlaceholder')}
-                  prefix={<ApiOutlined />}
+                <AutoComplete
+                  value={visionModel}
+                  onChange={setVisionModel}
+                  options={visionModelOptions}
+                  placeholder={t('setup.visionModelPlaceholder')}
+                  style={{ width: '100%' }}
+                  filterOption={(input, option) =>
+                    (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
                 />
               </div>
+
+              {/* Vision API URL + Key — only when different provider */}
+              {visionSeparateProvider && (
+                <>
+                  <div>
+                    <Text strong style={{ display: 'block', marginBottom: 4 }}>
+                      {t('setup.visionBaseUrl')}
+                    </Text>
+                    <Input
+                      value={visionBaseUrl}
+                      onChange={(e) => setVisionBaseUrl(e.target.value)}
+                      placeholder={t('setup.baseUrlPlaceholder')}
+                    />
+                  </div>
+
+                  <div>
+                    <Text strong style={{ display: 'block', marginBottom: 4 }}>
+                      {t('setup.visionApiKey')}
+                    </Text>
+                    <Input
+                      value={visionApiKey}
+                      onChange={(e) => setVisionApiKey(e.target.value)}
+                      placeholder={t('setup.apiKeyPlaceholder')}
+                      prefix={<ApiOutlined />}
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -327,7 +462,6 @@ export default function SetupWizard() {
           />
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            {/* Skip: visible when existing config is present (e.g. __resetSetup, re-configure) */}
             {gatewayConfig ? (
               <Button type="link" onClick={handleSkipToDashboard} style={{ padding: 0 }}>
                 {t('setup.skipToDashboard')}

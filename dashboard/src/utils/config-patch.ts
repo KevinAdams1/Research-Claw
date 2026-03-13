@@ -1,39 +1,59 @@
 /**
  * Build & parse OpenClaw config patches for the dashboard.
  *
- * Provider names:
- *   "rc"        — text model (and vision if same endpoint)
- *   "rc-vision" — vision model when using a different endpoint
+ * Uses OpenClaw's native provider keys (e.g. 'zai', 'openai', 'anthropic')
+ * so that ProviderCapabilities and imageModel fallback logic work correctly.
  */
 
-export const RC_PROVIDER = 'rc';
-export const RC_VISION_PROVIDER = 'rc-vision';
+import { getPreset } from './provider-presets';
 
 /** Sentinel value OpenClaw uses to redact secrets in resolved config */
 export const REDACTED_SENTINEL = '__OPENCLAW_REDACTED__';
 
 export interface ConfigPatchInput {
+  /** OpenClaw native provider key (e.g. 'zai', 'openai', 'anthropic') */
+  provider: string;
   baseUrl: string;
+  /** API protocol: 'openai-completions' | 'anthropic-messages' | etc. */
+  api?: string;
   /** Omit or empty to preserve existing key via config.patch deep merge */
   apiKey?: string;
   textModel: string;
+  visionEnabled?: boolean;
+  /** Native provider key for vision (may equal text provider) */
+  visionProvider?: string;
   visionModel?: string;
-  /** When set (and differs from baseUrl), creates a second provider for vision */
+  /** When vision uses a different provider, its baseUrl */
   visionBaseUrl?: string;
   visionApiKey?: string;
+  /** API protocol for the vision provider */
+  visionApi?: string;
   /** undefined = don't touch env, "" = clear proxy, "http://..." = set proxy */
   proxyUrl?: string;
 }
 
 export interface ExtractedConfig {
+  /** Detected native provider key */
+  provider: string;
   baseUrl: string;
+  api: string;
   apiKey: string;
+  /** True when the gateway has an API key configured (even if redacted) */
+  apiKeyConfigured: boolean;
   textModel: string;
+  visionEnabled: boolean;
+  visionProvider: string;
   visionModel: string;
   visionBaseUrl: string;
   visionApiKey: string;
+  /** True when the gateway has a vision API key configured (even if redacted) */
+  visionApiKeyConfigured: boolean;
+  visionApi: string;
   proxyUrl: string;
-  useDifferentVisionEndpoint: boolean;
+}
+
+function cleanUrl(url: string): string {
+  return url.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
 }
 
 function makeModelDef(id: string, input: string[]) {
@@ -41,60 +61,73 @@ function makeModelDef(id: string, input: string[]) {
 }
 
 /**
- * Build a config.patch payload from user-provided fields.
+ * Resolve a model's input capabilities from the provider preset.
+ * Returns the preset's `input` array if found, otherwise defaults to
+ * ['text', 'image'] (optimistic — assume unknown models are multimodal).
+ */
+function resolveModelInput(provider: string, modelId: string): string[] {
+  const preset = getPreset(provider);
+  const modelDef = preset.models.find((m) => m.id === modelId);
+  return modelDef?.input ?? ['text', 'image'];
+}
+
+/**
+ * Build a config.patch payload using native OpenClaw provider keys.
  */
 export function buildConfigPatch(input: ConfigPatchInput): Record<string, unknown> {
-  const baseUrl = input.baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
-  const hasVision = !!input.visionModel && input.visionModel !== input.textModel;
-  const useSeparateEndpoint =
-    hasVision && !!input.visionBaseUrl && input.visionBaseUrl !== input.baseUrl;
+  const providerKey = input.provider;
+  const baseUrl = cleanUrl(input.baseUrl);
+  const apiType = input.api || 'openai-completions';
 
-  // --- Providers ---
-  // Always mark the primary model as supporting images — modern LLMs are multimodal.
-  // OpenClaw checks model.input.includes("image") to decide whether to inject images
-  // into the prompt. Without this, images are silently dropped.
-  const rcModels = [makeModelDef(input.textModel, ['text', 'image'])];
-  if (hasVision && !useSeparateEndpoint) {
-    rcModels.push(makeModelDef(input.visionModel!, ['text', 'image']));
+  const hasVision = !!input.visionEnabled && !!input.visionModel;
+  const visionProviderKey = input.visionProvider || providerKey;
+  const useSeparateProvider = hasVision && visionProviderKey !== providerKey;
+
+  // --- Text provider entry ---
+  // Use preset's actual model capabilities for `input` array.
+  // OpenClaw checks model.input.includes("image") to decide whether to inject
+  // images into the conversation context — text-only models must NOT be marked
+  // as image-capable, otherwise the provider API rejects with 400.
+  const textModels = [makeModelDef(input.textModel, resolveModelInput(providerKey, input.textModel))];
+
+  // Same provider, different vision model → add to same provider entry
+  if (hasVision && !useSeparateProvider && input.visionModel !== input.textModel) {
+    textModels.push(makeModelDef(input.visionModel!, resolveModelInput(providerKey, input.visionModel!)));
   }
 
-  const rcProvider: Record<string, unknown> = {
+  const textProvider: Record<string, unknown> = {
     baseUrl,
-    api: 'openai-completions',
-    models: rcModels,
+    api: apiType,
+    models: textModels,
   };
-  // Only include apiKey when provided — omitting it lets config.patch deep merge preserve the existing key
   if (input.apiKey) {
-    rcProvider.apiKey = input.apiKey;
+    textProvider.apiKey = input.apiKey;
   }
 
   const providers: Record<string, unknown> = {
-    [RC_PROVIDER]: rcProvider,
+    [providerKey]: textProvider,
   };
 
-  if (useSeparateEndpoint) {
-    const visionProv: Record<string, unknown> = {
-      baseUrl: input.visionBaseUrl!.replace(/\/+$/, '').replace(/\/chat\/completions$/, ''),
-      api: 'openai-completions',
-      models: [makeModelDef(input.visionModel!, ['text', 'image'])],
+  // --- Vision provider entry (only when using a different provider) ---
+  if (useSeparateProvider) {
+    const visionEntry: Record<string, unknown> = {
+      baseUrl: cleanUrl(input.visionBaseUrl || input.baseUrl),
+      api: input.visionApi || apiType,
+      models: [makeModelDef(input.visionModel!, resolveModelInput(visionProviderKey, input.visionModel!))],
     };
     if (input.visionApiKey || input.apiKey) {
-      visionProv.apiKey = input.visionApiKey || input.apiKey;
+      visionEntry.apiKey = input.visionApiKey || input.apiKey;
     }
-    providers[RC_VISION_PROVIDER] = visionProv;
+    providers[visionProviderKey] = visionEntry;
   }
 
   // --- Agent model refs ---
-  // Always set imageModel — config.patch is a deep merge, so omitting a field
-  // leaves stale values. When no separate vision model, imageModel = text model
-  // (which is always marked as multimodal).
-  const visionProvider = useSeparateEndpoint ? RC_VISION_PROVIDER : RC_PROVIDER;
   const visionRef = hasVision
-    ? `${visionProvider}/${input.visionModel}`
-    : `${RC_PROVIDER}/${input.textModel}`;
+    ? `${visionProviderKey}/${input.visionModel}`
+    : `${providerKey}/${input.textModel}`;
 
   const defaults: Record<string, unknown> = {
-    model: { primary: `${RC_PROVIDER}/${input.textModel}` },
+    model: { primary: `${providerKey}/${input.textModel}` },
     imageModel: { primary: visionRef },
   };
 
@@ -121,14 +154,20 @@ export function extractConfigFields(
   config: Record<string, unknown> | null,
 ): ExtractedConfig {
   const empty: ExtractedConfig = {
+    provider: 'custom',
     baseUrl: '',
+    api: 'openai-completions',
     apiKey: '',
+    apiKeyConfigured: false,
     textModel: '',
+    visionEnabled: false,
+    visionProvider: 'custom',
     visionModel: '',
     visionBaseUrl: '',
     visionApiKey: '',
+    visionApiKeyConfigured: false,
+    visionApi: 'openai-completions',
     proxyUrl: '',
-    useDifferentVisionEndpoint: false,
   };
   if (!config) return empty;
 
@@ -141,47 +180,59 @@ export function extractConfigFields(
   const primary = modelDef?.primary ?? '';
   const imagePrimary = imageModelDef?.primary ?? '';
 
-  const strip = (ref: string) =>
-    ref.includes('/') ? ref.split('/').slice(1).join('/') : ref;
   const providerOf = (ref: string) =>
     ref.includes('/') ? ref.split('/')[0] : '';
+  const modelOf = (ref: string) =>
+    ref.includes('/') ? ref.split('/').slice(1).join('/') : ref;
 
-  const textModel = strip(primary);
-  const visionModel = imagePrimary ? strip(imagePrimary) : '';
-  const visionProviderKey = providerOf(imagePrimary);
-  const useDifferentVisionEndpoint = visionProviderKey === RC_VISION_PROVIDER;
+  const textProviderKey = providerOf(primary) || 'custom';
+  const textModelId = modelOf(primary);
+
+  const visionProviderKey = providerOf(imagePrimary) || textProviderKey;
+  const visionModelId = modelOf(imagePrimary);
+
+  // Vision is enabled when imageModel exists and differs from text model
+  const visionEnabled = !!visionModelId &&
+    (visionProviderKey !== textProviderKey || visionModelId !== textModelId);
 
   // --- Providers ---
   const providers = (config.models as Record<string, unknown> | undefined)
     ?.providers as Record<string, Record<string, unknown>> | undefined;
 
-  const textProvider =
-    providers?.[RC_PROVIDER] ??
-    (providerOf(primary) ? providers?.[providerOf(primary)] : undefined);
-
-  const visionProvider = useDifferentVisionEndpoint
-    ? providers?.[RC_VISION_PROVIDER]
+  const textProviderDef = providers?.[textProviderKey];
+  const visionProviderDef = visionProviderKey !== textProviderKey
+    ? providers?.[visionProviderKey]
     : undefined;
 
   // --- Proxy ---
   const env = config.env as Record<string, string> | undefined;
   const proxyUrl = env?.HTTP_PROXY || env?.HTTPS_PROXY || '';
 
-  // Strip redacted sentinel — treat as "value exists but not shown"
   const deRedact = (v: unknown): string => {
     const s = (v as string) ?? '';
     return s === REDACTED_SENTINEL ? '' : s;
   };
 
+  const apiKeyRaw = textProviderDef?.apiKey;
+  const visionApiKeyRaw = visionProviderDef?.apiKey;
+
   return {
-    baseUrl: (textProvider?.baseUrl as string) ?? '',
-    apiKey: deRedact(textProvider?.apiKey),
-    textModel,
-    visionModel: visionModel !== textModel ? visionModel : '',
-    visionBaseUrl: (visionProvider?.baseUrl as string) ?? '',
-    visionApiKey: deRedact(visionProvider?.apiKey),
+    provider: textProviderKey,
+    baseUrl: (textProviderDef?.baseUrl as string) ?? '',
+    api: (textProviderDef?.api as string) ?? 'openai-completions',
+    apiKey: deRedact(apiKeyRaw),
+    apiKeyConfigured: typeof apiKeyRaw === 'string' && apiKeyRaw.length > 0,
+    textModel: textModelId,
+    visionEnabled,
+    visionProvider: visionProviderKey,
+    visionModel: visionEnabled ? visionModelId : '',
+    visionBaseUrl: visionEnabled
+      ? (visionProviderDef?.baseUrl as string) ?? (textProviderDef?.baseUrl as string) ?? ''
+      : '',
+    visionApiKey: visionProviderDef ? deRedact(visionApiKeyRaw) : '',
+    visionApiKeyConfigured: typeof visionApiKeyRaw === 'string' && visionApiKeyRaw.length > 0,
+    visionApi: (visionProviderDef?.api as string) ?? (textProviderDef?.api as string) ?? 'openai-completions',
     proxyUrl,
-    useDifferentVisionEndpoint,
   };
 }
 
@@ -198,7 +249,6 @@ export function isConfigValid(config: Record<string, unknown> | null): boolean {
   const primary = modelDef?.primary ?? '';
   if (!primary) return false;
 
-  // Check that a matching provider exists
   const providerKey = primary.includes('/') ? primary.split('/')[0] : '';
   if (!providerKey) return false;
 
@@ -211,7 +261,6 @@ export function isConfigValid(config: Record<string, unknown> | null): boolean {
  * Relaxed config check: only verifies that a model reference exists.
  * Used as a fallback when the gateway is running (hello-ok received)
  * but strict validation fails due to resolved config structure differences.
- * If the gateway started successfully, its config is valid — it validates on startup.
  */
 export function hasModelConfigured(config: Record<string, unknown> | null): boolean {
   if (!config) return false;

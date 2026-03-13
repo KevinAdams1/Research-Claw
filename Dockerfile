@@ -37,17 +37,18 @@ COPY dashboard/package.json                          ./dashboard/
 COPY extensions/research-claw-core/package.json     ./extensions/research-claw-core/
 COPY extensions/wentor-connect/package.json          ./extensions/wentor-connect/
 
-RUN pnpm install --node-linker=hoisted && \
-    # pnpm 用硬链接安装文件 (nlink>1)，OpenClaw 拒绝 nlink>1 的插件文件。
-    # cp -r 创建新 inode (nlink=1) 绕过路径校验。
-    cp -r node_modules/@wentorai/research-plugins /tmp/rp-clean && \
-    rm -rf node_modules/@wentorai/research-plugins && \
-    mv /tmp/rp-clean node_modules/@wentorai/research-plugins
+RUN pnpm install --node-linker=hoisted
 
 # ── 源码 + 构建 ──────────────────────────────────────────────────────
 COPY . .
 
 RUN pnpm build
+
+# ── research-plugins（487 skills + 13 agent tools）──────────────────────
+# 通过 OpenClaw 插件机制安装到 ~/.openclaw/extensions/（不走 node_modules）
+RUN OPENCLAW_CONFIG_PATH=./config/openclaw.example.json \
+    node ./node_modules/openclaw/dist/entry.js \
+    plugins install @wentorai/research-plugins
 
 # 烘焙配置模板，首次启动时 entrypoint 会复制到 volume
 RUN mkdir -p /defaults && cp config/openclaw.example.json /defaults/openclaw.example.json
