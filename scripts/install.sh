@@ -262,7 +262,7 @@ export GIT_CONFIG_VALUE_0="git@github.com:"
 # Priority: 1) conda openclaw env Node  2) node next to openclaw binary  3) system node
 GW_NODE="node"
 if command -v conda &>/dev/null; then
-  CONDA_OC_PREFIX="$(conda env list 2>/dev/null | grep "^openclaw " | awk '{print $NF}')"
+  CONDA_OC_PREFIX="$(conda env list 2>/dev/null | grep "^openclaw " | awk '{print $NF}' || true)"
   if [ -n "$CONDA_OC_PREFIX" ] && [ -x "$CONDA_OC_PREFIX/bin/node" ]; then
     GW_NODE="$CONDA_OC_PREFIX/bin/node"
   fi
