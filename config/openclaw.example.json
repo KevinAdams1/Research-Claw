@@ -7,7 +7,8 @@
     "mode": "local",              // "local" = loopback only, no remote access
     "port": 28789,                // Research-Claw gateway port (avoids OpenClaw default 18789)
     "controlUi": {
-      "root": "./dashboard/dist"  // Path to built dashboard SPA
+      "root": "./dashboard/dist",  // Path to built dashboard SPA
+      "dangerouslyAllowHostHeaderOriginFallback": true  // Required for Docker (non-loopback bind)
     }
   },
 
@@ -60,6 +61,10 @@
       // Workspace tools
       "workspace_save", "workspace_read", "workspace_list",
       "workspace_diff", "workspace_history", "workspace_restore",
+      // Notification
+      "send_notification",
+      // Radar tools
+      "radar_configure", "radar_get_config", "radar_scan",
       // Extended tools (batch, collection, annotation, citation graph)
       "library_batch_add", "library_manage_collection", "library_tag_paper",
       "library_add_note", "library_import_bibtex", "library_citation_graph",
