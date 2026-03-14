@@ -392,11 +392,24 @@ ensure_native_modules() {
   fi
 
   # Attempt 3: conda/version mismatch — manually rebuild with gateway Node
+  # MUST use $GW_NODE to run node-gyp directly. npx uses its own hardcoded Node
+  # (system Homebrew), ignoring PATH — so it compiles for the wrong ABI.
   info "Compiling better-sqlite3 for $("$GW_NODE" -v)..."
-  local SQLITE_PKG
+  local SQLITE_PKG NODEGYP GW_NPM_ROOT
   SQLITE_PKG="$("$GW_NODE" -e "try{console.log(require.resolve('better-sqlite3/package.json').replace(/\/package\.json$/,''))}catch{}" 2>/dev/null)"
   if [ -n "$SQLITE_PKG" ] && [ -f "$SQLITE_PKG/binding.gyp" ]; then
-    (cd "$SQLITE_PKG" && PATH="$GW_NODE_DIR:$PATH" npx --yes node-gyp rebuild &>/dev/null) || true
+    # Find node-gyp bundled inside GW_NODE's npm installation
+    GW_NPM_ROOT="$("$GW_NODE" -e "try{console.log(require('child_process').execSync('npm root -g',{env:{...process.env,PATH:'$GW_NODE_DIR:'+process.env.PATH}}).toString().trim())}catch{}" 2>/dev/null)"
+    NODEGYP=""
+    if [ -n "$GW_NPM_ROOT" ] && [ -f "$GW_NPM_ROOT/npm/node_modules/node-gyp/bin/node-gyp.js" ]; then
+      NODEGYP="$GW_NPM_ROOT/npm/node_modules/node-gyp/bin/node-gyp.js"
+    fi
+    if [ -n "$NODEGYP" ]; then
+      (cd "$SQLITE_PKG" && "$GW_NODE" "$NODEGYP" rebuild &>/dev/null) || true
+    else
+      # Last resort: npx with PATH override (may use wrong Node but worth trying)
+      (cd "$SQLITE_PKG" && PATH="$GW_NODE_DIR:$PATH" npx --yes node-gyp rebuild &>/dev/null) || true
+    fi
   fi
 
   if "$GW_NODE" -e "require('better-sqlite3')" 2>/dev/null; then
