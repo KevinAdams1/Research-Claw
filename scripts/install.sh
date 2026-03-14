@@ -256,6 +256,29 @@ if [ ! -f config/openclaw.json ]; then
     cp config/openclaw.example.json config/openclaw.json
     ok "Config created"
   fi
+else
+  # Clean stale references from older config versions (preserves user's API keys/model)
+  node -e "
+    const fs = require('fs');
+    const f = 'config/openclaw.json';
+    let c = JSON.parse(fs.readFileSync(f, 'utf8'));
+    let changed = false;
+    // Remove node_modules plugin paths (v0.2.0 legacy — plugins now in ~/.openclaw/extensions/)
+    if (c.plugins?.load?.paths) {
+      const before = c.plugins.load.paths.length;
+      c.plugins.load.paths = c.plugins.load.paths.filter(p => !p.includes('node_modules'));
+      if (c.plugins.load.paths.length !== before) changed = true;
+    }
+    // Remove stale wentor-connect entry if extension not built
+    if (c.plugins?.entries?.['wentor-connect']) {
+      try { fs.accessSync('extensions/wentor-connect/dist'); }
+      catch { delete c.plugins.entries['wentor-connect']; changed = true; }
+    }
+    if (changed) {
+      fs.writeFileSync(f, JSON.stringify(c, null, 2) + '\n');
+      console.log('  [config] Cleaned stale plugin references');
+    }
+  " 2>/dev/null || true
 fi
 
 info "Building..."
@@ -467,7 +490,8 @@ while true; do
 
   PATH="$GW_NODE_DIR:$PATH" \
     "$GW_NODE" ./node_modules/openclaw/dist/entry.js \
-    gateway run --allow-unconfigured --auth none --port "$PORT" --force
+    gateway run --allow-unconfigured --auth none --port "$PORT" --force \
+    </dev/null
   CODE=$?
 
   if $STOP; then
