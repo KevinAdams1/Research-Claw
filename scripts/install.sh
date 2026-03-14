@@ -440,7 +440,7 @@ if [ -d "$PLUGIN_DIR" ]; then
       warn "research-plugins update failed. Kept existing v${CURRENT_VER}."
     else
       warn "research-plugins update failed. You can retry later:"
-      printf "    openclaw plugins install @wentorai/research-plugins\n"
+      printf "    cd $INSTALL_DIR && npx openclaw plugins install @wentorai/research-plugins\n"
     fi
   fi
 else
@@ -450,7 +450,7 @@ else
     ok "Research-plugins v${NEW_VER} (431 skills, 13 tools)"
   else
     warn "research-plugins install failed (offline?). You can retry later:"
-    printf "    openclaw plugins install @wentorai/research-plugins\n"
+    printf "    cd $INSTALL_DIR && npx openclaw plugins install @wentorai/research-plugins\n"
   fi
 fi
 
@@ -459,6 +459,7 @@ printf "\n  ${G}${B}Ready!${N}\n\n"
 printf "  ${B}Dashboard:${N}  ${C}http://127.0.0.1:$PORT${N}\n"
 printf "  ${B}Location:${N}   $INSTALL_DIR\n"
 printf "  ${B}Start:${N}      cd $INSTALL_DIR && pnpm serve\n"
+printf "  ${B}Plugins:${N}    cd $INSTALL_DIR && npx openclaw plugins install <name>\n"
 printf "  ${B}Update:${N}     curl -fsSL https://wentor.ai/install.sh | bash\n\n"
 printf "  ${Y}NOTE:${N} The gateway log may show port ${D}28791${N} (browser automation).\n"
 printf "        ${B}Ignore it${N} — your Dashboard is always at ${C}http://127.0.0.1:$PORT${N}\n\n"
