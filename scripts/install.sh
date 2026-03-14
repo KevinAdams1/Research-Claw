@@ -365,13 +365,24 @@ fi
 # then test ABI compatibility with the gateway Node.
 
 resolve_sqlite_pkg() {
-  # Let Node find better-sqlite3 regardless of pnpm store layout
-  "$GW_NODE" -e "
+  # Let Node find better-sqlite3 regardless of pnpm store layout.
+  # Try require.resolve first, fall back to glob if Corepack/packageManager interferes.
+  local result
+  result="$("$GW_NODE" -e "
     try {
       const p = require.resolve('better-sqlite3/package.json');
-      console.log(p.replace(/\/package\.json$/, ''));
+      console.log(p.replace(/\/package\.json\$/, ''));
     } catch {}
-  " 2>/dev/null
+  " 2>/dev/null)"
+  if [ -z "$result" ]; then
+    # Fallback: glob search in pnpm store
+    local SQLITE_GLOB="node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3"
+    # shellcheck disable=SC2086
+    for d in $SQLITE_GLOB; do
+      if [ -d "$d" ]; then result="$(cd "$d" && pwd)"; break; fi
+    done
+  fi
+  echo "$result"
 }
 
 rebuild_native() {
@@ -407,10 +418,17 @@ if [ -n "$SQLITE_PKG" ]; then
     ok "Native modules ABI compatible"
   fi
 else
-  # better-sqlite3 not found — pnpm install may have failed silently
-  warn "better-sqlite3 not found. Running pnpm rebuild..."
-  pnpm rebuild 2>&1 | tail -3 || true
+  # better-sqlite3 not found — previous pnpm install likely incomplete or corrupted.
+  # Step 1: targeted rebuild
+  info "better-sqlite3 not found. Rebuilding..."
+  pnpm rebuild better-sqlite3 2>&1 | tail -3 || true
   SQLITE_PKG="$(resolve_sqlite_pkg)"
+  # Step 2: if still missing, force reinstall all deps (nuclear option)
+  if [ -z "$SQLITE_PKG" ]; then
+    info "Force reinstalling dependencies..."
+    pnpm install --force 2>&1 | tail -5 || true
+    SQLITE_PKG="$(resolve_sqlite_pkg)"
+  fi
   if [ -n "$SQLITE_PKG" ]; then
     ok "Native modules compiled"
     if ! "$GW_NODE" -e "require('$SQLITE_PKG')" 2>/dev/null; then
