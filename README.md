@@ -271,7 +271,7 @@ Windows 用户推荐用 Docker Desktop，无需安装 WSL2 或 Node.js。macOS /
 
 #### 1. 直接拉取预构建镜像（推荐）
 
-无需克隆代码，一条命令即可运行（如果是MacOS/Linux的话, 需要将^替换为/）：
+无需克隆代码，一条命令即可运行（如果是MacOS/Linux的话, 需要将^替换为\）：
 
 ```bash
 docker pull ghcr.io/wentorai/research-claw:latest
