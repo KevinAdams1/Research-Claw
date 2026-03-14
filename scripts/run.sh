@@ -41,13 +41,16 @@ echo "[run] Config: $OPENCLAW_CONFIG_PATH"
 # Sync RC settings → ~/.openclaw/openclaw.json so `openclaw gateway --force` also works.
 "$GW_NODE" "$(dirname "$0")/sync-global-config.cjs" 2>/dev/null || true
 
+# Token auth — matches Dashboard's DEFAULT_TOKEN ('research-claw').
+export OPENCLAW_GATEWAY_TOKEN=research-claw
+
 STOP=false
 trap 'STOP=true' INT TERM
 
 while true; do
   echo "[run] Starting Research-Claw gateway..."
   "$GW_NODE" ./node_modules/openclaw/dist/entry.js \
-    gateway run --allow-unconfigured --auth none --port 28789 --force
+    gateway run --allow-unconfigured --auth token --port 28789 --force
   CODE=$?
 
   if $STOP; then

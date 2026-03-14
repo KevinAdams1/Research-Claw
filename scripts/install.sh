@@ -527,6 +527,12 @@ cd "$INSTALL_DIR"
 # install.sh already created config/openclaw.json from template at step [6/8].
 export OPENCLAW_CONFIG_PATH=./config/openclaw.json
 
+# Token auth — matches Dashboard's DEFAULT_TOKEN ('research-claw').
+# Using --auth token instead of --auth none: some environments with pre-existing
+# OpenClaw device pairing state reject connections with NOT_PAIRED even when
+# dangerouslyDisableDeviceAuth=true. Token auth bypasses device pairing entirely.
+export OPENCLAW_GATEWAY_TOKEN=research-claw
+
 # Sync RC settings → ~/.openclaw/openclaw.json so `openclaw gateway --force` also works.
 "$GW_NODE" scripts/sync-global-config.cjs 2>/dev/null || true
 
@@ -538,7 +544,7 @@ while true; do
 
   PATH="$GW_NODE_DIR:$PATH" \
     "$GW_NODE" ./node_modules/openclaw/dist/entry.js \
-    gateway run --allow-unconfigured --auth none --port "$PORT" --force \
+    gateway run --allow-unconfigured --auth token --port "$PORT" --force \
     </dev/null
   CODE=$?
 
