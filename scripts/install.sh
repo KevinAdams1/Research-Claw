@@ -360,9 +360,19 @@ fi
 
 # --- [7/8] Rebuild native modules if ABI mismatch ---
 # better-sqlite3 is a C++ addon compiled against a specific Node ABI.
-# pnpm install compiles with system Node, but OpenClaw re-execs under conda Node.
-# We MUST rebuild for the gateway's actual runtime Node ($GW_NODE, detected above).
-SQLITE_NODE="node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+# pnpm install compiles with system Node, but OpenClaw may re-exec under conda Node.
+# We use Node's own require.resolve (not filesystem globs) to find the package,
+# then test ABI compatibility with the gateway Node.
+
+resolve_sqlite_pkg() {
+  # Let Node find better-sqlite3 regardless of pnpm store layout
+  "$GW_NODE" -e "
+    try {
+      const p = require.resolve('better-sqlite3/package.json');
+      console.log(p.replace(/\/package\.json$/, ''));
+    } catch {}
+  " 2>/dev/null
+}
 
 rebuild_native() {
   info "Rebuilding native modules for $("$GW_NODE" -v) (gateway Node)..."
@@ -385,14 +395,10 @@ rebuild_native() {
   fi
 }
 
-if ls $SQLITE_NODE &>/dev/null; then
-  # Resolve the better-sqlite3 package directory (absolute path for pnpm compatibility)
-  # Path: .../better-sqlite3/build/Release/better_sqlite3.node → 3 levels up
-  SQLITE_PKG="$(cd "$(dirname "$(dirname "$(dirname "$(ls $SQLITE_NODE | head -1)")")")" && pwd)"
-
-  # If gateway Node differs from system Node (e.g. conda v22 vs Homebrew v23),
+SQLITE_PKG="$(resolve_sqlite_pkg)"
+if [ -n "$SQLITE_PKG" ]; then
+  # If gateway Node major differs from system Node (conda v22 vs Homebrew v23/v24),
   # pnpm compiled for system Node → MUST rebuild for gateway Node.
-  # The ABI require() check alone is unreliable because OpenClaw re-execs under conda.
   if [ "$SYSTEM_NODE_V" != "$GW_NODE_V" ]; then
     rebuild_native "$SQLITE_PKG"
   elif ! "$GW_NODE" -e "require('$SQLITE_PKG')" 2>/dev/null; then
@@ -401,14 +407,13 @@ if ls $SQLITE_NODE &>/dev/null; then
     ok "Native modules ABI compatible"
   fi
 else
-  # No compiled .node file found — native module compilation likely failed during install.
-  info "Native module binary not found. Running pnpm rebuild..."
+  # better-sqlite3 not found — pnpm install may have failed silently
+  warn "better-sqlite3 not found. Running pnpm rebuild..."
   pnpm rebuild 2>&1 | tail -3 || true
-  if ls $SQLITE_NODE &>/dev/null; then
+  SQLITE_PKG="$(resolve_sqlite_pkg)"
+  if [ -n "$SQLITE_PKG" ]; then
     ok "Native modules compiled"
-    # Still may need rebuild for gateway Node
-    if [ "$SYSTEM_NODE_V" != "$GW_NODE_V" ]; then
-      SQLITE_PKG="$(cd "$(dirname "$(dirname "$(dirname "$(ls $SQLITE_NODE | head -1)")")")" && pwd)"
+    if ! "$GW_NODE" -e "require('$SQLITE_PKG')" 2>/dev/null; then
       rebuild_native "$SQLITE_PKG"
     fi
   else
@@ -515,11 +520,9 @@ cd "$INSTALL_DIR"
 # --- Final ABI safety net ---
 # Catches edge cases missed by [7/8]: Node upgraded since last pnpm install,
 # pnpm skipped recompilation ("Already up to date"), stale .node binary.
-if ls $SQLITE_NODE &>/dev/null; then
-  SQLITE_PKG="$(cd "$(dirname "$(dirname "$(dirname "$(ls $SQLITE_NODE | head -1)")")")" && pwd)"
-  if ! "$GW_NODE" -e "require('$SQLITE_PKG')" 2>/dev/null; then
-    rebuild_native "$SQLITE_PKG"
-  fi
+SQLITE_PKG="$(resolve_sqlite_pkg)"
+if [ -n "$SQLITE_PKG" ] && ! "$GW_NODE" -e "require('$SQLITE_PKG')" 2>/dev/null; then
+  rebuild_native "$SQLITE_PKG"
 fi
 
 # Always use project config — contains RC plugin paths, tool whitelist, dashboard root.
