@@ -69,7 +69,7 @@ function getChatSendCall() {
 }
 function getChatSendParams() {
   const call = getChatSendCall();
-  return call?.[1] as Record<string, unknown> | undefined;
+  return call?.[1] as { idempotencyKey?: string; attachments?: Array<Record<string, unknown>>; [k: string]: unknown } | undefined;
 }
 
 describe('Chat send parity with OpenClaw native UI', () => {
@@ -112,7 +112,7 @@ describe('Chat send parity with OpenClaw native UI', () => {
       // Verify idempotencyKey is non-empty (NonEmptyString in schema)
       const params = getChatSendParams()!;
       expect(params.idempotencyKey).toBeTruthy();
-      expect(params.idempotencyKey.length).toBeGreaterThan(0);
+      expect(params.idempotencyKey!.length).toBeGreaterThan(0);
     });
 
     it('uses current sessionKey from store state', async () => {
@@ -168,7 +168,7 @@ describe('Chat send parity with OpenClaw native UI', () => {
       // Our impl (chat.ts:199): /^data:[^;]+;base64,(.+)$/ strips prefix
       await useChatStore.getState().send('check image', [CLIENT_ATTACHMENT_PNG]);
 
-      const attachment = getChatSendParams()!.attachments[0];
+      const attachment = getChatSendParams()!.attachments![0];
       expect(attachment.content).toBe(TINY_PNG_B64);
       expect(attachment.content).not.toContain('data:');
       expect(attachment.content).not.toContain('base64,');
@@ -179,7 +179,7 @@ describe('Chat send parity with OpenClaw native UI', () => {
       // Gateway attachment-normalize.ts:16: mimeType: typeof a?.mimeType === "string" ? a.mimeType : undefined
       await useChatStore.getState().send('check image', [CLIENT_ATTACHMENT_PNG]);
 
-      const attachment = getChatSendParams()!.attachments[0];
+      const attachment = getChatSendParams()!.attachments![0];
       expect(attachment.mimeType).toBe('image/png');
     });
 
@@ -188,14 +188,14 @@ describe('Chat send parity with OpenClaw native UI', () => {
       // Gateway attachment-normalize.ts:15: type: typeof a?.type === "string" ? a.type : undefined
       await useChatStore.getState().send('check', [CLIENT_ATTACHMENT_PNG]);
 
-      const attachment = getChatSendParams()!.attachments[0];
+      const attachment = getChatSendParams()!.attachments![0];
       expect(attachment.type).toBe('image');
     });
 
     it('handles JPEG attachments with correct mime and base64', async () => {
       await useChatStore.getState().send('check jpeg', [CLIENT_ATTACHMENT_JPEG]);
 
-      const attachment = getChatSendParams()!.attachments[0];
+      const attachment = getChatSendParams()!.attachments![0];
       expect(attachment.content).toBe(TINY_JPEG_B64);
       expect(attachment.mimeType).toBe('image/jpeg');
       expect(attachment.type).toBe('image');
@@ -208,7 +208,7 @@ describe('Chat send parity with OpenClaw native UI', () => {
         CLIENT_ATTACHMENT_JPEG,
       ]);
 
-      const attachments = getChatSendParams()!.attachments;
+      const attachments = getChatSendParams()!.attachments!;
       expect(attachments).toHaveLength(2);
       expect(attachments[0].content).toBe(TINY_PNG_B64);
       expect(attachments[0].mimeType).toBe('image/png');
@@ -222,7 +222,7 @@ describe('Chat send parity with OpenClaw native UI', () => {
       // openclaw/src/gateway/chat-attachments.ts:56: att.fileName || att.type || `attachment-${idx + 1}`
       await useChatStore.getState().send('test', [CLIENT_ATTACHMENT_PNG]);
 
-      const attachment = getChatSendParams()!.attachments[0];
+      const attachment = getChatSendParams()!.attachments![0];
       expect(attachment.fileName).toMatch(/\.png$/);
     });
 
@@ -230,7 +230,7 @@ describe('Chat send parity with OpenClaw native UI', () => {
       // Our dashboard: att.mimeType.split('/')[1]?.replace('jpeg', 'jpg')
       await useChatStore.getState().send('test', [CLIENT_ATTACHMENT_JPEG]);
 
-      const attachment = getChatSendParams()!.attachments[0];
+      const attachment = getChatSendParams()!.attachments![0];
       expect(attachment.fileName).toMatch(/\.jpg$/);
     });
 
@@ -242,7 +242,7 @@ describe('Chat send parity with OpenClaw native UI', () => {
       // Gateway attachment-normalize.ts:19: typeof a?.content === "string" check
       await useChatStore.getState().send('test', [CLIENT_ATTACHMENT_PNG]);
 
-      const attachment = getChatSendParams()!.attachments[0];
+      const attachment = getChatSendParams()!.attachments![0];
       // All fields must be strings (not undefined, not null, not objects)
       expect(typeof attachment.content).toBe('string');
       expect(typeof attachment.mimeType).toBe('string');
