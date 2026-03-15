@@ -462,9 +462,21 @@ fi
 # (rebuild, targeted rebuild) are unreliable when pnpm state is corrupted.
 # Strategy: test require() → if fails, nuke node_modules and reinstall from scratch.
 
+# Test better-sqlite3 from openclaw's pnpm virtual store context.
+# pnpm doesn't hoist transitive deps — require('better-sqlite3') from CWD fails
+# even when the module is correctly compiled. Resolve through openclaw's real path
+# in the .pnpm store, where better-sqlite3 is a sibling in the same node_modules.
+test_sqlite3() {
+  "$GW_NODE" -e "
+    const fs = require('fs'), path = require('path');
+    const ocReal = fs.realpathSync('node_modules/openclaw');
+    require(require.resolve('better-sqlite3', { paths: [path.join(ocReal, '..')] }));
+  " 2>/dev/null
+}
+
 ensure_native_modules() {
   # Test: can the gateway Node actually load better-sqlite3?
-  if "$GW_NODE" -e "require('better-sqlite3')" 2>/dev/null; then
+  if test_sqlite3; then
     ok "Native modules OK"
     return 0
   fi
@@ -472,7 +484,7 @@ ensure_native_modules() {
   # Attempt 1: targeted rebuild (fast, works for simple ABI mismatch)
   info "Native module ABI mismatch — rebuilding better-sqlite3..."
   pnpm rebuild better-sqlite3 2>&1 | tail -3 || true
-  if "$GW_NODE" -e "require('better-sqlite3')" 2>/dev/null; then
+  if test_sqlite3; then
     ok "Native modules rebuilt for $("$GW_NODE" -v)"
     return 0
   fi
@@ -487,7 +499,7 @@ ensure_native_modules() {
   # Rebuild dashboard after clean install
   pnpm build 2>&1 | tail -3 || true
 
-  if "$GW_NODE" -e "require('better-sqlite3')" 2>/dev/null; then
+  if test_sqlite3; then
     ok "Native modules OK (clean install)"
     return 0
   fi
@@ -497,7 +509,14 @@ ensure_native_modules() {
   # (system Homebrew), ignoring PATH — so it compiles for the wrong ABI.
   info "Compiling better-sqlite3 for $("$GW_NODE" -v)..."
   local SQLITE_PKG NODEGYP GW_NPM_ROOT
-  SQLITE_PKG="$("$GW_NODE" -e "try{console.log(require.resolve('better-sqlite3/package.json').replace(/\/package\.json$/,''))}catch{}" 2>/dev/null)"
+  SQLITE_PKG="$("$GW_NODE" -e "
+    try {
+      const fs = require('fs'), path = require('path');
+      const ocReal = fs.realpathSync('node_modules/openclaw');
+      const p = require.resolve('better-sqlite3/package.json', { paths: [path.join(ocReal, '..')] });
+      console.log(p.replace(/\/package\.json$/, ''));
+    } catch {}
+  " 2>/dev/null)"
   if [ -n "$SQLITE_PKG" ] && [ -f "$SQLITE_PKG/binding.gyp" ]; then
     # Find node-gyp bundled inside GW_NODE's npm installation
     GW_NPM_ROOT="$("$GW_NODE" -e "try{console.log(require('child_process').execSync('npm root -g',{env:{...process.env,PATH:'$GW_NODE_DIR:'+process.env.PATH}}).toString().trim())}catch{}" 2>/dev/null)"
@@ -513,7 +532,7 @@ ensure_native_modules() {
     fi
   fi
 
-  if "$GW_NODE" -e "require('better-sqlite3')" 2>/dev/null; then
+  if test_sqlite3; then
     ok "Native modules compiled for $("$GW_NODE" -v)"
     return 0
   fi
