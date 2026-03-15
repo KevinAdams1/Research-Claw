@@ -378,9 +378,9 @@ research-claw/
 
 <div align="center">
 
-扫码加入**科研龙虾 · WentorOS** 小红书群聊
+扫码加入**科研龙虾 · WentorOS** 微信群
 
-<img src="assets/community-qr.jpg" width="260" alt="小红书社群二维码" />
+<img src="assets/community-qr.jpg" width="260" alt="微信群二维码" />
 
 [wentor.ai](https://wentor.ai) · [GitHub Issues](https://github.com/wentorai/Research-Claw/issues)
 
@@ -390,7 +390,7 @@ research-claw/
 
 ## 许可证
 
-[BSL 1.1](LICENSE) — 个人及学术研究免费使用。商业用途需单独授权，联系 [team@wentor.ai](mailto:help@wentor.ai)。2030-03-12 自动转为 Apache 2.0 开源。
+[BSL 1.1](LICENSE) — 个人及学术研究免费使用。商业用途需单独授权，联系 [help@wentor.ai](mailto:help@wentor.ai)。2030-03-12 自动转为 Apache 2.0 开源。
 
 ---
 

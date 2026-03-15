@@ -8,7 +8,7 @@
 
 You define the question. Research-Claw runs the lab. 24/7 on your machine. Every output, yours alone.
 
-[![Version](https://img.shields.io/badge/version-v0.3.0-EF4444?style=flat-square&logo=github)](https://github.com/wentorai/Research-Claw/releases)
+[![Version](https://img.shields.io/badge/version-v0.3.1-EF4444?style=flat-square&logo=github)](https://github.com/wentorai/Research-Claw/releases)
 [![License](https://img.shields.io/badge/license-BSL_1.1-3B82F6?style=flat-square)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-macOS_%7C_Windows-lightgrey?style=flat-square)](#)
@@ -20,14 +20,19 @@ You define the question. Research-Claw runs the lab. 24/7 on your machine. Every
 
 ---
 
-macOS and Linux (Ubuntu) only:
+> Windows → [Docker One-Click Deploy](#docker-one-click-deploy-windows-recommended) (recommended) or [WSL2 manual install](docs/WINDOWS_INSTALL.md)
+
+---
+
+> macOS and Linux (Ubuntu) only:
+>
+> **One command: Install · Update · Restart**
 
 ```bash
 curl -fsSL https://wentor.ai/install.sh | bash
 ```
 
-> **One command: Install · Update · Restart**
-> Windows → [Docker One-Click Deploy](#docker-one-click-deploy-windows-recommended) (recommended) or [WSL2 manual install](docs/WINDOWS_INSTALL.md)
+
 
 ---
 
@@ -200,28 +205,28 @@ One command to install **431 academic skills** covering the full research workfl
 Four layers of defense-in-depth. The first three are hard constraints enforced in code:
 
 ```
-┌──────────────────────────────────────────────┐
-│  L1  Network Isolation                       │
-│      loopback only · no remote port exposed  │
-│      no telemetry · no cloud callbacks       │
-├──────────────────────────────────────────────┤
-│  L2  Workspace Sandbox                       │
-│      native write/edit tools denied by config│
-│      plugin writes = path-validated only     │
-│      native read = unrestricted (papers/code)│
-├──────────────────────────────────────────────┤
-│  L3  Exec Guard  (before_tool_call hook)     │
-│      block: rm -rf / · dd of=/dev/ · fork    │
-│      allow: python · git · npm · single rm   │
-├──────────────────────────────────────────────┤
-│  L4  Git Versioning                          │
-│      auto-commit all workspace changes       │
-│      local only · no push · full rollback    │
-├──────────────────────────────────────────────┤
-│  L+  Prompt-level Protocol  (soft)           │
-│      SOUL.md: no fabricated citations/data   │
-│      AGENTS.md: irreversible ops need HiL    │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────
+│  L1  Network Isolation
+│      loopback only · no remote port exposed
+│      no telemetry · no cloud callbacks
+├──────────────────────────────────────────────
+│  L2  Workspace Sandbox
+│      native write/edit tools denied by config
+│      plugin writes = path-validated only (rejects ../)
+│      native read = unrestricted (papers/code)
+├──────────────────────────────────────────────
+│  L3  Exec Guard  (before_tool_call hook)
+│      block: rm -rf / · dd of=/dev/ · fork bomb
+│      allow: python · git · npm · single-file rm
+├──────────────────────────────────────────────
+│  L4  Git Versioning
+│      auto-commit all workspace changes (5s debounce)
+│      local only · no push · full history rollback
+├──────────────────────────────────────────────
+│  L+  Prompt-level Protocol  (soft)
+│      SOUL.md: no fabricated citations/data
+│      AGENTS.md: irreversible ops need Human-in-Loop
+└──────────────────────────────────────────────
 ```
 
 ---
@@ -293,26 +298,37 @@ docker compose up -d --build
 
 #### 3. Configure Docker mirror accelerator (required for China mainland)
 
-GHCR / Docker Hub is blocked in mainland China. Open Docker Desktop → Settings → Docker Engine, and add:
+GHCR (`ghcr.io`) is blocked in mainland China. Two options:
 
-```json
-{
-  "registry-mirrors": [
-    "https://docker.1panel.live",
-    "https://docker.xuanyuan.me"
-  ]
-}
-```
+**Option A: Use a proxy** (recommended)
 
-> Public accelerators may go offline at any time. If pulls time out, search for the latest working mirrors, or use your cloud provider's accelerator (Alibaba Cloud / Tencent Cloud console).
+In Docker Desktop → Settings → Resources → Proxies, configure your HTTP/HTTPS proxy.
+
+**Option B: Build locally (Option 2 above)**
+
+Bypasses GHCR entirely — builds from source. The Dockerfile uses Chinese mirrors (TUNA apt + npmmirror) by default.
+
+> `registry-mirrors` only accelerates Docker Hub, not GHCR.
 
 #### 4. Configure & Use
 
-Visit `http://127.0.0.1:28789` → **Setup Wizard** → enter your API key.
+After starting, open the Dashboard:
 
-> **Persistence**: database, config, and workspace are stored in named volumes — data survives container restarts and removal.
+```
+http://127.0.0.1:28789/?token=research-claw
+```
+
+Go to **Setup Wizard** → enter your API key → start using.
+
+> **Token auth**: Docker mode uses token auth (`--auth token`) because the container cannot complete the browser device-pairing flow used by local installs.
+> - **Default token**: `research-claw`. Both `docker run` and `docker compose` use this default — visit `http://127.0.0.1:28789/?token=research-claw` directly.
+> - **Custom token**: set `OPENCLAW_GATEWAY_TOKEN=your-token` (use `-e` for `docker run`, or modify `environment` in `docker-compose.yml`).
 >
-> **Proxy**: If your LLM API (e.g. OpenAI) requires a proxy, uncomment the `environment` section in `docker-compose.yml` and set your proxy address (`host.docker.internal` routes to the host machine).
+> **Security**: `dangerouslyDisableDeviceAuth: true` in the config is required for Docker — the container's bridged network is not loopback, so device-pairing auth cannot work. `allowedOrigins` restricts access to `127.0.0.1` and `localhost` only, and the port is mapped to `127.0.0.1:28789` by default (not exposed externally).
+
+> **Persistence**: database, config, and workspace are stored in named volumes (`rc-config`, `rc-data`, `rc-workspace`) — data survives container restarts and removal.
+>
+> **Proxy**: If your LLM API (e.g. OpenAI) requires a proxy, uncomment the `HTTP_PROXY` / `HTTPS_PROXY` lines under `environment` in `docker-compose.yml` and set to `http://host.docker.internal:7890` (standard Docker-to-host address).
 
 ### Commands
 
@@ -361,9 +377,9 @@ research-claw/
 
 <div align="center">
 
-Join our community on Xiaohongshu (小红书)
+Join our **Research-Claw · WentorOS** WeChat group
 
-<img src="assets/community-qr.jpg" width="260" alt="Xiaohongshu community QR code" />
+<img src="assets/community-qr.jpg" width="260" alt="WeChat community QR code" />
 
 [wentor.ai](https://wentor.ai) · [GitHub Issues](https://github.com/wentorai/Research-Claw/issues)
 
