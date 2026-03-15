@@ -152,9 +152,17 @@ install_node_fnm() {
     # Method 2: direct binary from GitHub (no Homebrew needed)
     if ! $INSTALLED; then
       info "Downloading fnm binary from GitHub..."
+      # fnm-macos.zip = universal binary (x86_64 + arm64)
+      # fnm-arm64.zip = Linux ARM64 (NOT macOS!)
+      # fnm-linux.zip = Linux x86_64
       local FNM_ZIP="fnm-macos.zip"
-      if [ "$(uname -m)" = "arm64" ]; then FNM_ZIP="fnm-arm64.zip"; fi
-      if [ "$RC_OS" = "linux" ]; then FNM_ZIP="fnm-linux.zip"; fi
+      if [ "$RC_OS" = "linux" ]; then
+        if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then
+          FNM_ZIP="fnm-arm64.zip"
+        else
+          FNM_ZIP="fnm-linux.zip"
+        fi
+      fi
       local dl; dl="$(mktemp)"
       if curl -fsSL "https://github.com/Schniz/fnm/releases/latest/download/$FNM_ZIP" -o "$dl" 2>/dev/null; then
         unzip -o "$dl" -d "$FNM_DIR" &>/dev/null && chmod +x "$FNM_DIR/fnm" && INSTALLED=true
