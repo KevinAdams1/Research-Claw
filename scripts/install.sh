@@ -240,6 +240,21 @@ install_node_nvm() {
 NODE_MAX=24  # Node 25+ is Current (not LTS); native modules (better-sqlite3) may not compile
 
 ensure_node() {
+  # Activate fnm/nvm if installed but not in PATH (curl|bash doesn't source .zshrc)
+  if ! command -v node &>/dev/null; then
+    # fnm: check known install location
+    if [ -x "$HOME/.local/share/fnm/fnm" ]; then
+      export PATH="$HOME/.local/share/fnm:$PATH"
+      eval "$("$HOME/.local/share/fnm/fnm" env --shell bash 2>/dev/null || true)"
+    fi
+    # nvm: source if present
+    if ! command -v node &>/dev/null && [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
+      export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+      # shellcheck disable=SC1091
+      . "$NVM_DIR/nvm.sh"
+    fi
+  fi
+
   # Check current Node version
   if command -v node &>/dev/null; then
     NODE_V="$(node -v | sed 's/^v//' | cut -d. -f1)"
