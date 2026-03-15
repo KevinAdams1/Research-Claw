@@ -36,6 +36,65 @@ interface CronState {
 // Mutex: tracks which presets have an activate/deactivate operation in-flight
 const _inflightPresets = new Set<string>();
 
+// Tracks whether we've reconciled cron jobs in the current gateway session.
+// Reset when presetsLoaded goes back to false (gateway disconnect → reconnect).
+let _reconciled = false;
+
+/**
+ * Re-register enabled cron presets with the gateway after a restart.
+ *
+ * Gateway cron jobs are in-memory only — they vanish on gateway restart.
+ * RC persists enabled state + gateway_job_id in SQLite, so after reconnect
+ * we detect enabled presets and re-create their gateway jobs.
+ *
+ * Flow per enabled preset:
+ *   1. cron.remove(old job id) — silent fail if job doesn't exist
+ *   2. cron.add(schedule, message) — create fresh gateway job
+ *   3. rc.cron.presets.setJobId — persist new job id in plugin DB
+ */
+async function reconcileEnabledPresets(presets: CronPreset[]): Promise<void> {
+  const client = useGatewayStore.getState().client;
+  if (!client?.isConnected) return;
+
+  const enabled = presets.filter((p) => p.enabled);
+  if (enabled.length === 0) return;
+
+  for (const preset of enabled) {
+    if (_inflightPresets.has(preset.id)) continue;
+    _inflightPresets.add(preset.id);
+    try {
+      // 1. Remove stale gateway job (silent fail — job may not exist after restart)
+      if (preset.gateway_job_id) {
+        try {
+          await client.request('cron.remove', { id: preset.gateway_job_id });
+        } catch {
+          // Expected after gateway restart — job no longer exists
+        }
+      }
+
+      // 2. Create fresh gateway cron job
+      const message = PRESET_AGENT_TURNS[preset.id] ?? `Run cron preset: ${preset.id}`;
+      const cronResult = await client.request<{ id: string }>('cron.add', {
+        name: preset.name,
+        schedule: { kind: 'cron' as const, expr: preset.schedule },
+        message,
+      });
+
+      // 3. Persist new gateway job ID
+      if (cronResult?.id) {
+        await client.request('rc.cron.presets.setJobId', {
+          preset_id: preset.id,
+          job_id: cronResult.id,
+        });
+      }
+    } catch (err) {
+      console.warn(`[CronStore] reconcile failed for ${preset.id}:`, err);
+    } finally {
+      _inflightPresets.delete(preset.id);
+    }
+  }
+}
+
 export const useCronStore = create<CronState>()((set, get) => ({
   presets: [],
   presetsLoaded: false,
@@ -46,6 +105,16 @@ export const useCronStore = create<CronState>()((set, get) => ({
     try {
       const result = await client.request<{ presets: CronPreset[] }>('rc.cron.presets.list', {});
       set({ presets: result.presets, presetsLoaded: true });
+
+      // On first load after (re)connect, reconcile enabled presets with gateway.
+      // This re-registers cron jobs that were lost during gateway restart.
+      if (!_reconciled) {
+        _reconciled = true;
+        reconcileEnabledPresets(result.presets).then(() => {
+          // Reload to reflect updated gateway_job_ids
+          get().loadPresets();
+        });
+      }
     } catch (err) {
       console.warn('[CronStore] loadPresets failed:', err);
     }
@@ -150,3 +219,12 @@ export const useCronStore = create<CronState>()((set, get) => ({
     }
   },
 }));
+
+// Reset reconciliation flag when gateway disconnects.
+// Next reconnect triggers fresh reconciliation in loadPresets().
+useGatewayStore.subscribe((state) => {
+  if (state.state !== 'connected') {
+    _reconciled = false;
+    useCronStore.setState({ presetsLoaded: false });
+  }
+});
