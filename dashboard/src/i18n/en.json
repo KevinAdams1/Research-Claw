@@ -337,7 +337,7 @@
     "tokensOut": "Out",
     "heartbeat": "Heartbeat",
     "version": "v{{version}}",
-    "versionFallback": "v0.3.1",
+    "versionFallback": "v0.3.2",
     "modelDefault": "(default)",
     "modelNA": "N/A"
   },
