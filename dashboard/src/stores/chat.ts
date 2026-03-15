@@ -237,11 +237,18 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       timestamp: Date.now(),
     };
 
+    // Match OC pattern: generate runId locally and set BEFORE the RPC call.
+    // OC uses the idempotencyKey as chatRunId (chat.ts:194-195) so delta events
+    // can match immediately, with no timing gap between RPC send and response.
+    // Source: openclaw/ui/src/ui/controllers/chat.ts:192-196
+    const localRunId = crypto.randomUUID();
+
     set((s) => ({
       messages: [...s.messages, userMessage],
       sending: true,
       lastError: null,
       streamText: null,
+      runId: localRunId,
     }));
 
     try {
@@ -329,16 +336,20 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         }
       }
 
-      const result = await client.request<{ runId: string }>('chat.send', {
+      await client.request('chat.send', {
         message: finalMessage,
         sessionKey: get().sessionKey,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: localRunId,
         ...(finalAttachments?.length ? { attachments: finalAttachments } : {}),
       });
-      set({ runId: result.runId, sending: false, streaming: true });
+      set({ sending: false, streaming: true });
     } catch (err) {
+      // Match OC chat.ts:226-230: clear runId + chatStream on failure
       set({
         sending: false,
+        streaming: false,
+        streamText: null,
+        runId: null,
         lastError: err instanceof Error ? err.message : 'Failed to send message',
       });
     }
@@ -443,7 +454,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
     switch (event.state) {
       case 'delta': {
-        if (event.runId !== runId) return;
+        // Match OC triple-AND: skip only when BOTH runIds are set AND differ.
+        // When runId is null (no active user chat), process ALL deltas —
+        // this is critical for server-initiated runs (heartbeat, cron, sub-agents).
+        // Source: openclaw/ui/src/ui/controllers/chat.ts:272
+        if (event.runId && runId && event.runId !== runId) return;
         // Skip non-visible roles (e.g. toolResult deltas)
         if (event.message && !isVisibleRole(event.message.role)) return;
         const deltaText = event.message ? extractText(event.message) : '';
@@ -499,9 +514,12 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           // Channel B: extract notifications from card types in assistant message
           extractCardNotifications(text);
         } else {
-          // Sub-agent or different run
+          // Sub-agent, heartbeat, cron, or different run — append message.
+          // If this was a server-initiated run that we were streaming (runId was null),
+          // clean up orphaned streaming state so UI doesn't stay stuck.
           set((s) => ({
             messages: [...s.messages, finalMsg],
+            ...(s.streaming && !s.runId ? { streaming: false, streamText: null } : {}),
           }));
         }
         break;

@@ -110,6 +110,42 @@ export const FINAL_SUB_AGENT: ChatStreamEvent = {
   },
 };
 
+// ─── Server-Initiated Run Events (heartbeat, cron, sub-agent) ────
+// These arrive when the agent initiates a run WITHOUT user chat.send.
+// The dashboard's runId is null — deltas must NOT be dropped.
+// See: openclaw/ui/src/ui/controllers/chat.ts:272 (triple-AND check)
+
+export const DELTA_SERVER_INITIATED: ChatStreamEvent = {
+  runId: 'run-heartbeat-001',
+  sessionKey: 'main',
+  state: 'delta',
+  message: {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'Heartbeat: checking your research tasks...' }],
+  },
+};
+
+export const DELTA_SERVER_INITIATED_2: ChatStreamEvent = {
+  runId: 'run-heartbeat-001',
+  sessionKey: 'main',
+  state: 'delta',
+  message: {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'Heartbeat: checking your research tasks... Found 2 new papers matching your radar query.' }],
+  },
+};
+
+export const FINAL_SERVER_INITIATED: ChatStreamEvent = {
+  runId: 'run-heartbeat-001',
+  sessionKey: 'main',
+  state: 'final',
+  message: {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'Heartbeat: checking your research tasks... Found 2 new papers matching your radar query. Added to library.' }],
+    timestamp: 1710400005000,
+  },
+};
+
 // ─── Error / Aborted Events ───────────────────────────────────────
 
 export const ERROR_EVENT: ChatStreamEvent = {

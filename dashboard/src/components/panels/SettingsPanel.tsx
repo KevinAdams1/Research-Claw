@@ -337,12 +337,17 @@ export default function SettingsPanel() {
         setSaving(true);
         try {
           const configSnapshot = await client.request<{
+            parsed?: Record<string, unknown>;
             config?: Record<string, unknown>;
             hash?: string;
           }>('config.get', {});
 
+          // Use `parsed` (raw project JSON before OC validation/normalization)
+          // so that resolveExistingApiKey finds keys at their original paths.
+          // Matches SetupWizard.tsx:148. Without this, OC's config normalization
+          // may restructure provider fields, causing apiKey lookups to fail.
           const fullConfig = buildSaveConfig(
-            (configSnapshot.config ?? null) as Record<string, unknown> | null,
+            (configSnapshot.parsed ?? configSnapshot.config ?? null) as Record<string, unknown> | null,
             {
               provider,
               baseUrl: baseUrl.trim(),
@@ -356,6 +361,8 @@ export default function SettingsPanel() {
               visionApiKey: visionEnabled && visionSeparateProvider ? (visionApiKey.trim() || undefined) : undefined,
               visionApi: visionEnabled && visionSeparateProvider ? visionApi : undefined,
               proxyUrl: proxyEnabled ? proxyUrl.trim() : '',
+              apiKeyConfigured,
+              visionApiKeyConfigured,
             },
           );
 

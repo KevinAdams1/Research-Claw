@@ -17,9 +17,12 @@ import {
   DELTA_THIRD,
   DELTA_SHORTER_REORDER,
   DELTA_TOOL_RESULT,
+  DELTA_SERVER_INITIATED,
+  DELTA_SERVER_INITIATED_2,
   FINAL_TEXT,
   FINAL_NO_REPLY,
   FINAL_SUB_AGENT,
+  FINAL_SERVER_INITIATED,
   ERROR_EVENT,
   ABORTED_EVENT,
 } from '../../__fixtures__/gateway-payloads/chat-events';
@@ -92,9 +95,10 @@ describe('Chat streaming parity with OpenClaw native UI', () => {
       expect(useChatStore.getState().streamText).toBe('Hello');
     });
 
-    it('ignores deltas from different runId', () => {
-      // OpenClaw behavior (chat.ts:272):
+    it('ignores deltas from different runId when BOTH runIds are set', () => {
+      // OpenClaw behavior (chat.ts:272): triple-AND condition
       //   if (payload.runId && state.chatRunId && payload.runId !== state.chatRunId)
+      // Only skips when BOTH event.runId and store.runId exist AND differ.
 
       useChatStore.getState().handleChatEvent(DELTA_FIRST);
       useChatStore.getState().handleChatEvent({
@@ -103,6 +107,22 @@ describe('Chat streaming parity with OpenClaw native UI', () => {
       });
 
       expect(useChatStore.getState().streamText).toBe('Hello');
+    });
+
+    it('processes deltas when no active user chat (runId is null)', () => {
+      // OpenClaw behavior (chat.ts:272): when chatRunId is null (falsy),
+      // the triple-AND short-circuits to false → delta is NOT skipped.
+      // This is critical for server-initiated runs (heartbeat, cron).
+      useChatStore.setState({ runId: null });
+
+      useChatStore.getState().handleChatEvent(DELTA_SERVER_INITIATED);
+      expect(useChatStore.getState().streaming).toBe(true);
+      expect(useChatStore.getState().streamText).toBe('Heartbeat: checking your research tasks...');
+
+      useChatStore.getState().handleChatEvent(DELTA_SERVER_INITIATED_2);
+      expect(useChatStore.getState().streamText).toBe(
+        'Heartbeat: checking your research tasks... Found 2 new papers matching your radar query.',
+      );
     });
 
     it('sets streaming to true on first delta', () => {
@@ -151,6 +171,65 @@ describe('Chat streaming parity with OpenClaw native UI', () => {
       expect(useChatStore.getState().messages).toHaveLength(1);
       expect(useChatStore.getState().streaming).toBe(true); // NOT cleared
       expect(useChatStore.getState().streamText).toBe('main stream text'); // NOT cleared
+    });
+  });
+
+  describe('Server-initiated runs — openclaw/ui/src/ui/controllers/chat.ts:272 (triple-AND)', () => {
+    it('streams heartbeat/cron deltas when user is not chatting', () => {
+      // Simulate: no active user chat, agent starts a heartbeat run.
+      // All deltas should stream normally since store.runId is null.
+      useChatStore.setState({ runId: null, streaming: false, streamText: null });
+
+      useChatStore.getState().handleChatEvent(DELTA_SERVER_INITIATED);
+      expect(useChatStore.getState().streaming).toBe(true);
+      expect(useChatStore.getState().streamText).toContain('Heartbeat');
+
+      useChatStore.getState().handleChatEvent(DELTA_SERVER_INITIATED_2);
+      expect(useChatStore.getState().streamText).toContain('Found 2 new papers');
+    });
+
+    it('final from server-initiated run appends message and cleans streaming state', () => {
+      // Server-initiated run streams, then final arrives.
+      // Since store.runId is null, final goes to else branch → should clean up.
+      useChatStore.setState({ runId: null, streaming: true, streamText: 'Heartbeat partial...' });
+
+      useChatStore.getState().handleChatEvent(FINAL_SERVER_INITIATED);
+
+      const state = useChatStore.getState();
+      expect(state.messages).toHaveLength(1);
+      expect(state.messages[0].text).toContain('Added to library');
+      // Orphaned streaming state must be cleaned
+      expect(state.streaming).toBe(false);
+      expect(state.streamText).toBeNull();
+    });
+
+    it('full server-initiated lifecycle: delta → delta → final', () => {
+      // Complete heartbeat run without any user chat active
+      useChatStore.setState({ runId: null, streaming: false, streamText: null, messages: [] });
+
+      useChatStore.getState().handleChatEvent(DELTA_SERVER_INITIATED);
+      expect(useChatStore.getState().streaming).toBe(true);
+
+      useChatStore.getState().handleChatEvent(DELTA_SERVER_INITIATED_2);
+      expect(useChatStore.getState().streamText).toContain('Found 2 new papers');
+
+      useChatStore.getState().handleChatEvent(FINAL_SERVER_INITIATED);
+
+      const state = useChatStore.getState();
+      expect(state.messages).toHaveLength(1);
+      expect(state.streaming).toBe(false);
+      expect(state.streamText).toBeNull();
+    });
+
+    it('server-initiated deltas are dropped when user IS actively chatting', () => {
+      // When user has an active chat (runId is set), heartbeat deltas from
+      // a different run are still dropped — same behavior as OC.
+      useChatStore.setState({ runId: 'user-active-run', streaming: true, streamText: 'User typing...' });
+
+      useChatStore.getState().handleChatEvent(DELTA_SERVER_INITIATED);
+
+      // User's streaming state unchanged
+      expect(useChatStore.getState().streamText).toBe('User typing...');
     });
   });
 

@@ -35,6 +35,11 @@ export interface ConfigPatchInput {
   visionApi?: string;
   /** undefined = don't touch env, "" = clear proxy, "http://..." = set proxy */
   proxyUrl?: string;
+  /** Hint: the gateway reported an API key is configured (even if redacted).
+   *  Used as fallback to emit the sentinel when resolveExistingApiKey fails. */
+  apiKeyConfigured?: boolean;
+  /** Same hint for the vision provider */
+  visionApiKeyConfigured?: boolean;
 }
 
 export interface ExtractedConfig {
@@ -142,12 +147,19 @@ export function buildSaveConfig(
     models: textModels,
   };
 
-  // API key: use new value if provided, otherwise preserve existing (may be sentinel)
+  // API key: use new value if provided, otherwise preserve existing (may be sentinel).
+  // Defensive fallback: if resolveExistingApiKey can't find the key (e.g., OC
+  // normalized the config structure), emit REDACTED_SENTINEL so restoreRedactedValues
+  // can restore the real key from the gateway's in-memory copy.
   if (input.apiKey) {
     textProvider.apiKey = input.apiKey;
   } else {
     const existing = resolveExistingApiKey(currentConfig, providerKey);
-    if (existing) textProvider.apiKey = existing;
+    if (existing) {
+      textProvider.apiKey = existing;
+    } else if (input.apiKeyConfigured) {
+      textProvider.apiKey = REDACTED_SENTINEL;
+    }
   }
 
   const providers: Record<string, unknown> = {
@@ -168,7 +180,11 @@ export function buildSaveConfig(
       visionEntry.apiKey = input.apiKey;
     } else {
       const existing = resolveExistingApiKey(currentConfig, visionProviderKey);
-      if (existing) visionEntry.apiKey = existing;
+      if (existing) {
+        visionEntry.apiKey = existing;
+      } else if (input.visionApiKeyConfigured) {
+        visionEntry.apiKey = REDACTED_SENTINEL;
+      }
     }
 
     providers[visionProviderKey] = visionEntry;

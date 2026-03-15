@@ -41,7 +41,7 @@ describe('Chat store', () => {
 
   describe('send', () => {
     it('adds user message to messages and sends chat.send RPC', async () => {
-      mockGatewayClient.request.mockResolvedValueOnce({ runId: 'run-1' });
+      mockGatewayClient.request.mockResolvedValueOnce({});
 
       await useChatStore.getState().send('Hello world');
 
@@ -54,7 +54,9 @@ describe('Chat store', () => {
           sessionKey: 'main',
         }),
       );
-      expect(useChatStore.getState().runId).toBe('run-1');
+      // runId is set locally before RPC (matches OC pattern), not from response
+      expect(useChatStore.getState().runId).toBeTruthy();
+      expect(typeof useChatStore.getState().runId).toBe('string');
       expect(useChatStore.getState().streaming).toBe(true);
     });
 

@@ -358,14 +358,32 @@ describe('Chat send parity with OpenClaw native UI', () => {
       expect(useChatStore.getState().streamText).toBeNull();
     });
 
-    it('stores runId from RPC response', async () => {
-      // OpenClaw chat.ts:224: return runId (the runId is the idempotencyKey generated locally)
-      // Gateway chat.ts:1022: ackPayload = { runId: clientRunId, status: "started" }
-      // Our impl stores the runId from response
-      mockGatewayClient.request.mockResolvedValue({ runId: 'server-run-abc' });
+    it('sets runId BEFORE the RPC call (matches OC pattern)', async () => {
+      // OpenClaw chat.ts:194-195: sets chatRunId = runId (local UUID) BEFORE request.
+      // This eliminates the timing gap where early deltas could arrive with no matching runId.
+      // The idempotencyKey IS the runId, set before the await.
+      let runIdDuringRpc: string | null | undefined;
+      mockGatewayClient.request.mockImplementation(() => {
+        runIdDuringRpc = useChatStore.getState().runId;
+        return Promise.resolve({});
+      });
+
       await useChatStore.getState().send('hello');
 
-      expect(useChatStore.getState().runId).toBe('server-run-abc');
+      // runId was already set when RPC was called
+      expect(runIdDuringRpc).toBeTruthy();
+      expect(typeof runIdDuringRpc).toBe('string');
+      // And still set after success
+      expect(useChatStore.getState().runId).toBe(runIdDuringRpc);
+    });
+
+    it('uses idempotencyKey as local runId (matches OC pattern)', async () => {
+      // OpenClaw chat.ts:194+221: const runId = generateUUID(); ... idempotencyKey: runId
+      // The locally generated UUID is used as both chatRunId and idempotencyKey.
+      await useChatStore.getState().send('hello');
+
+      const params = mockGatewayClient.request.mock.calls[0][1];
+      expect(params.idempotencyKey).toBe(useChatStore.getState().runId);
     });
   });
 
@@ -391,12 +409,14 @@ describe('Chat send parity with OpenClaw native UI', () => {
       expect(useChatStore.getState().sending).toBe(false);
     });
 
-    it('does not set streaming on error', async () => {
-      // OpenClaw: on error, chatRunId is set to null (chat.ts:227), no streaming state
+    it('clears runId and streaming on error (matches OC chat.ts:227-230)', async () => {
+      // OpenClaw chat.ts:227-230: chatRunId = null, chatStream = null
+      // runId was set before the RPC call, but must be cleared on failure.
       mockGatewayClient.request.mockRejectedValue(new Error('fail'));
       await useChatStore.getState().send('hello');
 
       expect(useChatStore.getState().streaming).toBe(false);
+      expect(useChatStore.getState().streamText).toBeNull();
       expect(useChatStore.getState().runId).toBeNull();
     });
 
