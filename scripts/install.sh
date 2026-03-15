@@ -239,12 +239,14 @@ ensure_node() {
   fi
 
   # Node missing or too old — try version managers in order
+  # Use || true so failures fall through to the verification block below
+  # (which shows actionable error messages instead of a cryptic ERR trap line number)
   # 1. nvm (if user already has it)
   if command -v nvm &>/dev/null || [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
-    install_node_nvm
+    install_node_nvm || true
   # 2. fnm (if user already has it, or install fresh)
   else
-    install_node_fnm
+    install_node_fnm || true
   fi
 
   # Verify installation
@@ -295,7 +297,9 @@ if [ -d "$INSTALL_DIR/.git" ]; then
   git rebase --abort 2>/dev/null || true
   git merge --abort 2>/dev/null || true
   git reset --hard HEAD 2>/dev/null || true
-  git pull --rebase --autostash 2>/dev/null || git pull
+  if ! (git pull --rebase --autostash 2>/dev/null || git pull); then
+    die "git pull failed. Check your network connection or try: cd $INSTALL_DIR && git pull"
+  fi
   ok "Updated"
 else
   info "Cloning to $INSTALL_DIR ..."
