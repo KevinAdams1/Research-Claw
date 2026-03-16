@@ -273,9 +273,7 @@ irm https://wentor.ai/docker-install.ps1 | iex
 > The script automatically: checks Docker → stops/removes old container → pulls latest image → starts → opens browser.
 > Re-run anytime to update. Data persists in Docker named volumes.
 
-After install, the browser opens the Dashboard automatically. Follow the **Setup Wizard** to configure your API key — no config file editing needed.
-
-> Source install opens `http://127.0.0.1:28789` (device auth). Docker install opens `http://127.0.0.1:28789/?token=research-claw` (the script opens the correct URL automatically).
+After install, the browser opens `http://127.0.0.1:28789` automatically. Follow the **Setup Wizard** to configure your API key — no config file editing needed.
 
 <details>
 <summary><b>Manual install / China network / Troubleshooting</b></summary>
@@ -311,7 +309,7 @@ Or configure a proxy in Docker Desktop → Settings → Resources → Proxies, t
 
 #### Docker details
 
-> **Token auth**: Docker uses token auth (browser device-pairing is not available inside containers). Default token: `research-claw` — visit `http://127.0.0.1:28789/?token=research-claw`. To customize the token, remove the old container and start manually:
+> **Token auth**: Docker uses token auth (browser device-pairing is not available inside containers). The default token `research-claw` is built into the Dashboard — just visit `http://127.0.0.1:28789/`, no token in the URL needed. To customize the token, remove the old container and start manually:
 > ```bash
 > docker stop research-claw && docker rm research-claw
 > docker run -d --name research-claw -p 127.0.0.1:28789:28789 \

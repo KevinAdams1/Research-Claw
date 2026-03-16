@@ -273,9 +273,7 @@ irm https://wentor.ai/docker-install.ps1 | iex
 > 脚本自动完成：检测 Docker → 停止/删除旧容器 → 拉取最新镜像 → 启动 → 打开浏览器。
 > 重复运行即可更新到最新版本，数据不丢失（持久化在 Docker named volumes 中）。
 
-安装完成后浏览器自动打开 Dashboard，在 **Setup Wizard** 中配置 API Key，无需编辑任何配置文件。
-
-> 源码安装访问 `http://127.0.0.1:28789`（自动设备认证）。Docker 安装访问 `http://127.0.0.1:28789/?token=research-claw`（脚本会自动打开正确地址）。
+安装完成后浏览器自动打开 `http://127.0.0.1:28789`，在 **Setup Wizard** 中配置 API Key，无需编辑任何配置文件。
 
 <details>
 <summary><b>手动安装 / 大陆网络 / 故障排查</b></summary>
@@ -305,13 +303,13 @@ docker compose up -d --build
 #### Docker 连接不上？
 
 1. **验证端口**：`curl http://127.0.0.1:28789/healthz` — 返回 `{"ok":true}` 说明正常
-2. **用 `127.0.0.1`**：Windows 上 `localhost` 可能解析到 IPv6，导致连接失败
+2. **用 `127.0.0.1`，不用 `localhost`**：Windows 上 `localhost` 可能解析到 IPv6，导致连接失败
 3. **检查 Docker**：确认 Docker Desktop 状态为 Running，容器状态为绿色
 4. **重启**：`docker restart research-claw`
 
 #### Docker 详细说明
 
-> **Token 认证**：Docker 模式使用 token 认证（容器内无法完成浏览器设备配对）。默认 token 为 `research-claw`，访问 `http://127.0.0.1:28789/?token=research-claw`。如需自定义 token，先删除旧容器再手动启动：
+> **Token 认证**：Docker 模式使用 token 认证（容器内无法完成浏览器设备配对）。默认 token `research-claw` 已内置在 Dashboard 中，直接访问 `http://127.0.0.1:28789/` 即可，无需在 URL 中手动添加 token。如需自定义 token，先删除旧容器再手动启动：
 > ```bash
 > docker stop research-claw && docker rm research-claw
 > docker run -d --name research-claw -p 127.0.0.1:28789:28789 \
