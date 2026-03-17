@@ -689,6 +689,11 @@ export default function WorkspacePanel() {
   const tokens = useMemo(() => getThemeTokens(configTheme), [configTheme]);
   const client = useGatewayStore((s) => s.client);
   const connState = useGatewayStore((s) => s.state);
+  const workspaceRefreshKey = useUiStore((s) => s.workspaceRefreshKey);
+  const pendingPreviewPath = useUiStore((s) => s.pendingPreviewPath);
+  const clearPendingPreview = useUiStore((s) => s.clearPendingPreview);
+  const showSystemFiles = useUiStore((s) => s.showSystemFiles);
+  const setShowSystemFiles = useUiStore((s) => s.setShowSystemFiles);
 
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [commits, setCommits] = useState<CommitEntry[]>([]);
@@ -711,6 +716,8 @@ export default function WorkspacePanel() {
   // Root-level create (parentPath = '' sentinel)
   const [rootCreateType, setRootCreateType] = useState<'file' | 'directory' | null>(null);
   const [rootCreateLoading, setRootCreateLoading] = useState(false);
+  // System files hidden count (from backend)
+  const [hiddenCount, setHiddenCount] = useState(0);
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -782,11 +789,12 @@ export default function WorkspacePanel() {
     try {
       console.log('[WorkspacePanel] loading tree & history');
       const [treeResult, historyResult] = await Promise.all([
-        client.request<{ tree: TreeNode[]; workspace_root: string }>('rc.ws.tree', { depth: 3 }),
+        client.request<{ tree: TreeNode[]; workspace_root: string; hidden_count: number }>('rc.ws.tree', { depth: 3, includeHidden: showSystemFiles }),
         client.request<{ commits: CommitEntry[]; total: number; has_more: boolean }>('rc.ws.history', { limit: 5 }),
       ]);
       setTree(treeResult.tree);
       setWorkspaceRoot(treeResult.workspace_root ?? '');
+      setHiddenCount(treeResult.hidden_count ?? 0);
       setCommits(historyResult.commits);
       setHasLoaded(true);
     } catch (err) {
@@ -794,7 +802,7 @@ export default function WorkspacePanel() {
     } finally {
       setLoading(false);
     }
-  }, [client]);
+  }, [client, showSystemFiles]);
 
   // Root-level create handler
   const handleRootCreate = useCallback(async (name: string) => {
@@ -857,10 +865,6 @@ export default function WorkspacePanel() {
     }
   }, [client, t, message, loadData]);
 
-  const workspaceRefreshKey = useUiStore((s) => s.workspaceRefreshKey);
-  const pendingPreviewPath = useUiStore((s) => s.pendingPreviewPath);
-  const clearPendingPreview = useUiStore((s) => s.clearPendingPreview);
-
   useEffect(() => {
     if (connState === 'connected') {
       loadData();
@@ -873,6 +877,14 @@ export default function WorkspacePanel() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceRefreshKey]);
+
+  // Reload tree when showSystemFiles toggle changes
+  useEffect(() => {
+    if (hasLoaded && connState === 'connected') {
+      loadData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSystemFiles]);
 
   useEffect(() => {
     if (pendingPreviewPath) {
@@ -1066,7 +1078,7 @@ export default function WorkspacePanel() {
       )}
 
       {/* System files hidden hint bar */}
-      {!useUiStore.getState().showSystemFiles && (
+      {!showSystemFiles && hiddenCount > 0 && (
         <div style={{
           padding: '4px 16px',
           display: 'flex',
@@ -1075,13 +1087,13 @@ export default function WorkspacePanel() {
           borderTop: `1px solid ${tokens.border.default}`,
         }}>
           <Text type="secondary" style={{ fontSize: 11 }}>
-            🔒 {t('workspace.systemFilesHidden', { count: 12 })}
+            {t('workspace.systemFilesHidden', { count: hiddenCount })}
           </Text>
           <Button
             type="link"
             size="small"
             style={{ fontSize: 11, padding: 0, height: 'auto' }}
-            onClick={() => useUiStore.getState().setShowSystemFiles(true)}
+            onClick={() => setShowSystemFiles(true)}
           >
             {t('workspace.showSystemFiles')}
           </Button>

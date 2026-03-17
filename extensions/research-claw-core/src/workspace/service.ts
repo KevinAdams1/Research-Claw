@@ -556,11 +556,13 @@ export class WorkspaceService {
    *
    * @param root  - Relative path within workspace to start from (default: workspace root)
    * @param depth - Maximum recursion depth (default 3, max 10)
+   * @param includeHidden - If true, include system files at root level (default: false)
    */
   async tree(
     root?: string,
     depth?: number,
-  ): Promise<{ tree: TreeNode[]; workspace_root: string }> {
+    includeHidden?: boolean,
+  ): Promise<{ tree: TreeNode[]; workspace_root: string; hidden_count: number }> {
     const maxDepth = Math.min(
       Math.max(depth ?? DEFAULT_TREE_DEPTH, 1),
       MAX_TREE_DEPTH,
@@ -592,11 +594,14 @@ export class WorkspaceService {
       );
     }
 
-    const nodes = await this.walkDirectory(startDir, maxDepth, 0);
+    const hideSystem = !includeHidden;
+    const counter = { hidden: 0 };
+    const nodes = await this.walkDirectory(startDir, maxDepth, 0, hideSystem, counter);
 
     return {
       tree: nodes,
       workspace_root: this.root,
+      hidden_count: counter.hidden,
     };
   }
 
@@ -607,6 +612,8 @@ export class WorkspaceService {
     dir: string,
     maxDepth: number,
     currentDepth: number,
+    hideSystem: boolean = true,
+    counter: { hidden: number } = { hidden: 0 },
   ): Promise<TreeNode[]> {
     let entries: fs.Dirent[];
     try {
@@ -628,7 +635,10 @@ export class WorkspaceService {
       // At root level, hide system files (like Windows hidden system files).
       // Agent tools (workspace_read/save/list) bypass this — only the dashboard
       // tree is affected, keeping the user-facing workspace clean.
-      if (isRootLevel && HIDDEN_ROOT_ENTRIES.has(entry.name)) continue;
+      if (isRootLevel && hideSystem && HIDDEN_ROOT_ENTRIES.has(entry.name)) {
+        counter.hidden++;
+        continue;
+      }
 
       if (entry.isDirectory()) {
         dirEntries.push(entry);
@@ -658,6 +668,8 @@ export class WorkspaceService {
           fullPath,
           maxDepth,
           currentDepth + 1,
+          hideSystem,
+          counter,
         );
       }
 

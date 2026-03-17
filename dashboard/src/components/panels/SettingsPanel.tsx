@@ -182,6 +182,9 @@ export default function SettingsPanel() {
   const systemPromptAppend = useConfigStore((s) => s.systemPromptAppend);
   const setSystemPromptAppend = useConfigStore((s) => s.setSystemPromptAppend);
 
+  const showSystemFiles = useUiStore((s) => s.showSystemFiles);
+  const setShowSystemFiles = useUiStore((s) => s.setShowSystemFiles);
+
   // --- Text endpoint ---
   const [provider, setProvider] = useState('custom');
   const [baseUrl, setBaseUrl] = useState('');
@@ -626,8 +629,8 @@ export default function SettingsPanel() {
 
       <SettingRow label={t('settings.showSystemFiles')} description={t('settings.showSystemFilesHint')}>
         <Segmented
-          value={useUiStore.getState().showSystemFiles ? 'on' : 'off'}
-          onChange={(v) => useUiStore.getState().setShowSystemFiles(v === 'on')}
+          value={showSystemFiles ? 'on' : 'off'}
+          onChange={(v) => setShowSystemFiles(v === 'on')}
           options={[
             { label: 'OFF', value: 'off' },
             { label: 'ON', value: 'on' },
