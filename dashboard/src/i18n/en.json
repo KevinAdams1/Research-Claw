@@ -158,6 +158,8 @@
     "uploadSuccess": "File added to workspace",
     "history": "Version History",
     "recentChanges": "Recent Changes",
+    "loadMore": "Load more...",
+    "diffLoading": "Loading diff...",
     "fileTree": "File Tree",
     "empty": "Workspace is empty.\nFiles will appear here as you and the agent create them.",
     "filesChanged": "{{count}} files changed",

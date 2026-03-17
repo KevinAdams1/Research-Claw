@@ -158,6 +158,8 @@
     "uploadSuccess": "文件已添加到工作区",
     "history": "版本历史",
     "recentChanges": "最近变更",
+    "loadMore": "加载更多...",
+    "diffLoading": "加载 diff...",
     "fileTree": "文件树",
     "empty": "工作区为空。\n文件将在你和助手创建时出现在此处。",
     "filesChanged": "{{count}} 个文件已修改",
