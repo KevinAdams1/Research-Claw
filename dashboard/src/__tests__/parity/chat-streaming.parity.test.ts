@@ -319,6 +319,42 @@ describe('Chat streaming parity with OpenClaw native UI', () => {
     });
   });
 
+  describe('Session isolation — openclaw/ui/src/ui/controllers/chat.ts:266', () => {
+    it('drops delta events for non-active session', () => {
+      // OC behavior (chat.ts:266):
+      //   if (payload.sessionKey !== state.sessionKey) return null;
+      useChatStore.setState({ sessionKey: 'session-2', runId: null });
+
+      useChatStore.getState().handleChatEvent(DELTA_FIRST); // sessionKey: 'main'
+      expect(useChatStore.getState().streamText).toBeNull();
+      expect(useChatStore.getState().streaming).toBe(false);
+    });
+
+    it('drops final events for non-active session', () => {
+      useChatStore.setState({ sessionKey: 'session-2', runId: null, streaming: true, streamText: 'local' });
+
+      useChatStore.getState().handleChatEvent(FINAL_TEXT); // sessionKey: 'main'
+      // Streaming state for session-2 must NOT be modified
+      expect(useChatStore.getState().streaming).toBe(true);
+      expect(useChatStore.getState().streamText).toBe('local');
+      expect(useChatStore.getState().messages).toHaveLength(0);
+    });
+
+    it('drops error events for non-active session', () => {
+      useChatStore.setState({ sessionKey: 'session-2', lastError: null });
+
+      useChatStore.getState().handleChatEvent(ERROR_EVENT); // sessionKey: 'main'
+      expect(useChatStore.getState().lastError).toBeNull();
+    });
+
+    it('processes events when sessionKey matches', () => {
+      useChatStore.setState({ sessionKey: 'main', runId: DELTA_FIRST.runId });
+
+      useChatStore.getState().handleChatEvent(DELTA_FIRST); // sessionKey: 'main'
+      expect(useChatStore.getState().streamText).toBe('Hello');
+    });
+  });
+
   describe('Full streaming sequence (realistic)', () => {
     it('handles a complete delta → final lifecycle', () => {
       // Simulate what actually happens: multiple deltas then a final

@@ -87,6 +87,13 @@ html, body {
   background: var(--text-secondary);
 }
 
+/* Text selection highlight — matches OpenClaw base.css:265-268.
+   Also helps Safari clear selection visually in overflow:hidden containers. */
+::selection {
+  background: var(--accent-secondary);
+  color: #fff;
+}
+
 /* Agent status dot pulse animation */
 @keyframes pulse {
   0%, 100% {

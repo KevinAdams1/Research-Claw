@@ -485,6 +485,12 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
 
   handleChatEvent: (event: ChatStreamEvent) => {
+    // Session isolation: drop events for non-active sessions.
+    // Matches OC: openclaw/ui/src/ui/controllers/chat.ts:266
+    if (event.sessionKey && event.sessionKey !== get().sessionKey) {
+      return;
+    }
+
     const { runId } = get();
 
     // Accumulate token usage from any event that carries it

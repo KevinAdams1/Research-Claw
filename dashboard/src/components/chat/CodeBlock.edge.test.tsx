@@ -51,16 +51,15 @@ describe('CodeBlock edge cases', () => {
     vi.clearAllMocks();
   });
 
-  it('falls back gracefully for malformed JSON (missing closing brace) in card type', () => {
+  it('shows CardPlaceholder for malformed JSON (missing closing brace) in card type', () => {
     render(
       <CodeBlock className="language-paper_card">
         {'{"type": "paper_card", "title": "Incomplete\n'}
       </CodeBlock>,
     );
-    // Should render as code block, not crash
+    // Should render skeleton placeholder instead of raw JSON during streaming
     expect(screen.queryByTestId('card-container')).not.toBeInTheDocument();
-    // The code text should be present (may be highlighted)
-    expect(screen.getByText(/Incomplete/)).toBeInTheDocument();
+    expect(screen.getByTestId('card-placeholder')).toBeInTheDocument();
   });
 
   it('renders empty code block content without crash', () => {

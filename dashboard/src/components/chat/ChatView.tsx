@@ -9,8 +9,13 @@ import MessageInput from './MessageInput';
 
 const { Text } = Typography;
 
-/** Distance (px) from bottom within which the user is considered "near bottom". Matches OpenClaw. */
-const NEAR_BOTTOM_THRESHOLD = 450;
+/**
+ * Distance (px) from bottom within which the user is considered "near bottom".
+ * Reduced from OC's 450 to 150 — OC uses rAF deduplication (Lit batching),
+ * so 450 works there. In React with per-delta useEffect, 150 is more appropriate
+ * and still generous (~3-4 lines). The "New messages below" pill covers the gap.
+ */
+const NEAR_BOTTOM_THRESHOLD = 150;
 
 function extractVisibleText(msg: ChatMessage): string {
   if (msg.text) return msg.text;
@@ -51,6 +56,9 @@ export default function ChatView() {
   // Smart scroll state — refs to avoid re-renders on every scroll event
   const userNearBottomRef = useRef(true);
   const [newMessagesBelow, setNewMessagesBelow] = useState(false);
+  // rAF deduplication: batch rapid streaming deltas into one scroll per frame.
+  // Matches OC pattern: openclaw/ui/src/ui/app-scroll.ts:19-21
+  const scrollFrameRef = useRef<number | null>(null);
 
   // Scroll event handler — tracks whether user is near bottom
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -59,6 +67,16 @@ export default function ChatView() {
     userNearBottomRef.current = distanceFromBottom < NEAR_BOTTOM_THRESHOLD;
     if (userNearBottomRef.current) {
       setNewMessagesBelow(false);
+    }
+  }, []);
+
+  // Safari workaround: clicking blank areas in overflow:hidden containers
+  // doesn't clear text selection. Explicitly clear when clicking the scroll
+  // container background (not text or buttons).
+  const handleContainerClick = useCallback((e: React.MouseEvent) => {
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && e.target === e.currentTarget) {
+      sel.removeAllRanges();
     }
   }, []);
 
@@ -71,16 +89,33 @@ export default function ChatView() {
     setNewMessagesBelow(false);
   }, []);
 
-  // Smart auto-scroll: only scroll if user is near bottom
+  // Smart auto-scroll: only scroll if user is near bottom.
+  // Uses requestAnimationFrame deduplication to batch rapid streaming deltas
+  // into a single scroll per frame. This prevents the "scroll lock" where
+  // synchronous scrollTop assignments on every delta override user scroll intent.
+  // Matches OC pattern: openclaw/ui/src/ui/app-scroll.ts:18-98
   useEffect(() => {
-    if (scrollRef.current) {
-      if (userNearBottomRef.current) {
+    if (scrollFrameRef.current !== null) {
+      cancelAnimationFrame(scrollFrameRef.current);
+    }
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      if (scrollRef.current && userNearBottomRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       } else if (streaming) {
         setNewMessagesBelow(true);
       }
-    }
+    });
   }, [messages, streamText, streaming]);
+
+  // Cleanup rAF on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        cancelAnimationFrame(scrollFrameRef.current);
+      }
+    };
+  }, []);
 
   // Reset scroll tracking when a new session starts (messages cleared)
   useEffect(() => {
@@ -112,6 +147,7 @@ export default function ChatView() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
+          onClick={handleContainerClick}
           style={{
             height: '100%',
             overflow: 'auto',

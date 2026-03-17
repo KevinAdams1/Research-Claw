@@ -20,6 +20,7 @@ import ProgressCard from './cards/ProgressCard';
 import ApprovalCard from './cards/ApprovalCard';
 import RadarDigest from './cards/RadarDigest';
 import FileCard from './cards/FileCard';
+import CardPlaceholder from './cards/CardPlaceholder';
 import { useConfigStore } from '@/stores/config';
 import { getThemeTokens } from '@/styles/theme';
 
@@ -197,7 +198,8 @@ export default function CodeBlock({ className, children }: CodeBlockProps) {
         );
       }
     } catch {
-      // JSON parse failed — fall through to regular code block
+      // JSON incomplete during streaming — show skeleton instead of raw JSON
+      return <CardPlaceholder cardType={language} />;
     }
   }
 
