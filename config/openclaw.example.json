@@ -46,6 +46,7 @@
   },
   "plugins": {
     "enabled": true,
+    "allow": ["research-claw-core", "research-plugins"],
     "load": {
       "paths": [
         "./extensions/research-claw-core"
@@ -94,7 +95,6 @@
       "radar_configure",
       "radar_get_config",
       "radar_scan",
-      "search_papers",
       "get_paper",
       "get_citations",
       "search_openalex",
