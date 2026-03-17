@@ -710,6 +710,9 @@ function RecentChanges({ commits, tokens, hasMore, onLoadMore, loadingMore }: {
   const [diffContent, setDiffContent] = useState<string>('');
   const [diffLoading, setDiffLoading] = useState(false);
 
+  // Git's well-known empty tree hash — used to diff the initial commit
+  const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf899d69f7cb0cab1';
+
   const handleToggleDiff = useCallback(async (hash: string) => {
     if (expandedHash === hash) {
       setExpandedHash(null);
@@ -725,7 +728,16 @@ function RecentChanges({ commits, tokens, hasMore, onLoadMore, loadingMore }: {
       });
       setDiffContent(result?.diff ?? '');
     } catch {
-      setDiffContent('(diff unavailable)');
+      // hash^ fails for the initial commit (no parent) — diff against empty tree
+      try {
+        const fallback = await client?.request<{ diff: string }>('rc.ws.diff', {
+          from: EMPTY_TREE,
+          to: hash,
+        });
+        setDiffContent(fallback?.diff ?? '');
+      } catch {
+        setDiffContent('');
+      }
     } finally {
       setDiffLoading(false);
     }
