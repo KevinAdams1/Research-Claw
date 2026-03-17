@@ -46,9 +46,13 @@ RUN pnpm build
 
 # ── research-plugins（431 skills + 40 indexes + 13 agent tools）────────
 # 通过 OpenClaw 插件机制安装到 ~/.openclaw/extensions/（不走 node_modules）
-RUN OPENCLAW_CONFIG_PATH=./config/openclaw.example.json \
+# Note: Use a minimal config for install — the full config references research-plugins
+# in plugins.allow, but OC validates that before install completes (chicken-and-egg).
+RUN echo '{}' > /tmp/oc-install.json && \
+    OPENCLAW_CONFIG_PATH=/tmp/oc-install.json \
     node ./node_modules/openclaw/dist/entry.js \
-    plugins install @wentorai/research-plugins
+    plugins install @wentorai/research-plugins && \
+    rm /tmp/oc-install.json
 
 # 烘焙配置模板，首次启动时 entrypoint 会复制到 volume
 RUN mkdir -p /defaults && cp config/openclaw.example.json /defaults/openclaw.example.json
