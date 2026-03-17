@@ -45,6 +45,9 @@ interface MonitorState {
   runMonitor: (id: string) => Promise<void>;
 }
 
+// Tracks in-flight toggle/delete operations to prevent race conditions
+const _inflightOps = new Set<string>();
+
 export const useMonitorStore = create<MonitorState>()((set, get) => ({
   monitors: [],
   loading: false,
@@ -67,9 +70,11 @@ export const useMonitorStore = create<MonitorState>()((set, get) => ({
   },
 
   toggleMonitor: async (id: string, enabled: boolean) => {
+    if (_inflightOps.has(id)) return; // Prevent rapid double-toggle
     const client = useGatewayStore.getState().client;
     if (!client?.isConnected) return;
 
+    _inflightOps.add(id);
     // Optimistic update
     set((s) => ({
       monitors: s.monitors.map((m) => (m.id === id ? { ...m, enabled } : m)),
@@ -115,6 +120,8 @@ export const useMonitorStore = create<MonitorState>()((set, get) => ({
     } catch (err) {
       console.error('[MonitorStore] toggleMonitor failed:', err);
       await get().loadMonitors(); // Rollback optimistic
+    } finally {
+      _inflightOps.delete(id);
     }
   },
 

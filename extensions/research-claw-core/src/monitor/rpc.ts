@@ -198,10 +198,13 @@ export function registerMonitorRpc(registerMethod: RegisterMethod, service: Moni
 
   // ── rc.monitor.setJobId ──────────────────────────────────────────
   // Dashboard calls this after cron.add to persist the gateway job ID.
+  // Accepts empty string or null to clear the job ID (when disabling a monitor).
   registerMethod('rc.monitor.setJobId', async (params: Record<string, unknown>) => {
     try {
       const id = requireString(params.id, 'id');
-      const job_id = requireString(params.job_id, 'job_id');
+      // Allow empty string / null to clear gateway_job_id on disable
+      const rawJobId = params.job_id;
+      const job_id = (typeof rawJobId === 'string' && rawJobId.trim()) ? rawJobId.trim() : null;
       service.setGatewayJobId(id, job_id);
       return { ok: true };
     } catch (err) {

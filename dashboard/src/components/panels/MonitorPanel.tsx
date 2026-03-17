@@ -141,6 +141,8 @@ function MonitorCard({
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleExpand(); } }}
         role="button"
         tabIndex={0}
+        aria-expanded={expanded}
+        aria-label={monitor.name}
         style={{
           display: 'flex',
           alignItems: 'center',
