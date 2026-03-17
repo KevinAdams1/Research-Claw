@@ -1065,6 +1065,29 @@ export default function WorkspacePanel() {
         </>
       )}
 
+      {/* System files hidden hint bar */}
+      {!useUiStore.getState().showSystemFiles && (
+        <div style={{
+          padding: '4px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderTop: `1px solid ${tokens.border.default}`,
+        }}>
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            🔒 {t('workspace.systemFilesHidden', { count: 12 })}
+          </Text>
+          <Button
+            type="link"
+            size="small"
+            style={{ fontSize: 11, padding: 0, height: 'auto' }}
+            onClick={() => useUiStore.getState().setShowSystemFiles(true)}
+          >
+            {t('workspace.showSystemFiles')}
+          </Button>
+        </div>
+      )}
+
       {/* Upload / move-to-root drop zone */}
       {(() => {
         // Derive drag state: show root-drop zone as soon as a non-root item is being dragged
