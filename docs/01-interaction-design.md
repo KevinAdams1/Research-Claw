@@ -714,7 +714,7 @@ The Radar panel shows the user's monitoring configuration and recent findings.
 | Keywords | Comma-separated tags, chip style. Click `[Edit via chat...]` to modify |
 | Authors | Author name chips. Same edit pattern |
 | Journals | Journal name chips. Same edit pattern |
-| Sources | Badge showing active sources (arXiv, PubMed, Semantic Scholar, Google Scholar) |
+| Sources | Badge showing active sources (arXiv, PubMed, OpenAlex, Google Scholar) |
 | Edit link | Pre-fills chat: "I want to update my radar tracking keywords" |
 
 #### 7.5.3 Findings Digest Cards

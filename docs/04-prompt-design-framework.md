@@ -403,8 +403,8 @@ Use judgment to enter at the appropriate phase.
 **Goal:** Find and evaluate relevant papers.
 
 1. Clarify the research question with the user if ambiguous.
-2. Search databases using available tools (Semantic Scholar, arXiv, OpenAlex,
-   CrossRef, PubMed). Use multiple databases for comprehensive coverage.
+2. Search databases using available tools (OpenAlex, arXiv, CrossRef, PubMed).
+   Use multiple databases for comprehensive coverage.
 3. For each promising result:
    a. Present a `paper_card` with title, authors, year, venue, abstract excerpt.
    b. Note the relevance score (your assessment: high/medium/low).
@@ -929,7 +929,7 @@ chars: ~500
 
 ## Tools & Databases
 - **Reference manager:** (Zotero / EndNote / Mendeley / none)
-- **Preferred databases:** (PubMed / arXiv / Semantic Scholar / etc.)
+- **Preferred databases:** (PubMed / arXiv / OpenAlex / etc.)
 - **Writing tools:** (LaTeX / Word / Overleaf / Google Docs / etc.)
 - **Programming:** (Python / R / MATLAB / Julia / none)
 
@@ -973,14 +973,13 @@ chars: ~2000
 ## Paper Database APIs
 
 These external APIs are available for literature search. Use multiple databases
-for comprehensive coverage. Prefer Semantic Scholar for citation graphs and
-arXiv for preprints.
+for comprehensive coverage. Prefer OpenAlex for citation graphs and broad
+coverage, arXiv for preprints.
 
 | API | Coverage | Best For | Rate Limits |
 |:---|:---|:---|:---|
-| **Semantic Scholar** | 200M+ papers | Citation graphs, recommendations | 100 req/5min |
 | **arXiv** | CS, physics, math, bio preprints | Latest preprints, full-text | 3 req/sec |
-| **OpenAlex** | 250M+ works | Broad coverage, institutions | 10 req/sec |
+| **OpenAlex** | 250M+ works | Citation graphs, broad coverage, institutions | 10 req/sec |
 | **CrossRef** | 130M+ DOIs | DOI resolution, metadata | 50 req/sec (polite) |
 | **PubMed / NCBI** | Biomedical literature | Medical, life sciences | 3 req/sec |
 | **Unpaywall** | OA availability for DOIs | Legal open-access full text | 100K/day |
@@ -1137,7 +1136,7 @@ When searching for papers on any topic:
    - Secondary keywords (methodological or domain constraints)
    - Exclusion terms (what to filter out)
 3. **Search multiple databases.** Never rely on a single database. At minimum:
-   - Semantic Scholar (for citation graphs)
+   - OpenAlex (for citation graphs and broad coverage)
    - One domain-specific database (arXiv for CS/physics, PubMed for bio/med)
 4. **Apply recency bias thoughtfully.** Default to last 5 years for active fields.
    Extend to 10+ years for foundational or historical work.

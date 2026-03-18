@@ -1024,16 +1024,6 @@ configuration surface:
           "help": "Used when generating bibliography entries"
         }
       },
-      "semanticScholarApiKey": {
-        "type": "string",
-        "description": "API key for Semantic Scholar (optional, increases rate limits)",
-        "uiHints": {
-          "label": "Semantic Scholar API Key",
-          "sensitive": true,
-          "advanced": true,
-          "placeholder": "Enter your API key"
-        }
-      },
       "autoIndex": {
         "type": "boolean",
         "default": true,
@@ -1095,7 +1085,6 @@ export function register(api: OpenClawPluginApi): void {
     (config.libraryPath as string) ?? "~/.research-claw/library"
   );
   const citationStyle = (config.citationStyle as string) ?? "apa";
-  const apiKey = config.semanticScholarApiKey as string | undefined;
 
   // ...
 }
@@ -1122,7 +1111,6 @@ const ConfigSchema = Type.Object({
     ],
     { default: "apa" }
   ),
-  semanticScholarApiKey: Type.Optional(Type.String()),
   autoIndex: Type.Boolean({ default: true }),
   contextPaperCount: Type.Number({ default: 5, minimum: 0, maximum: 20 }),
   enabledModules: Type.Array(Type.String(), {
@@ -1565,17 +1553,15 @@ import { Type } from "@sinclair/typebox";
 
 const SKILLS = [
   {
-    name: "semantic_scholar_search",
-    label: "Semantic Scholar Search",
-    description: "Search academic papers on Semantic Scholar",
+    name: "arxiv_search",
+    label: "arXiv Search",
+    description: "Search preprints on arXiv",
     params: Type.Object({
       query: Type.String({ description: "Search query" }),
-      year: Type.Optional(Type.String({ description: "Year range (e.g., 2020-2024)" })),
-      fields: Type.Optional(
-        Type.Array(Type.String(), { description: "Fields to return" })
-      ),
+      max_results: Type.Optional(Type.Number({ description: "Max results to return" })),
+      sort_by: Type.Optional(Type.String({ description: "Sort order (relevance, lastUpdatedDate, submittedDate)" })),
     }),
-    handler: "semantic-scholar",
+    handler: "arxiv",
   },
   // ... hundreds more
 ];

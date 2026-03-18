@@ -164,8 +164,8 @@ describe('LiteratureService', () => {
     });
 
     it('filters by year', () => {
-      svc.add(makePaper({ doi: '10.1/a', year: 2020 }));
-      svc.add(makePaper({ doi: '10.1/b', year: 2023 }));
+      svc.add(makePaper({ title: 'Paper A', doi: '10.1/a', year: 2020 }));
+      svc.add(makePaper({ title: 'Paper B', doi: '10.1/b', year: 2023 }));
 
       const result = svc.list({ filter: { year: 2023 } });
       expect(result.total).toBe(1);
@@ -395,8 +395,8 @@ describe('LiteratureService', () => {
     });
 
     it('getTags returns all tags with paper counts', () => {
-      const p1 = svc.add(makePaper({ doi: '10.1/a', tags: ['ml'] }));
-      const p2 = svc.add(makePaper({ doi: '10.1/b', tags: ['ml', 'cv'] }));
+      const p1 = svc.add(makePaper({ title: 'Paper A', doi: '10.1/a', tags: ['ml'] }));
+      const p2 = svc.add(makePaper({ title: 'Paper B', doi: '10.1/b', tags: ['ml', 'cv'] }));
 
       const allTags = svc.getTags();
       const mlTag = allTags.find((t) => t.name === 'ml');
@@ -532,8 +532,8 @@ describe('LiteratureService', () => {
     });
 
     it('returns correct breakdown by status', () => {
-      const p1 = svc.add(makePaper({ doi: '10.1/a' }));
-      const p2 = svc.add(makePaper({ doi: '10.1/b' }));
+      const p1 = svc.add(makePaper({ title: 'Paper A', doi: '10.1/a' }));
+      const p2 = svc.add(makePaper({ title: 'Paper B', doi: '10.1/b' }));
       svc.setStatus(p1.id, 'read');
 
       const stats = svc.getStats();
@@ -543,8 +543,8 @@ describe('LiteratureService', () => {
     });
 
     it('computes average rating', () => {
-      const p1 = svc.add(makePaper({ doi: '10.1/a' }));
-      const p2 = svc.add(makePaper({ doi: '10.1/b' }));
+      const p1 = svc.add(makePaper({ title: 'Paper A', doi: '10.1/a' }));
+      const p2 = svc.add(makePaper({ title: 'Paper B', doi: '10.1/b' }));
       svc.rate(p1.id, 4);
       svc.rate(p2.id, 2);
 
@@ -553,8 +553,8 @@ describe('LiteratureService', () => {
     });
 
     it('counts papers with PDF', () => {
-      svc.add(makePaper({ doi: '10.1/a', pdf_path: '/tmp/paper.pdf' }));
-      svc.add(makePaper({ doi: '10.1/b' })); // no pdf
+      svc.add(makePaper({ title: 'Paper A', doi: '10.1/a', pdf_path: '/tmp/paper.pdf' }));
+      svc.add(makePaper({ title: 'Paper B', doi: '10.1/b' })); // no pdf
 
       const stats = svc.getStats();
       expect(stats.papers_with_pdf).toBe(1);

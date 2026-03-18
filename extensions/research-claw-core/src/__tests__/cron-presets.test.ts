@@ -65,16 +65,9 @@ describe('Cron Presets — Seed Logic & Delete/Restore', () => {
       expect(svc2.cronPresetsList()).toHaveLength(5);
     });
 
-    it('deadline_reminders_daily is enabled by default after seed', () => {
+    it('all presets are disabled by default after seed (monitor system handles scheduling)', () => {
       const presets = svc.cronPresetsList();
-      const deadline = presets.find((p) => p.id === 'deadline_reminders_daily');
-      expect(deadline!.enabled).toBe(true);
-    });
-
-    it('all other presets are disabled by default after seed', () => {
-      const presets = svc.cronPresetsList();
-      const nonDeadline = presets.filter((p) => p.id !== 'deadline_reminders_daily');
-      for (const p of nonDeadline) {
+      for (const p of presets) {
         expect(p.enabled).toBe(false);
       }
     });

@@ -503,10 +503,11 @@ describe('TaskService', () => {
       expect(presets.map((p) => p.id)).toContain('weekly_report');
     });
 
-    it('deadline_reminders_daily is enabled by default', () => {
+    it('all presets are disabled by default (monitor system handles scheduling)', () => {
       const presets = svc.cronPresetsList();
       const deadlines = presets.find((p) => p.id === 'deadline_reminders_daily');
-      expect(deadlines!.enabled).toBe(true);
+      expect(deadlines!.enabled).toBe(false);
+      // Post-monitor-migration: presets start disabled. Users activate via dashboard.
     });
 
     it('activates a preset', () => {

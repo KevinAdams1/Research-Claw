@@ -86,7 +86,7 @@ curl -fsSL https://wentor.ai/install.sh | bash
 
 ### 7×24 科研雷达 × IM 推送
 
-设置追踪关键词、学者、期刊，科研龙虾在后台持续扫描 arXiv 和 Semantic Scholar。有重要更新第一时间推送到你的 Telegram / 飞书 / QQ，你不在电脑前也不会错过。
+设置追踪关键词、学者、期刊，科研龙虾在后台持续扫描 arXiv、OpenAlex 等学术数据库。有重要更新第一时间推送到你的 Telegram / 飞书 / QQ，你不在电脑前也不会错过。
 
 <img src="assets/screenshots/telegram.jpg" alt="Telegram 连接 × 科研雷达" width="100%" />
 
@@ -154,7 +154,7 @@ curl -fsSL https://wentor.ai/install.sh | bash
 | 效率工具 | 51 | Terminal · Jupyter · 文档处理 |
 | 外部集成 | 35 | Zotero · GitHub · Slack · arXiv |
 
-**6 个 Agent 工具**直连学术数据库：Semantic Scholar · arXiv · OpenAlex · CrossRef · PubMed · Unpaywall
+**34 个 Agent 工具**直连学术数据库：arXiv · OpenAlex · CrossRef · PubMed · Unpaywall · Europe PMC · DBLP · DOAJ 等
 
 **150 个 MCP 配置**即插即用：
 - **文献管理**：Zotero · EndNote · Mendeley

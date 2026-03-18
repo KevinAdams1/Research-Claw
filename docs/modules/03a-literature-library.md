@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS rc_papers (
   url             TEXT,
   arxiv_id        TEXT,
   pdf_path        TEXT,                                -- relative to project root
-  source          TEXT,                                -- 'semantic_scholar' | 'arxiv' | 'manual' | 'zotero' | 'crossref' | 'openalex'
+  source          TEXT,                                -- 'arxiv' | 'manual' | 'zotero' | 'crossref' | 'openalex'
   source_id       TEXT,                                -- ID in the source system
   venue           TEXT,
   year            INTEGER,
@@ -333,7 +333,6 @@ export const ReadStatus = Type.Union([
 export type ReadStatus = Static<typeof ReadStatus>;
 
 export const PaperSource = Type.Union([
-  Type.Literal('semantic_scholar'),
   Type.Literal('arxiv'),
   Type.Literal('manual'),
   Type.Literal('zotero'),

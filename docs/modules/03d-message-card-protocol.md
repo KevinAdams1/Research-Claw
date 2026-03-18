@@ -349,7 +349,7 @@ interface MonitorDigest {
   type: 'monitor_digest';
 
   /** Data source for the scan. Required. */
-  source: string;  // "arxiv" | "semantic_scholar" | "pubmed" | "custom"
+  source: string;  // "arxiv" | "openalex" | "pubmed" | "custom"
 
   /** The search query or topic that was tracked. Required. */
   query: string;

@@ -435,17 +435,37 @@ else
       try {
         let c = JSON.parse(fs.readFileSync(f, 'utf8'));
         let changed = false;
+
+        // --- Plugin path cleanup: remove node_modules references ---
         if (c.plugins?.load?.paths) {
           const before = c.plugins.load.paths.length;
           c.plugins.load.paths = c.plugins.load.paths.filter(p => !p.includes('node_modules'));
           if (c.plugins.load.paths.length !== before) changed = true;
         }
+
+        // --- Remove wentor-connect (placeholder, never functional) ---
         if (c.plugins?.entries?.['wentor-connect']) {
-          try { fs.accessSync('extensions/wentor-connect/dist'); }
-          catch { delete c.plugins.entries['wentor-connect']; changed = true; }
+          delete c.plugins.entries['wentor-connect'];
+          changed = true;
         }
-        // Ensure gateway auth token matches Dashboard DEFAULT_TOKEN
-        // (previous openclaw setup may have written a different token)
+
+        // --- v0.5.2+: remove plugins.allow (auto-discover replaces whitelist) ---
+        if (c.plugins?.allow) {
+          delete c.plugins.allow;
+          changed = true;
+        }
+
+        // --- Remove stale tool names from alsoAllow ---
+        // Blacklist: tools removed in v0.5.2 (S2 removal + radar→monitor migration)
+        const STALE_TOOLS = ['search_papers', 'get_paper', 'get_citations',
+          'radar_configure', 'radar_get_config', 'radar_scan'];
+        if (c.tools?.alsoAllow) {
+          const before = c.tools.alsoAllow.length;
+          c.tools.alsoAllow = c.tools.alsoAllow.filter(t => !STALE_TOOLS.includes(t));
+          if (c.tools.alsoAllow.length !== before) changed = true;
+        }
+
+        // --- Ensure gateway auth token matches Dashboard DEFAULT_TOKEN ---
         if (c.gateway?.auth) {
           if (c.gateway.auth.token && c.gateway.auth.token !== 'research-claw') {
             c.gateway.auth.token = 'research-claw';
@@ -456,13 +476,14 @@ else
             changed = true;
           }
         }
+
         if (changed) {
           fs.writeFileSync(f, JSON.stringify(c, null, 2) + '\n');
           anyChanged = true;
         }
       } catch {}
     }
-    if (anyChanged) console.log('  [config] Cleaned stale plugin references');
+    if (anyChanged) console.log('  [config] Cleaned stale config entries');
   " 2>/dev/null || true
 fi
 
@@ -595,7 +616,18 @@ ensure_native_modules || true
 # --- [8/8] Register research-plugins (skills + agent tools) ---
 # Installed via OpenClaw's plugin system (npm pack → ~/.openclaw/extensions/).
 # NOT loaded from node_modules — avoids pnpm hardlink rejection.
-run_openclaw() { "$GW_NODE" ./node_modules/openclaw/dist/entry.js "$@"; }
+# Use a minimal temp config for plugin install to avoid chicken-and-egg:
+# the real config may reference research-plugins in plugins.allow before
+# the plugin is actually installed, causing OC validation to reject the config.
+# This matches the workaround used in Dockerfile (line 51-55).
+run_openclaw_plugin_install() {
+  local TMP_CFG; TMP_CFG="$(mktemp)"
+  echo '{}' > "$TMP_CFG"
+  OPENCLAW_CONFIG_PATH="$TMP_CFG" "$GW_NODE" ./node_modules/openclaw/dist/entry.js plugins install "$@"
+  local RC=$?
+  rm -f "$TMP_CFG"
+  return $RC
+}
 PLUGIN_DIR="$HOME/.openclaw/extensions/research-plugins"
 info "Installing research-plugins..."
 if [ -d "$PLUGIN_DIR" ]; then
@@ -603,7 +635,8 @@ if [ -d "$PLUGIN_DIR" ]; then
   CURRENT_VER=$(node -e "console.log(require('$PLUGIN_DIR/package.json').version)" 2>/dev/null || echo "unknown")
   cp -r "$PLUGIN_DIR" "${PLUGIN_DIR}.bak" 2>/dev/null || true
   rm -rf "$PLUGIN_DIR"
-  if run_openclaw plugins install @wentorai/research-plugins &>/dev/null; then
+  RP_LOG="$(mktemp)"
+  if run_openclaw_plugin_install @wentorai/research-plugins >"$RP_LOG" 2>&1; then
     rm -rf "${PLUGIN_DIR}.bak"
     NEW_VER=$(node -e "console.log(require('$PLUGIN_DIR/package.json').version)" 2>/dev/null || echo "unknown")
     if [ "$CURRENT_VER" = "$NEW_VER" ]; then
@@ -620,16 +653,23 @@ if [ -d "$PLUGIN_DIR" ]; then
       warn "research-plugins update failed. You can retry later:"
       printf "    cd $INSTALL_DIR && npx openclaw plugins install @wentorai/research-plugins\n"
     fi
+    warn "Error details (last 5 lines):"
+    tail -5 "$RP_LOG" 2>/dev/null | while IFS= read -r line; do printf "    %s\n" "$line"; done
   fi
+  rm -f "$RP_LOG"
 else
   # Fresh install
-  if run_openclaw plugins install @wentorai/research-plugins &>/dev/null; then
+  RP_LOG="$(mktemp)"
+  if run_openclaw_plugin_install @wentorai/research-plugins >"$RP_LOG" 2>&1; then
     NEW_VER=$(node -e "console.log(require('$PLUGIN_DIR/package.json').version)" 2>/dev/null || echo "unknown")
     ok "Research-plugins v${NEW_VER} (431 skills, 13 tools)"
   else
     warn "research-plugins install failed (offline?). You can retry later:"
     printf "    cd $INSTALL_DIR && npx openclaw plugins install @wentorai/research-plugins\n"
+    warn "Error details (last 5 lines):"
+    tail -5 "$RP_LOG" 2>/dev/null | while IFS= read -r line; do printf "    %s\n" "$line"; done
   fi
+  rm -f "$RP_LOG"
 fi
 
 # --- Persist OPENCLAW_CONFIG_PATH in shell profile ---

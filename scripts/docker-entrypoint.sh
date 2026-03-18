@@ -20,6 +20,56 @@ if [ ! -f "$CONFIG_FILE" ] || [ "$CURRENT_VERSION" != "$IMAGE_VERSION" ]; then
   echo "[research-claw] Config initialized/updated for v$IMAGE_VERSION"
 fi
 
+# --- Docker-specific config overrides ---
+# The config template is designed for native (loopback) use. Docker requires:
+#   - bind: "lan" (container must be reachable from host via port mapping)
+#   - dangerouslyAllowHostHeaderOriginFallback: true (OC v2026.2.26+ requires
+#     explicit allowedOrigins for non-loopback; Host-header fallback is safe
+#     because Docker Desktop only exposes the mapped port to localhost)
+#   - dangerouslyDisableDeviceAuth: true (no device pairing in Docker)
+# Also clean stale entries that cause warnings on every boot.
+node -e "
+  const fs = require('fs');
+  const f = '$CONFIG_FILE';
+  const c = JSON.parse(fs.readFileSync(f, 'utf8'));
+  let changed = false;
+
+  // Gateway: ensure Docker-compatible settings
+  if (!c.gateway) c.gateway = {};
+  if (c.gateway.bind !== 'lan') { c.gateway.bind = 'lan'; changed = true; }
+  if (!c.gateway.controlUi) c.gateway.controlUi = {};
+  if (!c.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback) {
+    c.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback = true;
+    changed = true;
+  }
+  if (!c.gateway.controlUi.dangerouslyDisableDeviceAuth) {
+    c.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
+    changed = true;
+  }
+
+  // Clean stale plugin entries (wentor-connect is a placeholder, never functional)
+  if (c.plugins?.entries?.['wentor-connect']) {
+    delete c.plugins.entries['wentor-connect'];
+    changed = true;
+  }
+  // v0.5.2+: auto-discover replaces plugins.allow whitelist
+  if (c.plugins?.allow) {
+    delete c.plugins.allow;
+    changed = true;
+  }
+
+  // Clean stale tool names from alsoAllow
+  const STALE_TOOLS = ['search_papers', 'get_paper', 'get_citations',
+    'radar_configure', 'radar_get_config', 'radar_scan'];
+  if (c.tools?.alsoAllow) {
+    const before = c.tools.alsoAllow.length;
+    c.tools.alsoAllow = c.tools.alsoAllow.filter(t => !STALE_TOOLS.includes(t));
+    if (c.tools.alsoAllow.length !== before) changed = true;
+  }
+
+  if (changed) fs.writeFileSync(f, JSON.stringify(c, null, 2) + '\n');
+"
+
 # --- Sync bootstrap prompt files from image → volume ---
 # L1 system prompts: always force-update from image (safe — no user data).
 RC_DIR=/app/workspace/.ResearchClaw

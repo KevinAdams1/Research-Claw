@@ -528,7 +528,7 @@ Group papers by topic relevance. Flag any papers from tracked authors.
 | Schedule  | `0 8 * * 1` (Monday 08:00)                                    |
 | Default   | Disabled                                                       |
 
-**When triggered:** Read `rc_papers` where `is_own=true` or tagged `['track-citations']`, query Semantic Scholar/CrossRef for new citing papers (last 7 days), create `Task` per citation (`task_type='human'`, `priority='medium'`, linked via `related_paper_id`), emit `radar_digest` card.
+**When triggered:** Read `rc_papers` where `is_own=true` or tagged `['track-citations']`, query CrossRef/OpenAlex for new citing papers (last 7 days), create `Task` per citation (`task_type='human'`, `priority='medium'`, linked via `related_paper_id`), emit `radar_digest` card.
 
 **AGENTS.md injection:**
 ```

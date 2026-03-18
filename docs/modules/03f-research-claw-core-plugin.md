@@ -1130,8 +1130,8 @@ export function registerAgentEndHook(
 ### 10.4 `after_tool_call` -- Cross-Plugin Paper Discovery
 
 When the agent calls tools from `research-plugins` (the external skill/MCP package) that
-return paper metadata -- such as `semantic_scholar_search`, `arxiv_search`, or
-`crossref_search` -- this hook checks whether those papers already exist in the local
+return paper metadata -- such as `arxiv_search`, `crossref_search`, or
+`openalex_search` -- this hook checks whether those papers already exist in the local
 library. If not, it adds a suggestion to the chat.
 
 ```typescript
@@ -1141,9 +1141,9 @@ import type { OpenClawPluginApi } from 'openclaw';
 import type { DbService } from '../db/connection.js';
 
 const PAPER_SEARCH_TOOLS = new Set([
-  'semantic_scholar_search',
   'arxiv_search',
   'crossref_search',
+  'openalex_search',
   'pubmed_search',
   'google_scholar_search',
 ]);
@@ -1305,7 +1305,7 @@ rc_papers ──────┐
 User says "find papers on transformer architectures"
     |
     v
-Agent calls semantic_scholar_search (research-plugins tool)
+Agent calls arxiv_search (research-plugins tool)
     |
     v
 after_tool_call hook fires

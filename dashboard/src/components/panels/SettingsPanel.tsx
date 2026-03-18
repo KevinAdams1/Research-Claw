@@ -213,7 +213,21 @@ export default function SettingsPanel() {
   const handleProviderChange = (id: string) => {
     setProvider(id);
     const preset = getPreset(id);
-    if (preset.baseUrl) setBaseUrl(preset.baseUrl);
+    if (preset.baseUrl) {
+      let url = preset.baseUrl;
+      // Docker detection: when the dashboard is accessed via a non-loopback host
+      // (e.g., 172.x.x.x or host mapped port), the gateway is likely in a Docker
+      // container. Local providers (Ollama, vLLM) must use host.docker.internal
+      // instead of 127.0.0.1 to reach the host machine from inside the container.
+      if ((id === 'ollama' || id === 'vllm') && typeof window !== 'undefined') {
+        const host = window.location.hostname;
+        const isNonLoopback = host !== '127.0.0.1' && host !== 'localhost' && host !== '::1';
+        if (isNonLoopback) {
+          url = url.replace('127.0.0.1', 'host.docker.internal');
+        }
+      }
+      setBaseUrl(url);
+    }
     setApi(preset.api);
     if (preset.models.length > 0) {
       setTextModel(preset.models[0].id);

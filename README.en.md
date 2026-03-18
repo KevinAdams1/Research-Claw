@@ -86,7 +86,7 @@ Every Friday at 8 AM, Research-Claw compiles your week's progress into presentat
 
 ### 24/7 Research Radar × IM Alerts
 
-Configure keyword, author, and journal tracking. Research-Claw continuously scans arXiv and Semantic Scholar. Important updates are pushed to your **Telegram / Feishu / QQ / DingTalk** — you won't miss anything, even away from your desk.
+Configure keyword, author, and journal tracking. Research-Claw continuously scans arXiv, OpenAlex, and other academic databases. Important updates are pushed to your **Telegram / Feishu / QQ / DingTalk** — you won't miss anything, even away from your desk.
 
 <img src="assets/screenshots/telegram.jpg" alt="Telegram connected × Research Radar" width="100%" />
 
@@ -154,7 +154,7 @@ Research-Claw comes with **432 academic skills** built-in (auto-configured durin
 | Tools | 51 | Terminal · Jupyter · Document processing |
 | Integrations | 35 | Zotero · GitHub · Slack · arXiv |
 
-**6 Agent tools** connecting directly to academic databases: Semantic Scholar · arXiv · OpenAlex · CrossRef · PubMed · Unpaywall
+**34 Agent tools** connecting directly to academic databases: arXiv · OpenAlex · CrossRef · PubMed · Unpaywall · Europe PMC · DBLP · DOAJ and more
 
 **150 MCP configurations** plug-and-play:
 - **Reference managers**: Zotero · EndNote · Mendeley

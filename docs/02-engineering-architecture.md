@@ -1158,7 +1158,7 @@ CREATE TABLE IF NOT EXISTS rc_papers (
   url             TEXT,
   arxiv_id        TEXT,
   pdf_path        TEXT,
-  source          TEXT,                         -- 'semantic_scholar' | 'arxiv' | 'manual' | 'zotero' | 'crossref' | 'openalex'
+  source          TEXT,                         -- 'arxiv' | 'manual' | 'zotero' | 'crossref' | 'openalex'
   source_id       TEXT,                         -- ID in the source system
   venue           TEXT,
   year            INTEGER,
