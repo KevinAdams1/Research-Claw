@@ -1,7 +1,7 @@
 /**
- * Radar Scanner — arXiv + Semantic Scholar API clients
+ * Academic paper scanner — arXiv + Semantic Scholar
  *
- * Queries external paper databases for new papers matching the radar config.
+ * Queries external paper databases for new papers matching the provided options.
  * Deduplicates against the local library (rc_papers) by DOI and arXiv ID.
  */
 
@@ -38,10 +38,9 @@ export interface ScanOptions {
   max_results?: number;
 }
 
-interface RadarConfig {
+interface ScanConfig {
   keywords: string[];
   authors: string[];
-  journals: string[];
   sources: string[];
 }
 
@@ -263,32 +262,10 @@ function deduplicateAgainstLibrary(db: Database, papers: ScannedPaper[]): { uniq
 
 // ── Main Scanner ─────────────────────────────────────────────────────────
 
-function getConfig(db: Database): RadarConfig {
-  const row = db.prepare('SELECT keywords, authors, journals, sources FROM rc_radar_config WHERE id = ?').get('default') as
-    | { keywords: string; authors: string; journals: string; sources: string }
-    | undefined;
-
-  if (!row) {
-    return { keywords: [], authors: [], journals: [], sources: ['arxiv', 'semantic_scholar'] };
-  }
-
-  try {
-    return {
-      keywords: JSON.parse(row.keywords),
-      authors: JSON.parse(row.authors),
-      journals: JSON.parse(row.journals),
-      sources: JSON.parse(row.sources),
-    };
-  } catch {
-    return { keywords: [], authors: [], journals: [], sources: ['arxiv', 'semantic_scholar'] };
-  }
-}
-
-export async function radarScan(db: Database, options: ScanOptions = {}): Promise<ScanResult[]> {
-  const config = getConfig(db);
-  const keywords = options.keywords ?? config.keywords;
-  const authors = options.authors ?? config.authors;
-  const sources = options.sources ?? config.sources;
+export async function scanSources(db: Database, options: ScanOptions = {}): Promise<ScanResult[]> {
+  const keywords = options.keywords ?? [];
+  const authors = options.authors ?? [];
+  const sources = options.sources ?? ['arxiv', 'semantic_scholar'];
   const maxResults = options.max_results ?? 20;
 
   if (keywords.length === 0 && authors.length === 0) {
@@ -299,7 +276,7 @@ export async function radarScan(db: Database, options: ScanOptions = {}): Promis
       total_found: 0,
       papers_added: 0,
       papers_skipped: 0,
-      errors: ['Radar not configured: no keywords or authors to search for. Use radar_configure first.'],
+      errors: ['No keywords or authors to search for.'],
     }];
   }
 

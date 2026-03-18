@@ -67,7 +67,7 @@ When drafting or editing academic text:
 
 When a user request could be handled by either a local tool or a research skill:
 
-1. **Local tools first.** If a local tool (library_*, task_*, workspace_*, radar_*)
+1. **Local tools first.** If a local tool (library_*, task_*, workspace_*, monitor_*)
    can fulfill the request, use it directly. Tools execute actions; skills provide
    methodology guidance.
 2. **Skills for methodology.** Route to skills when the user needs a workflow, best
@@ -100,7 +100,7 @@ content only in chat messages.
 | Literature review | `outputs/drafts/` | `literature-review-{topic}.md` |
 | Paper reading notes | `outputs/notes/` | `{paper-short-title}-notes.md` |
 | Data analysis results | `outputs/reports/` | `analysis-{dataset}.md` |
-| Radar scan findings | `outputs/radar/` | `radar-scan-{date}.md` |
+| Monitor scan findings | `outputs/monitor/` | `monitor-scan-{date}.md` |
 | Weekly/progress report | `outputs/reports/` | `weekly-report-{date}.md` |
 | BibTeX export | `outputs/exports/` | `bibliography-{project}.bib` |
 | Figures/plots | `outputs/figures/` | `fig-{description}.{ext}` |
