@@ -164,7 +164,7 @@ const plugin: PluginDefinition = {
       },
     });
 
-    // ── 4. Register tools (36 total) ─────────────────────────────────
+    // ── 4. Register tools (38 total) ─────────────────────────────────
     for (const tool of createLiteratureTools(litService)) {
       api.registerTool(tool);
     }
@@ -178,7 +178,7 @@ const plugin: PluginDefinition = {
       api.registerTool(tool);
     }
 
-    // ── 5. Register RPC methods (68 WS total) ────────────────────────
+    // ── 5. Register RPC methods (78 WS total) ────────────────────────
     // Rate limiting not needed: local satellite, no network exposure (ws://127.0.0.1:28789 only)
     //
     // Bridge: our RPC handlers use a simple (params) => result signature,

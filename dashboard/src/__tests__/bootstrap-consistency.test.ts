@@ -756,8 +756,8 @@ describe('Bootstrap file consistency (AGENTS.md v3.1 & TOOLS.md v3.1)', () => {
       expect(agentsMd).toContain('2026-03-18');
     });
 
-    it('TOOLS.md has 2026-03-14 date', () => {
-      expect(toolsMd).toContain('2026-03-14');
+    it('TOOLS.md has 2026-03-18 date', () => {
+      expect(toolsMd).toContain('2026-03-18');
     });
   });
 

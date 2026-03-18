@@ -1,7 +1,7 @@
 ---
 file: TOOLS.md
 version: 3.1
-updated: 2026-03-14
+updated: 2026-03-18
 ---
 
 # Tool Reference
