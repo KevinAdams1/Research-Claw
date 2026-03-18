@@ -5,19 +5,38 @@
 CONFIG_DIR=/app/config
 CONFIG_FILE=$CONFIG_DIR/openclaw.json
 CONFIG_VERSION_FILE=$CONFIG_DIR/.config-version
-IMAGE_VERSION="0.5.2"
+IMAGE_VERSION="0.5.3"
+PORT=${PORT:-28789}
 
-# Seed or refresh config when image version changes
+# --- One-time migration: v0.5.3 fixed volume mount from /root → /app ---
+# Earlier versions mounted rc-data at /root/.research-claw but the plugin
+# resolves dbPath to /app/.research-claw. Copy data to the correct path.
+if [ -f "/root/.research-claw/library.db" ] && [ ! -f "/app/.research-claw/library.db" ]; then
+  mkdir -p /app/.research-claw
+  if cp -a /root/.research-claw/* /app/.research-claw/ 2>/dev/null && [ -f "/app/.research-claw/library.db" ]; then
+    echo "[research-claw] Migrated database from /root/.research-claw → /app/.research-claw"
+  else
+    echo "[research-claw] WARNING: Database migration failed — check disk space"
+  fi
+fi
+
+# Seed config on fresh install; preserve user config on upgrade
 mkdir -p "$CONFIG_DIR"
 CURRENT_VERSION=""
 if [ -f "$CONFIG_VERSION_FILE" ]; then
   CURRENT_VERSION=$(cat "$CONFIG_VERSION_FILE")
 fi
 
-if [ ! -f "$CONFIG_FILE" ] || [ "$CURRENT_VERSION" != "$IMAGE_VERSION" ]; then
+if [ ! -f "$CONFIG_FILE" ]; then
+  # Fresh install: seed from template
   cp /defaults/openclaw.example.json "$CONFIG_FILE"
   echo "$IMAGE_VERSION" > "$CONFIG_VERSION_FILE"
-  echo "[research-claw] Config initialized/updated for v$IMAGE_VERSION"
+  echo "[research-claw] Config initialized for v$IMAGE_VERSION"
+elif [ "$CURRENT_VERSION" != "$IMAGE_VERSION" ]; then
+  # Upgrade: update version tracker but DON'T overwrite user config.
+  # Docker-specific overrides + stale cleanup (below) handle migration.
+  echo "$IMAGE_VERSION" > "$CONFIG_VERSION_FILE"
+  echo "[research-claw] Upgraded to v$IMAGE_VERSION (config preserved)"
 fi
 
 # --- Docker-specific config overrides ---
@@ -68,7 +87,31 @@ node -e "
   }
 
   if (changed) fs.writeFileSync(f, JSON.stringify(c, null, 2) + '\n');
-"
+" 2>&1 || echo "[research-claw] WARNING: Config patch failed — gateway may not start correctly"
+
+# --- Resolve relative paths to absolute (prevents CWD drift during agent runs) ---
+# Agent process.chdir(workspace/) changes CWD; relative paths in config break.
+node -e "
+  const fs = require('fs'), path = require('path');
+  const f = '$CONFIG_FILE';
+  const cfg = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const root = '/app';
+  const abs = p => path.isAbsolute(p) ? p : path.resolve(root, p);
+  let changed = false;
+  if (cfg.plugins?.load?.paths?.some(p => !path.isAbsolute(p))) {
+    cfg.plugins.load.paths = cfg.plugins.load.paths.map(abs); changed = true;
+  }
+  if (cfg.skills?.load?.extraDirs?.some(p => !path.isAbsolute(p))) {
+    cfg.skills.load.extraDirs = cfg.skills.load.extraDirs.map(abs); changed = true;
+  }
+  if (cfg.gateway?.controlUi?.root && !path.isAbsolute(cfg.gateway.controlUi.root)) {
+    cfg.gateway.controlUi.root = abs(cfg.gateway.controlUi.root); changed = true;
+  }
+  if (cfg.agents?.defaults?.workspace && !path.isAbsolute(cfg.agents.defaults.workspace)) {
+    cfg.agents.defaults.workspace = abs(cfg.agents.defaults.workspace); changed = true;
+  }
+  if (changed) fs.writeFileSync(f, JSON.stringify(cfg, null, 2) + '\n');
+" 2>/dev/null || true
 
 # --- Sync bootstrap prompt files from image → volume ---
 # L1 system prompts: always force-update from image (safe — no user data).
@@ -94,8 +137,8 @@ if [ -z "$OPENCLAW_GATEWAY_TOKEN" ]; then
   export OPENCLAW_GATEWAY_TOKEN
 fi
 
-echo "[research-claw] Starting gateway on port 28789..."
-echo "[research-claw] Open dashboard: http://127.0.0.1:28789/?token=$OPENCLAW_GATEWAY_TOKEN"
+echo "[research-claw] Starting gateway on port $PORT..."
+echo "[research-claw] Open dashboard: http://127.0.0.1:$PORT/?token=$OPENCLAW_GATEWAY_TOKEN"
 echo "[research-claw] Gateway token: $OPENCLAW_GATEWAY_TOKEN"
 echo "[research-claw] (Tip: set OPENCLAW_GATEWAY_TOKEN env var for a fixed token)"
 
@@ -105,7 +148,7 @@ trap 'STOP=true' INT TERM
 while true; do
   OPENCLAW_CONFIG_PATH=$CONFIG_FILE \
     node /app/node_modules/openclaw/dist/entry.js \
-    gateway run --allow-unconfigured --auth token --port 28789 --bind lan --force
+    gateway run --allow-unconfigured --auth token --port $PORT --bind lan --force
   CODE=$?
 
   if [ "$STOP" = "true" ]; then

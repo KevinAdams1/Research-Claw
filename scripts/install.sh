@@ -619,7 +619,7 @@ ensure_native_modules || true
 # Use a minimal temp config for plugin install to avoid chicken-and-egg:
 # the real config may reference research-plugins in plugins.allow before
 # the plugin is actually installed, causing OC validation to reject the config.
-# This matches the workaround used in Dockerfile (line 51-55).
+# This matches the workaround used in Dockerfile.
 run_openclaw_plugin_install() {
   local TMP_CFG; TMP_CFG="$(mktemp)"
   echo '{}' > "$TMP_CFG"
@@ -629,6 +629,10 @@ run_openclaw_plugin_install() {
   return $RC
 }
 PLUGIN_DIR="$HOME/.openclaw/extensions/research-plugins"
+rp_summary() {
+  local SKILLS; SKILLS=$(find "$PLUGIN_DIR/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$SKILLS" -gt 0 ] 2>/dev/null && echo "${SKILLS} skills" || true
+}
 info "Installing research-plugins..."
 if [ -d "$PLUGIN_DIR" ]; then
   # Update existing: backup → delete → install → restore on failure
@@ -640,7 +644,7 @@ if [ -d "$PLUGIN_DIR" ]; then
     rm -rf "${PLUGIN_DIR}.bak"
     NEW_VER=$(node -e "console.log(require('$PLUGIN_DIR/package.json').version)" 2>/dev/null || echo "unknown")
     if [ "$CURRENT_VER" = "$NEW_VER" ]; then
-      ok "Research-plugins v${NEW_VER} (431 skills, 13 tools)"
+      RP_S=$(rp_summary); ok "Research-plugins v${NEW_VER}${RP_S:+ ($RP_S)}"
     else
       ok "Research-plugins updated: v${CURRENT_VER} → v${NEW_VER}"
     fi
@@ -662,7 +666,7 @@ else
   RP_LOG="$(mktemp)"
   if run_openclaw_plugin_install @wentorai/research-plugins >"$RP_LOG" 2>&1; then
     NEW_VER=$(node -e "console.log(require('$PLUGIN_DIR/package.json').version)" 2>/dev/null || echo "unknown")
-    ok "Research-plugins v${NEW_VER} (431 skills, 13 tools)"
+    RP_S=$(rp_summary); ok "Research-plugins v${NEW_VER}${RP_S:+ ($RP_S)}"
   else
     warn "research-plugins install failed (offline?). You can retry later:"
     printf "    cd $INSTALL_DIR && npx openclaw plugins install @wentorai/research-plugins\n"

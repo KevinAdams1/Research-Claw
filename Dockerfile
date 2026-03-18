@@ -3,14 +3,17 @@
 # ============================================================
 FROM node:22-slim
 
-# ── 中国大陆网络优化 ────────────────────────────────────────────────────
-# 如果你在海外，可以注释掉下面两个 RUN 块，直接用默认源。
+# ── Mirror configuration ──────────────────────────────────────────────
+# Defaults: China mainland mirrors (TUNA + npmmirror).
+# Overseas: docker build --build-arg APT_MIRROR=deb.debian.org --build-arg NPM_REGISTRY=https://registry.npmjs.org .
+ARG APT_MIRROR=mirrors.tuna.tsinghua.edu.cn
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 
-# Debian apt 换源 → 清华 TUNA 镜像
-RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
+# Debian apt mirror
+RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources
 
-# npm + pnpm 换源 → npmmirror（淘宝）
-RUN npm config set registry https://registry.npmmirror.com
+# npm + pnpm registry
+RUN npm config set registry ${NPM_REGISTRY}
 
 # ── 系统依赖 ─────────────────────────────────────────────────────────
 # python3/make/g++: better-sqlite3 原生编译
@@ -26,8 +29,8 @@ RUN npm install -g pnpm@9.15.0
 WORKDIR /app
 
 # GitHub HTTPS 代替 SSH（Docker 内无 SSH key）
-# 同时配置 git 代理（如需翻墙，取消注释 HTTP_PROXY 行）
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:"
+# 构建时代理（如需翻墙，取消注释）
 # RUN git config --global http.proxy http://host.docker.internal:7890
 
 # ── 依赖层（package 文件不变则缓存命中）──────────────────────────────
@@ -37,6 +40,9 @@ COPY dashboard/package.json                          ./dashboard/
 COPY extensions/research-claw-core/package.json     ./extensions/research-claw-core/
 COPY extensions/wentor-connect/package.json          ./extensions/wentor-connect/
 
+# --node-linker=hoisted: Required in Docker to avoid pnpm symlink issues
+# with better-sqlite3 native module resolution. Native install uses the
+# default (symlinked) linker which works fine outside containers.
 RUN pnpm install --node-linker=hoisted
 
 # ── 源码 + 构建 ──────────────────────────────────────────────────────
@@ -44,10 +50,10 @@ COPY . .
 
 RUN pnpm build
 
-# ── research-plugins（431 skills + 40 indexes + 13 agent tools）────────
-# 通过 OpenClaw 插件机制安装到 ~/.openclaw/extensions/（不走 node_modules）
-# Note: Use a minimal config for install — the full config references research-plugins
-# in plugins.allow, but OC validates that before install completes (chicken-and-egg).
+# ── research-plugins (skills + indexes + agent tools via OC plugin) ───
+# Installed to ~/.openclaw/extensions/ (not node_modules).
+# Use a minimal temp config to avoid chicken-and-egg issues with OC
+# plugin validation during install.
 RUN echo '{}' > /tmp/oc-install.json && \
     OPENCLAW_CONFIG_PATH=/tmp/oc-install.json \
     node ./node_modules/openclaw/dist/entry.js \
