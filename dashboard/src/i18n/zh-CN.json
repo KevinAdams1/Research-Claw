@@ -168,6 +168,8 @@
     "outputs": "输出文件",
     "upload": "添加文件",
     "uploadSuccess": "文件已添加到工作区",
+    "uploadSuccessWithPath": "已上传 {{count}} 个文件到 {{path}}",
+    "uploadFailedMulti": "{{count}} 个文件上传失败",
     "history": "版本历史",
     "recentChanges": "最近变更",
     "loadMore": "加载更多...",
@@ -238,7 +240,7 @@
     "empty": "暂无监控配置。",
     "emptyHint": "让科研龙虾帮你设置 arXiv 论文、GitHub 仓库、RSS 订阅等监控。",
     "add": "添加监控",
-    "addPrompt": "我想设置一个新的监控。帮我配置。可用的源类型：arXiv、Semantic Scholar、GitHub、RSS、网页、OpenAlex、Twitter、自定义。",
+    "addPrompt": "我想设置一个新的监控。帮我配置。可用的源类型：arXiv、GitHub、RSS、网页、OpenAlex、Twitter、自定义。",
     "target": "监控目标",
     "filters": "过滤条件",
     "findings": "条发现",
@@ -409,15 +411,6 @@
       "riskHigh": "高",
       "approveAlways": "批准（始终）"
     },
-    "radar": {
-      "title": "雷达更新",
-      "source": "来源",
-      "query": "查询",
-      "period": "时间段",
-      "found": "发现 {{count}} 篇新论文",
-      "notablePapers": "值得关注的论文",
-      "relevance": "相关原因"
-    },
     "file": {
       "open": "打开",
       "download": "下载",
@@ -468,5 +461,13 @@
     "collapseNav": "折叠导航",
     "expandNav": "展开导航",
     "closePanel": "关闭面板"
+  },
+  "docker": {
+    "openFile": { "title": "无法直接打开文件" },
+    "openFolder": { "title": "无法直接打开目录" },
+    "description": "Research-Claw 运行在 Docker 容器中，文件无法用宿主机应用直接打开。",
+    "downloadFile": "下载文件",
+    "downloadFolder": "下载文件夹 (.tar.gz)",
+    "bindMountHint": "提示：在 docker-compose.yml 中改为 bind mount，即可直接用文件管理器浏览工作区："
   }
 }

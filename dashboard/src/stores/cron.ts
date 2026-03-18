@@ -13,12 +13,10 @@ export interface CronPreset {
   gateway_job_id: string | null;
 }
 
-// Agent turn messages for each preset
+// Agent turn messages for cron presets.
+// NOTE: arxiv_daily_scan and citation_tracking_weekly have been superseded
+// by the monitor system (seed monitors). Only task/reminder presets remain here.
 const PRESET_AGENT_TURNS: Record<string, string> = {
-  arxiv_daily_scan:
-    'Use monitor_get_context to check my active monitors, then search arXiv for new papers and use monitor_report to log findings. Summarize any interesting results.',
-  citation_tracking_weekly:
-    'Check for new citations of my tracked papers using library_citation_graph.',
   deadline_reminders_daily:
     'List tasks due within 24 hours using task_list and send me a summary.',
 };

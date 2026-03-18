@@ -14,7 +14,6 @@ const { Text } = Typography;
 /** Source type → display color */
 const SOURCE_COLORS: Record<string, string> = {
   arxiv: '#B91C1C',
-  semantic_scholar: '#2563EB',
   github: '#6E5494',
   rss: '#F97316',
   webpage: '#0EA5E9',

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Button, message, Tag, Typography } from 'antd';
 import {
   FileOutlined,
@@ -12,6 +12,8 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import CardContainer from './CardContainer';
+import DockerFileModal from '@/components/panels/DockerFileModal';
+import type { DockerFileModalProps } from '@/components/panels/DockerFileModal';
 import { useConfigStore } from '@/stores/config';
 import { useGatewayStore } from '@/stores/gateway';
 import { getThemeTokens } from '@/styles/theme';
@@ -62,16 +64,34 @@ export default function FileCard(props: FileCardType) {
   const client = useGatewayStore((s) => s.client);
 
   const fileInfo = getFileTypeInfo(props.name, tokens);
+  const [dockerModal, setDockerModal] = useState<Omit<DockerFileModalProps, 'open' | 'onClose'> | null>(null);
 
   const handleOpenFile = useCallback(() => {
-    client?.request('rc.ws.openExternal', { path: props.path }).catch((err: unknown) => {
+    client?.request<Record<string, unknown>>('rc.ws.openExternal', { path: props.path }).then((res) => {
+      if (res?.fallback === 'docker') {
+        setDockerModal({
+          mode: 'file',
+          containerPath: String(res.containerPath ?? ''),
+          relativePath: String(res.relativePath ?? props.path),
+          fileName: String(res.fileName ?? props.name),
+        });
+      }
+    }).catch((err: unknown) => {
       const detail = err instanceof Error ? err.message : '';
       message.error(`${t('workspace.contextMenu.openFailed')}: ${props.path}${detail ? ` (${detail})` : ''}`);
     });
-  }, [props.path, client, t]);
+  }, [props.path, props.name, client, t]);
 
   const handleOpenFolder = useCallback(() => {
-    client?.request('rc.ws.openFolder', { path: props.path }).catch((err: unknown) => {
+    client?.request<Record<string, unknown>>('rc.ws.openFolder', { path: props.path }).then((res) => {
+      if (res?.fallback === 'docker') {
+        setDockerModal({
+          mode: 'folder',
+          containerPath: String(res.containerPath ?? ''),
+          relativePath: String(res.relativePath ?? props.path),
+        });
+      }
+    }).catch((err: unknown) => {
       const detail = err instanceof Error ? err.message : '';
       message.error(`${t('workspace.contextMenu.openFailed')}: ${props.path}${detail ? ` (${detail})` : ''}`);
     });
@@ -184,6 +204,9 @@ export default function FileCard(props: FileCardType) {
           {t('card.file.openDir')}
         </Button>
       </div>
+      {dockerModal && (
+        <DockerFileModal open onClose={() => setDockerModal(null)} {...dockerModal} />
+      )}
     </CardContainer>
   );
 }

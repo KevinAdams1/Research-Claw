@@ -19,6 +19,24 @@ const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/;
 let _gapDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 const GAP_DEBOUNCE_MS = 500;
 
+/**
+ * Stale-streaming recovery timer.
+ * When streaming=true but no delta arrives within STALE_STREAM_TIMEOUT_MS,
+ * the UI is stuck at "思考中...". This timer auto-recovers by calling
+ * loadHistory() which fetches the response from the gateway transcript.
+ * Covers: Volcengine Coding, Kimi Code, and other thinking models that
+ * buffer the entire response before emitting content tokens.
+ */
+let _staleStreamTimer: ReturnType<typeof setTimeout> | null = null;
+const STALE_STREAM_TIMEOUT_MS = 60_000;
+
+function clearStaleStreamTimer() {
+  if (_staleStreamTimer) {
+    clearTimeout(_staleStreamTimer);
+    _staleStreamTimer = null;
+  }
+}
+
 function isSilentReply(text: string | undefined): boolean {
   return text !== undefined && SILENT_REPLY_PATTERN.test(text);
 }
@@ -387,7 +405,21 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         ...(finalAttachments?.length ? { attachments: finalAttachments } : {}),
       });
       set({ sending: false, streaming: true });
+
+      // Start stale-streaming recovery timer. If no delta arrives within 60s,
+      // loadHistory() will fetch the response from the gateway transcript.
+      clearStaleStreamTimer();
+      _staleStreamTimer = setTimeout(() => {
+        _staleStreamTimer = null;
+        const s = get();
+        if (s.streaming && !s.streamText) {
+          console.log('[Chat] Stale streaming detected (60s no delta) — recovering via loadHistory');
+          set({ streaming: false, streamText: null, runId: null });
+          get().loadHistory();
+        }
+      }, STALE_STREAM_TIMEOUT_MS);
     } catch (err) {
+      clearStaleStreamTimer();
       // Match OC chat.ts:226-230: clear runId + chatStream on failure
       set({
         sending: false,
@@ -400,6 +432,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
 
   abort: () => {
+    clearStaleStreamTimer();
     const client = useGatewayStore.getState().client;
     const { runId, sessionKey } = get();
 
@@ -515,6 +548,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         get().updateTokens(input, output);
       }
     }
+
+    // Any meaningful streaming event means the gateway is alive — cancel
+    // the stale-streaming recovery timer (started in send()).
+    clearStaleStreamTimer();
 
     switch (event.state) {
       case 'delta': {
@@ -667,6 +704,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     // Clear all chat state for session switch.
     // Matches OC resetChatStateForSessionSwitch: clears chatStream, chatStreamStartedAt,
     // chatRunId, chatMessage, resets tool stream + scroll.
+    clearStaleStreamTimer();
     set({
       sessionKey: key,
       messages: [],

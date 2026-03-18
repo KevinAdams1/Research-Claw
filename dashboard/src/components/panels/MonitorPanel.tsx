@@ -46,7 +46,6 @@ const { Text } = Typography;
 function sourceIcon(sourceType: string): React.ReactNode {
   switch (sourceType) {
     case 'arxiv': return <FileTextOutlined />;
-    case 'semantic_scholar': return <SearchOutlined />;
     case 'github': return <GithubOutlined />;
     case 'rss': return <GlobalOutlined />;
     case 'webpage': return <EyeOutlined />;
@@ -60,7 +59,6 @@ function sourceIcon(sourceType: string): React.ReactNode {
 function sourceLabel(sourceType: string): string {
   switch (sourceType) {
     case 'arxiv': return 'arXiv';
-    case 'semantic_scholar': return 'Semantic Scholar';
     case 'github': return 'GitHub';
     case 'rss': return 'RSS';
     case 'webpage': return 'Webpage';
@@ -359,7 +357,7 @@ export default function MonitorPanel() {
   const handleAddMonitor = useCallback(() => {
     send(
       t('monitor.addPrompt', {
-        defaultValue: 'I want to set up a new monitor. Help me configure it. Available source types: arXiv, Semantic Scholar, GitHub, RSS, Webpage, OpenAlex, Twitter, Custom.',
+        defaultValue: 'I want to set up a new monitor. Help me configure it. Available source types: arXiv, GitHub, RSS, Webpage, OpenAlex, Twitter, Custom.',
       }),
     );
   }, [send, t]);

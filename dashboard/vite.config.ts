@@ -1,10 +1,27 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+
+/** Replace __RC_BUILD_HASH__ in public/theme-init.js with a real hash after build. */
+function cacheBust(): Plugin {
+  return {
+    name: 'rc-cache-bust',
+    apply: 'build',
+    closeBundle() {
+      const file = resolve(__dirname, 'dist/theme-init.js');
+      const src = readFileSync(file, 'utf8');
+      if (!src.includes('__RC_BUILD_HASH__')) return;
+      const hash = createHash('sha256').update(Date.now().toString()).digest('hex').slice(0, 12);
+      writeFileSync(file, src.replace(/__RC_BUILD_HASH__/g, hash));
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), cacheBust()],
   base: './',
   css: {
     preprocessorOptions: {

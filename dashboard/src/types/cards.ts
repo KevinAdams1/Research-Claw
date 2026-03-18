@@ -134,7 +134,7 @@ export interface MonitorDigest {
   type: 'monitor_digest';
   /** Human-readable monitor name. */
   monitor_name: string;
-  source_type: string; // "arxiv" | "semantic_scholar" | "github" | "rss" | "webpage" | "openalex" | "twitter" | "custom"
+  source_type: string; // "arxiv" | "github" | "rss" | "webpage" | "openalex" | "twitter" | "custom"
   /** The search query, URL, or repo target. */
   target: string;
   /** Cron schedule expression. */

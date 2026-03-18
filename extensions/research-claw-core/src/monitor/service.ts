@@ -483,9 +483,10 @@ export class MonitorService {
     const memory = monitor.memory;
     const findingCount = Array.isArray(results) ? results.length : 0;
 
-    // Compute new_count by filtering fingerprints against seen
+    // Deduplicate input fingerprints, then filter against seen
+    const uniqueFingerprints = [...new Set(fingerprints)];
     const seenSet = new Set(memory.seen);
-    const newFingerprints = fingerprints.filter((fp) => !seenSet.has(fp));
+    const newFingerprints = uniqueFingerprints.filter((fp) => !seenSet.has(fp));
     const newCount = newFingerprints.length;
 
     // Append new fingerprints to seen (FIFO cap 2000)

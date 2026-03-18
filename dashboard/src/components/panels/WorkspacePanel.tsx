@@ -29,6 +29,8 @@ import { useUiStore } from '../../stores/ui';
 import { getThemeTokens } from '../../styles/theme';
 import { useConfigStore } from '../../stores/config';
 import FilePreviewModal from './FilePreviewModal';
+import DockerFileModal from './DockerFileModal';
+import type { DockerFileModalProps } from './DockerFileModal';
 
 const { Text } = Typography;
 const { Dragger } = Upload;
@@ -327,6 +329,7 @@ function FileTreeNode({ node, depth, tokens, workspaceRoot, dragSrcPath, movingP
   const [expanded, setExpanded] = useState(depth < 2);
   const [dragOver, setDragOver] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [dockerModal, setDockerModal] = useState<Omit<DockerFileModalProps, 'open' | 'onClose'> | null>(null);
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { icon, color } = getFileIcon(node.name, node.type, expanded);
   const isMoving = movingPath === node.path;
@@ -359,23 +362,44 @@ function FileTreeNode({ node, depth, tokens, workspaceRoot, dragSrcPath, movingP
       );
     }
 
-    items.push(
-      {
+    // "Open File" — files only
+    if (node.type !== 'directory') {
+      items.push({
         key: 'openExternal',
         icon: <ExportOutlined />,
         label: t('workspace.contextMenu.openExternal'),
         onClick: () => {
-          client?.request('rc.ws.openExternal', { path: node.path }).catch(() => {
+          client?.request<Record<string, unknown>>('rc.ws.openExternal', { path: node.path }).then((res) => {
+            if (res?.fallback === 'docker') {
+              setDockerModal({
+                mode: 'file',
+                containerPath: String(res.containerPath ?? ''),
+                relativePath: String(res.relativePath ?? node.path),
+                fileName: String(res.fileName ?? node.name),
+              });
+            }
+          }).catch(() => {
             message.error(t('workspace.contextMenu.openFailed'));
           });
         },
-      },
+      });
+    }
+    // "Open Folder" — files: open parent; directories: open self
+    items.push(
       {
         key: 'openFolder',
         icon: <FolderViewOutlined />,
         label: t('workspace.contextMenu.openFolder'),
         onClick: () => {
-          client?.request('rc.ws.openFolder', { path: node.path }).catch(() => {
+          client?.request<Record<string, unknown>>('rc.ws.openFolder', { path: node.path }).then((res) => {
+            if (res?.fallback === 'docker') {
+              setDockerModal({
+                mode: 'folder',
+                containerPath: String(res.containerPath ?? ''),
+                relativePath: String(res.relativePath ?? node.path),
+              });
+            }
+          }).catch(() => {
             message.error(t('workspace.contextMenu.openFailed'));
           });
         },
@@ -636,6 +660,13 @@ function FileTreeNode({ node, depth, tokens, workspaceRoot, dragSrcPath, movingP
             <FileTreeNode key={child.path} node={child} depth={depth + 1} tokens={tokens} workspaceRoot={workspaceRoot} dragSrcPath={dragSrcPath} movingPath={movingPath} creatingItem={creatingItem} onOpenFile={onOpenFile} onDeleted={onDeleted} onMoved={onMoved} onDragSrcChange={onDragSrcChange} onMoveStart={onMoveStart} onMoveEnd={onMoveEnd} onCreateItem={onCreateItem} onCreateDone={onCreateDone} />
           ))}
         </>
+      )}
+      {dockerModal && (
+        <DockerFileModal
+          open
+          onClose={() => setDockerModal(null)}
+          {...dockerModal}
+        />
       )}
     </div>
   );
@@ -1043,38 +1074,66 @@ export default function WorkspacePanel() {
     }
   }, [pendingPreviewPath, clearPendingPreview]);
 
+  const uploadOneFile = useCallback(
+    async (file: File): Promise<boolean> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('destination', 'uploads/');
+      const token = new URLSearchParams(window.location.search).get('token') || 'research-claw';
+      const res = await fetch('/rc/upload', {
+        method: 'POST',
+        body: formData,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error?.message ?? `Upload failed (${res.status})`);
+      }
+      return true;
+    },
+    [],
+  );
+
   const handleUpload = useCallback(
-    async (file: File) => {
+    async (file: File, fileList: File[]) => {
       if (uploading) return false;
+      // Only trigger once for the first file in a multi-select batch
+      if (file !== fileList[0]) return false;
       setUploading(true);
+      let successCount = 0;
+      let failCount = 0;
       try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('destination', 'uploads/');
-        // Gateway HTTP routes with auth:'gateway' require a Bearer token.
-        // Use the same token resolution as App.tsx:getGatewayToken().
-        const token = new URLSearchParams(window.location.search).get('token') || 'research-claw';
-        const res = await fetch('/rc/upload', {
-          method: 'POST',
-          body: formData,
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.error?.message ?? `Upload failed (${res.status})`);
+        for (const f of fileList) {
+          try {
+            await uploadOneFile(f);
+            successCount++;
+          } catch (err) {
+            failCount++;
+            console.error(`[WorkspacePanel] upload failed for ${f.name}:`, err);
+          }
         }
-        message.success(t('workspace.uploadSuccess'));
+        if (successCount > 0) {
+          message.success(
+            t('workspace.uploadSuccessWithPath', {
+              count: successCount,
+              path: 'uploads/',
+              defaultValue: `${successCount} file(s) uploaded to uploads/`,
+            }),
+          );
+        }
+        if (failCount > 0) {
+          message.error(
+            t('workspace.uploadFailedMulti', { count: failCount, defaultValue: `${failCount} file(s) failed to upload` }),
+          );
+        }
         await loadData();
         setTimeout(() => loadData(), 1000);
-      } catch (err) {
-        console.error('[WorkspacePanel] upload failed:', err);
-        message.error(t('workspace.uploadFailed', { defaultValue: 'Upload failed' }));
       } finally {
         setUploading(false);
       }
       return false;
     },
-    [uploading, loadData, t, message],
+    [uploading, uploadOneFile, loadData, t, message],
   );
 
   if (!hasLoaded && connState === 'connected' && tree.length === 0) {
@@ -1097,6 +1156,7 @@ export default function WorkspacePanel() {
         <div style={{ marginTop: 24 }}>
           <Upload
             accept="*"
+            multiple
             showUploadList={false}
             beforeUpload={handleUpload}
             disabled={uploading}
@@ -1330,6 +1390,7 @@ export default function WorkspacePanel() {
           <div style={{ padding: '8px 16px', borderTop: `1px solid ${tokens.border.default}` }}>
             <Dragger
               accept="*"
+              multiple
               showUploadList={false}
               beforeUpload={handleUpload}
               style={{ padding: '8px 0', border: `1px dashed ${tokens.border.hover}`, background: 'transparent' }}

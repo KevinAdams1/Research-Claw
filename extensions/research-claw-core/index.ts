@@ -5,13 +5,14 @@
  * for the literature library, task system, and workspace tracking.
  *
  * Registration totals:
- *   - 38 agent tools (17 literature + 10 task + 7 workspace + 4 monitor)
- *   - 78 WS RPC methods + 1 HTTP route = 79 interface methods
- *     (34 rc.lit.* + 11 rc.task.* + 7 rc.cron.* + 2 rc.notifications.* + 2 rc.heartbeat.* + 12 rc.ws.* + 10 rc.monitor.* = 78 WS; POST /rc/upload = 1 HTTP)
+ *   - 39 agent tools (17 literature + 10 task + 7 workspace + 5 monitor)
+ *   - 80 WS RPC methods + 1 HTTP route = 81 interface methods
+ *     (34 rc.lit.* + 11 rc.task.* + 7 rc.cron.* + 2 rc.notifications.* + 2 rc.heartbeat.* + 12 rc.ws.* + 12 rc.monitor.* = 80 WS; POST /rc/upload = 1 HTTP)
  *   - 8 hooks (before_prompt_build, session_start, session_end, before_tool_call, agent_end, after_tool_call ×2, gateway_start, agent:bootstrap)
  *   - 1 service (research-claw-db lifecycle)
  */
 
+import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import * as path from 'node:path';
@@ -208,7 +209,7 @@ const plugin: PluginDefinition = {
     registerLiteratureRpc(registerMethod, litService);   // 33 methods
     registerTaskRpc(registerMethod, taskService);         // 10 task + 4 cron = 14 methods
     registerWorkspaceRpc(registerMethod, wsService, wsConfig.root);  // 9 methods
-    registerMonitorRpc(registerMethod, monitorService);   // 10 methods
+    registerMonitorRpc(registerMethod, monitorService);   // 12 methods
 
     // Heartbeat RPC (2 methods)
     registerMethod('rc.heartbeat.status', () => {
@@ -287,6 +288,82 @@ const plugin: PluginDefinition = {
             ok: false,
             error: { code: isTooLarge ? 'UPLOAD_TOO_LARGE' : 'UPLOAD_WRITE_FAILED', message },
           }));
+          return true;
+        }
+      },
+    });
+
+    // ── 6b. Register HTTP route: GET /rc/download ─────────────────────
+    api.registerHttpRoute({
+      path: '/rc/download',
+      auth: 'gateway',
+      match: 'exact',
+      async handler(req, res) {
+        if (req.method !== 'GET') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: { code: 'METHOD_NOT_ALLOWED', message: 'GET only' } }));
+          return true;
+        }
+
+        try {
+          const url = new URL(req.url!, `http://${req.headers.host}`);
+          const filePath = url.searchParams.get('path');
+          if (!filePath) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: { code: 'MISSING_PATH', message: 'path query param required' } }));
+            return true;
+          }
+
+          const resolved = path.resolve(wsConfig.root, filePath);
+          if (!resolved.startsWith(path.resolve(wsConfig.root) + path.sep) && resolved !== path.resolve(wsConfig.root)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: { code: 'PATH_ESCAPE', message: 'Path escapes workspace root' } }));
+            return true;
+          }
+
+          const stat = await fs.promises.stat(resolved).catch(() => null);
+          if (!stat) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: { code: 'NOT_FOUND', message: 'Path not found' } }));
+            return true;
+          }
+
+          if (stat.isDirectory()) {
+            // Directory → stream as tar.gz archive
+            const dirName = path.basename(resolved);
+            const archiveName = `${dirName}.tar.gz`;
+            res.writeHead(200, {
+              'Content-Type': 'application/gzip',
+              'Content-Disposition': `attachment; filename="${encodeURIComponent(archiveName)}"`,
+            });
+            await new Promise<void>((resolve, reject) => {
+              const tar = spawn('tar', ['czf', '-', '-C', path.dirname(resolved), dirName]);
+              tar.stdout.pipe(res);
+              tar.stderr.on('data', () => { /* ignore tar warnings */ });
+              tar.on('close', () => resolve());
+              tar.on('error', (err) => {
+                if (!res.headersSent) {
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ ok: false, error: { code: 'ARCHIVE_FAILED', message: err.message } }));
+                }
+                reject(err);
+              });
+            });
+            return true;
+          }
+
+          const fileName = path.basename(resolved);
+          res.writeHead(200, {
+            'Content-Type': 'application/octet-stream',
+            'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+            'Content-Length': stat.size,
+          });
+          const stream = fs.createReadStream(resolved);
+          stream.pipe(res);
+          return true;
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: { code: 'DOWNLOAD_FAILED', message: String(err) } }));
           return true;
         }
       },

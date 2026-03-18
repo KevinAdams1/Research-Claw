@@ -13,9 +13,13 @@
  */
 
 import { exec } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { WorkspaceService } from './service.js';
 import type { RegisterMethod } from '../types.js';
+
+/** Detect if running inside a Docker container. */
+const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER === '1';
 
 // ---------------------------------------------------------------------------
 // Parameter validation helpers
@@ -246,6 +250,18 @@ export function registerWorkspaceRpc(
       throw Object.assign(new Error('Path escapes workspace root'), { code: -32001 });
     }
 
+    // Docker: no desktop environment — return fallback for dashboard to handle
+    if (isDocker) {
+      const relPath = path.relative(wsRoot, resolved);
+      return {
+        ok: false,
+        fallback: 'docker',
+        containerPath: resolved,
+        relativePath: relPath,
+        fileName: path.basename(resolved),
+      };
+    }
+
     const quoted = JSON.stringify(resolved);
     const run = (cmd: string) =>
       new Promise<void>((res, rej) => exec(cmd, (err) => (err ? rej(err) : res())));
@@ -292,7 +308,20 @@ export function registerWorkspaceRpc(
       throw Object.assign(new Error('Path escapes workspace root'), { code: -32001 });
     }
 
-    const dir = path.dirname(resolved);
+    // If path is a directory, open it directly; if a file, open its parent
+    const stat = fs.statSync(resolved, { throwIfNoEntry: false });
+    const dir = stat?.isDirectory() ? resolved : path.dirname(resolved);
+
+    // Docker: no desktop environment — return fallback
+    if (isDocker) {
+      return {
+        ok: false,
+        fallback: 'docker',
+        containerPath: dir,
+        relativePath: path.relative(wsRoot, dir),
+      };
+    }
+
     const cmd = process.platform === 'darwin'
       ? `open ${JSON.stringify(dir)}`
       : process.platform === 'win32'

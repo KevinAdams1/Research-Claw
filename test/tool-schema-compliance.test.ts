@@ -133,7 +133,7 @@ function extractToolSchemas(filePath: string): ExtractedTool[] {
       // - VALID_SOURCE_TYPES (const reference) → inline the array
       // - [...] as const → [...]
       let evalStr = obj
-        .replace(/VALID_SOURCE_TYPES/g, "['arxiv','semantic_scholar','github','rss','webpage','openalex','twitter','custom']")
+        .replace(/VALID_SOURCE_TYPES/g, "['arxiv','github','rss','webpage','openalex','twitter','custom']")
         .replace(/\bas\s+const\b/g, '')
         .replace(/\bas\s+\w+/g, '');
 

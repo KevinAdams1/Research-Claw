@@ -168,6 +168,8 @@
     "outputs": "Outputs",
     "upload": "Add File",
     "uploadSuccess": "File added to workspace",
+    "uploadSuccessWithPath": "{{count}} file(s) uploaded to {{path}}",
+    "uploadFailedMulti": "{{count}} file(s) failed to upload",
     "history": "Version History",
     "recentChanges": "Recent Changes",
     "loadMore": "Load more...",
@@ -238,7 +240,7 @@
     "empty": "No monitors configured.",
     "emptyHint": "Ask your Research-Claw to set up monitoring for arXiv papers, GitHub repos, RSS feeds, and more.",
     "add": "Add Monitor",
-    "addPrompt": "I want to set up a new monitor. Help me configure it. Available source types: arXiv, Semantic Scholar, GitHub, RSS, Webpage, OpenAlex, Twitter, Custom.",
+    "addPrompt": "I want to set up a new monitor. Help me configure it. Available source types: arXiv, GitHub, RSS, Webpage, OpenAlex, Twitter, Custom.",
     "target": "Target",
     "filters": "Filters",
     "findings": "findings",
@@ -409,15 +411,6 @@
       "riskHigh": "High",
       "approveAlways": "Approve (Always)"
     },
-    "radar": {
-      "title": "Radar Update",
-      "source": "Source",
-      "query": "Query",
-      "period": "Period",
-      "found": "{{count}} new papers found",
-      "notablePapers": "Notable Papers",
-      "relevance": "Why relevant"
-    },
     "file": {
       "open": "Open",
       "download": "Download",
@@ -468,5 +461,13 @@
     "collapseNav": "Collapse navigation",
     "expandNav": "Expand navigation",
     "closePanel": "Close panel"
+  },
+  "docker": {
+    "openFile": { "title": "Cannot open file directly" },
+    "openFolder": { "title": "Cannot open folder directly" },
+    "description": "Research-Claw is running inside a Docker container. Files cannot be opened with host applications directly.",
+    "downloadFile": "Download File",
+    "downloadFolder": "Download Folder (.tar.gz)",
+    "bindMountHint": "Tip: change your docker-compose.yml to a bind mount so you can browse workspace files from the host:"
   }
 }

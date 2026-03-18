@@ -1,10 +1,10 @@
 /**
  * Monitor system — RPC methods
  *
- * 10 methods:
+ * 12 methods:
  *   - rc.monitor.list       → list all monitors (with optional filters)
  *   - rc.monitor.get        → get a single monitor with last_results
- *   - rc.monitor.create     → create + auto-register gateway cron job
+ *   - rc.monitor.create     → create monitor (dashboard registers cron on enable)
  *   - rc.monitor.update     → update config + sync gateway cron job
  *   - rc.monitor.delete     → delete + remove gateway cron job
  *   - rc.monitor.toggle     → quick enable/disable

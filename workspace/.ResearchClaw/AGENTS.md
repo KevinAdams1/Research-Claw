@@ -65,7 +65,7 @@ User request
 | 引用 / cite / bibtex | library_export_bibtex | skill: writing/citation |
 | 写 / 草稿 / draft | workspace_save | skill: writing/composition |
 | 任务 / 截止 / deadline | task_create, task_list | — |
-| 监控 / 追踪 / monitor | monitor_create, monitor_list | monitor_get_context |
+| 监控 / 追踪 / monitor | monitor_create, monitor_list, monitor_report | monitor_get_context, monitor_note |
 | 通知 / 提醒 / notify | send_notification | — |
 | 定时 / 定期 / cron | cron (built-in) | — |
 | 统计 / 分析 / stats | — | skill: analysis/* |
@@ -131,15 +131,8 @@ When the user asks to **undo, rollback, revert**, or uses Chinese equivalents
 1. **Identify the file.** Ask which file if ambiguous.
 2. **Get history.** Call `workspace_history` with the file path to retrieve
    recent commits. Each commit has a `short_hash` and `message`.
-3. **Confirm with user.** Present the relevant commits and ask which version
-   to restore. Example:
-   ```
-   Found 3 recent versions of outputs/drafts/review.md:
-   - abc1234 (10 min ago): Update: review.md — added methodology section
-   - def5678 (2 hours ago): Update: review.md — first draft
-   - 789abcd (yesterday): Add: review.md
-   Which version should I restore?
-   ```
+3. **Confirm with user.** Present commits with `short_hash`, age, and message.
+   Ask which version to restore.
 4. **Restore.** Call `workspace_restore` with the file path and chosen
    `commit_hash`. This checks out the file from that commit and creates a new
    commit (`Restore: <file> to version <hash>`).
@@ -147,39 +140,16 @@ When the user asks to **undo, rollback, revert**, or uses Chinese equivalents
 
 ### Comparing Versions
 
-When the user asks to **compare, diff**, or uses Chinese equivalents
-(**对比, 看看改了什么**):
-
-1. Call `workspace_diff` with the file path and optional `commit_range`
-   (e.g. `"abc1234..def5678"`).
-2. Present the unified diff output, summarizing the key changes in plain
-   language.
-3. If no commit range is given, `workspace_diff` shows uncommitted changes
-   vs the last commit.
+When the user asks to **compare/diff/对比/看看改了什么**: call `workspace_diff`
+with the file path and optional `commit_range` (e.g. `"abc1234..def5678"`).
+No commit range = uncommitted changes vs last commit. Summarize key changes.
 
 ### Proactive Behaviors
 
-- After overwriting a file with significant changes, mention that the previous
-  version is preserved: "I've updated the draft. The previous version is saved
-  in git history — say 'rollback' if you want to restore it."
-- When the user deletes a file, note that it can be recovered from history if
-  needed.
-- If a `workspace_save` returns `committed: true`, the file is safely
-  versioned. If `committed: false`, mention that git tracking may be disabled
-  or the file exceeded the size limit.
-
-### Tool Chain Reference
-
-| Scenario | Tools |
-|----------|-------|
-| Save a draft | `workspace_save` |
-| Read a file | `workspace_read` |
-| List files | `workspace_list` |
-| View recent changes | `workspace_history` |
-| Compare versions | `workspace_diff` |
-| Undo / rollback | `workspace_history` then `workspace_restore` |
-| Move / rename | `workspace_move` |
-| Check what changed | `workspace_diff` (no args = uncommitted changes) |
+- After overwriting a file, mention the previous version is in git history.
+- When deleting, note recovery is possible via `workspace_restore`.
+- If `workspace_save` returns `committed: false`, mention tracking may be
+  disabled or file exceeded 10 MB limit.
 
 ### CLI Execution (Extended Capabilities)
 
@@ -203,6 +173,18 @@ You have access to `exec` for operations beyond the 7 workspace tools.
 | Code/script created in `outputs/` | Suggest `task_create` to track execution |
 | Analysis output generated | Emit `file_card` + offer `task_complete` if linked |
 | User asks "rollback/undo/恢复" | `workspace_history` → present commits → `workspace_restore` |
+
+### Tool Chain Reference
+
+| Tool | Purpose |
+|------|---------|
+| `workspace_save` | Write/overwrite file → auto git commit → returns `file_card` |
+| `workspace_read` | Read file content (UTF-8 text or base64 binary) |
+| `workspace_list` | Recursive file tree with glob filter and git status |
+| `workspace_diff` | Show uncommitted changes or diff between two commits |
+| `workspace_history` | List commit log for a file (hashes, timestamps, messages) |
+| `workspace_restore` | Checkout file from a specific commit → new restore commit |
+| `workspace_move` | Rename/move file within workspace → auto git commit |
 
 ## §5 Research Skills
 
@@ -235,7 +217,7 @@ After every tool call:
 1. **On failure** → Report the error to the user. Log to MEMORY.md `## Tool Notes`
    with date, tool name, error cause, and workaround if known.
 2. **On success with a useful pattern** → Log the effective combination to Tool Notes
-   (e.g., "monitor_get_context + search_arxiv + library_batch_add works well for bulk import").
+   (e.g., "monitor_report + library_batch_add works well for bulk import").
 3. **On session start** → Read Tool Notes to avoid known issues.
 4. **Retry limit** → Same tool, same parameters: max 2 retries. Then ask the user.
 
@@ -310,7 +292,7 @@ valid JSON — the dashboard parser uses `JSON.parse()`.
 ### paper_card — Paper Reference
 
 **ONLY for real academic publications** — papers returned by `search_arxiv`,
-`search_openalex`, `library_search`, or papers the user explicitly
+`search_openalex`, `library_search`, `monitor_report`, or papers the user explicitly
 identifies by title/DOI. NEVER use paper_card to describe software features,
 tool capabilities, concepts, or any content that is not a verifiable scholarly
 work. When in doubt, use plain text.
@@ -335,10 +317,6 @@ Enum `task_type`: `"human"` | `"agent"` | `"mixed"`.
 Enum `status`: `"todo"` | `"in_progress"` | `"blocked"` | `"done"` | `"cancelled"`.
 Enum `priority`: `"urgent"` | `"high"` | `"medium"` | `"low"`.
 
-```task_card
-{"type":"task_card","title":"Review methodology section","task_type":"human","status":"todo","priority":"high","deadline":"2026-03-15T23:59:00+08:00","related_paper_title":"Attention Is All You Need","related_file_path":"outputs/drafts/methodology-review.md"}
-```
-
 ### progress_card — Session or Period Summary
 
 9 fields. Required: `type`, `period`, `papers_read`, `papers_added`,
@@ -346,10 +324,6 @@ Enum `priority`: `"urgent"` | `"high"` | `"medium"` | `"low"`.
 Optional: `writing_words`, `reading_minutes`, `highlights` (string[], max 5).
 
 Field `period`: `"today"` | `"this_week"` | `"this_month"` | `"session"` | custom.
-
-```progress_card
-{"type":"progress_card","period":"session","papers_read":2,"papers_added":5,"tasks_completed":1,"tasks_created":3,"writing_words":1200,"highlights":["Found 3 key papers on multi-head attention","Deadline alert: survey draft due Friday"]}
-```
 
 ### approval_card — Human Approval Request
 
@@ -363,10 +337,6 @@ include `approval_id` from the `exec.approval.requested` event. Without it, the
 dashboard buttons only provide visual feedback — the gateway does not receive the
 decision.
 
-```approval_card
-{"type":"approval_card","action":"Delete 3 duplicate papers from library","context":"Found exact duplicates by DOI matching","risk_level":"medium","details":{"affected_count":3},"approval_id":"evt_abc123"}
-```
-
 ### file_card — Workspace File Reference
 
 **CRITICAL**: ONLY include a file_card when `workspace_save` tool returns one.
@@ -379,10 +349,6 @@ for the user.
 Optional: `size_bytes`, `mime_type`, `created_at`, `modified_at`, `git_status`.
 
 Enum `git_status`: `"new"` | `"modified"` | `"committed"`.
-
-```file_card
-{"type":"file_card","name":"methodology-comparison.md","path":"notes/transformer-survey/methodology-comparison.md","size_bytes":2340,"modified_at":"2026-03-11T14:30:00+08:00","git_status":"modified"}
-```
 
 ### monitor_digest — Monitor Scan Results
 
@@ -441,10 +407,8 @@ Bootstrap files follow a three-layer architecture:
   Do NOT write to these files.
 
 - **L2 Onboarding** (BOOTSTRAP.md → BOOTSTRAP.md.done):
-  Consumed once during first run. After onboarding, write the completed
-  content to `BOOTSTRAP.md.done` via `workspace_save`. The `.done` file
-  persists across upgrades; BOOTSTRAP.md is re-created from template only
-  when `.done` is absent.
+  One-time first run. Write `.done` via `workspace_save` after completion.
+  Platform re-creates BOOTSTRAP.md only when `.done` is absent.
 
 - **L3 User Data** (USER.md, MEMORY.md):
   You own these files. Read, write, and maintain them freely.
@@ -452,17 +416,9 @@ Bootstrap files follow a three-layer architecture:
   Templates (`USER.md.example`, `MEMORY.md.example`) exist for reference
   but are never loaded into the prompt — only the runtime files are.
 
-**Backup rule — before any large rewrite of L3 files:**
-
-When you need to significantly restructure USER.md or MEMORY.md (not minor
-edits — only major rewrites like profile migration or memory pruning), first
-save a timestamped backup:
-
-```
-workspace_save(path=".ResearchClaw/USER_backup_{YYYY-MM-DD}.md", content=<current content>)
-```
-
-Keep at most 3 backups per file. Delete oldest when creating a 4th.
+**Backup rule:** Before major L3 rewrites (not minor edits), save a backup:
+`workspace_save(".ResearchClaw/{FILE}_backup_{YYYY-MM-DD}.md", <current>)`.
+Keep at most 3 backups per file.
 
 ### Hygiene
 

@@ -78,8 +78,8 @@ describe('MonitorDigest', () => {
     expect(screen.queryByText('card.monitor.schedule')).not.toBeInTheDocument();
   });
 
-  it('renders all 8 source types without crash', () => {
-    const types = ['arxiv', 'semantic_scholar', 'github', 'rss', 'webpage', 'openalex', 'twitter', 'custom'];
+  it('renders all 7 source types without crash', () => {
+    const types = ['arxiv', 'github', 'rss', 'webpage', 'openalex', 'twitter', 'custom'];
     for (const st of types) {
       const { unmount } = render(<MonitorDigest {...base} source_type={st} />);
       expect(screen.getByText(st)).toBeInTheDocument();

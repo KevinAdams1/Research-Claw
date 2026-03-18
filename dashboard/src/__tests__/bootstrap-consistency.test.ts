@@ -695,7 +695,7 @@ describe('Bootstrap file consistency (AGENTS.md v3.1 & TOOLS.md v3.1)', () => {
       for (const tool of toolRefs) {
         const inTools = toolsMd.includes(`\`${tool}\``);
         const isExternal = [
-          'search_papers', 'search_arxiv', 'web_search', 'web_fetch',
+          'search_arxiv', 'web_search', 'web_fetch',
         ].includes(tool);
         expect(inTools || isExternal).toBe(true);
       }

@@ -256,12 +256,16 @@ tools_md = read_file(WORKSPACE / "TOOLS.md")
 print("T2.1: AGENTS.md trigger table tool names vs config")
 
 agents_tool_refs = [
-    "search_papers", "search_arxiv",
+    "search_arxiv", "search_openalex", "resolve_doi",
     "library_add_paper", "library_batch_add", "library_tag_paper",
     "library_manage_collection", "library_export_bibtex",
+    "library_zotero_detect", "library_zotero_import",
+    "library_endnote_detect", "library_endnote_import",
+    "library_import_ris", "library_import_bibtex",
     "workspace_save",
     "task_create", "task_list",
-    "radar_configure", "radar_scan",
+    "monitor_create", "monitor_list",
+    "send_notification",
 ]
 
 for tool in agents_tool_refs:
@@ -277,7 +281,7 @@ print("\nT2.2: TOOLS.md ↔ config bidirectional tool check")
 tools_documented = set()
 for m in re.finditer(r"`([a-z][a-z_]+)`", tools_md):
     name = m.group(1)
-    if re.match(r"^(library_|task_|workspace_|radar_|search_|get_|find_|resolve_)", name):
+    if re.match(r"^(library_|task_|workspace_|monitor_|search_|get_|find_|resolve_)", name):
         tools_documented.add(name)
 
 # Bidirectional check
@@ -298,7 +302,7 @@ if not missing_from_config and not missing_from_docs:
 print("\nT2.4: Module tool counts AGENTS.md vs TOOLS.md")
 
 agents_counts = {}
-for m in re.finditer(r"(Library|Tasks|Workspace|Radar)\s+\((\d+) tools?\)", agents_md):
+for m in re.finditer(r"(Library|Tasks|Workspace|Monitor)\s+\((\d+) tools?\)", agents_md):
     agents_counts[m.group(1)] = int(m.group(2))
 
 # Count only table rows (lines starting with |) to avoid double-counting
@@ -308,10 +312,10 @@ tools_counts = {
     "Library": len([l for l in table_lines if "`library_" in l]),
     "Tasks": len([l for l in table_lines if "`task_" in l]),
     "Workspace": len([l for l in table_lines if "`workspace_" in l]),
-    "Radar": len([l for l in table_lines if "`radar_" in l]),
+    "Monitor": len([l for l in table_lines if "`monitor_" in l]),
 }
 
-for module in ["Library", "Tasks", "Workspace", "Radar"]:
+for module in ["Library", "Tasks", "Workspace", "Monitor"]:
     a = agents_counts.get(module, "?")
     t = tools_counts.get(module, "?")
     if a == t:
@@ -342,7 +346,7 @@ for line in red_lines:
 # T3.2: Output card types preserved
 print("\nT3.2: Output card types preserved")
 
-cards = ["paper_card", "task_card", "progress_card", "approval_card", "radar_digest", "file_card"]
+cards = ["paper_card", "task_card", "progress_card", "approval_card", "monitor_digest", "file_card"]
 for card in cards:
     if card in agents_md:
         p(f"T3.2: {card} defined")
@@ -494,10 +498,10 @@ else:
 print("\nT5.2: tools.alsoAllow count")
 
 allow_count = len(config["tools"]["alsoAllow"])
-if allow_count == 40:
-    p(f"T5.2: alsoAllow has {allow_count} tools (27 local + 13 API)")
+if allow_count == 73:
+    p(f"T5.2: alsoAllow has {allow_count} tools (39 local + 34 API)")
 else:
-    f(f"T5.2: alsoAllow has {allow_count} tools (expected 40)")
+    f(f"T5.2: alsoAllow has {allow_count} tools (expected 73)")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -15,6 +15,8 @@ import { useGatewayStore } from '../../stores/gateway';
 import { useConfigStore } from '../../stores/config';
 import { getThemeTokens } from '../../styles/theme';
 import { getHighlighter } from '../../utils/shiki-highlighter';
+import DockerFileModal from './DockerFileModal';
+import type { DockerFileModalProps } from './DockerFileModal';
 
 const { Text } = Typography;
 
@@ -182,6 +184,7 @@ export default function FilePreviewModal({ open, filePath, workspaceRoot, onClos
   const [data, setData] = useState<FileReadResult | null>(null);
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [dockerModal, setDockerModal] = useState<Omit<DockerFileModalProps, 'open' | 'onClose'> | null>(null);
   const [deleting, setDeleting] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -267,14 +270,31 @@ export default function FilePreviewModal({ open, filePath, workspaceRoot, onClos
 
   const handleOpenFile = useCallback(() => {
     if (!filePath) return;
-    client?.request('rc.ws.openExternal', { path: filePath }).catch(() => {
+    client?.request<Record<string, unknown>>('rc.ws.openExternal', { path: filePath }).then((res) => {
+      if (res?.fallback === 'docker') {
+        setDockerModal({
+          mode: 'file',
+          containerPath: String(res.containerPath ?? ''),
+          relativePath: String(res.relativePath ?? filePath),
+          fileName: String(res.fileName ?? filePath.split('/').pop() ?? ''),
+        });
+      }
+    }).catch(() => {
       message.error(t('workspace.contextMenu.openFailed'));
     });
   }, [filePath, client, t]);
 
   const handleOpenFolder = useCallback(() => {
     if (!filePath) return;
-    client?.request('rc.ws.openFolder', { path: filePath }).catch(() => {
+    client?.request<Record<string, unknown>>('rc.ws.openFolder', { path: filePath }).then((res) => {
+      if (res?.fallback === 'docker') {
+        setDockerModal({
+          mode: 'folder',
+          containerPath: String(res.containerPath ?? ''),
+          relativePath: String(res.relativePath ?? filePath),
+        });
+      }
+    }).catch(() => {
       message.error(t('workspace.contextMenu.openFailed'));
     });
   }, [filePath, client, t]);
@@ -525,6 +545,9 @@ export default function FilePreviewModal({ open, filePath, workspaceRoot, onClos
           </div>
         )}
       </div>
+    {dockerModal && (
+      <DockerFileModal open onClose={() => setDockerModal(null)} {...dockerModal} />
+    )}
     </>
   );
 }
