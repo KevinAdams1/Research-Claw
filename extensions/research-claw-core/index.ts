@@ -222,6 +222,27 @@ const plugin: PluginDefinition = {
       return { ok: true, task_id: taskId };
     });
 
+    // OAuth RPC (3 methods) — Dashboard-initiated OAuth for subscription providers
+    registerMethod('rc.oauth.initiate', (params: Record<string, unknown>) => {
+      const { oauthInitiate } = require('./src/oauth/service');
+      const provider = params.provider as string;
+      if (!provider) throw new Error('provider is required');
+      return oauthInitiate(provider);
+    });
+    registerMethod('rc.oauth.complete', async (params: Record<string, unknown>) => {
+      const { oauthComplete } = require('./src/oauth/service');
+      const stateId = params.state_id as string;
+      const callbackUrl = params.callback_url as string;
+      if (!stateId || !callbackUrl) throw new Error('state_id and callback_url are required');
+      return oauthComplete(stateId, callbackUrl);
+    });
+    registerMethod('rc.oauth.status', (params: Record<string, unknown>) => {
+      const { oauthStatus } = require('./src/oauth/service');
+      const provider = params.provider as string;
+      if (!provider) throw new Error('provider is required');
+      return oauthStatus(provider);
+    });
+
     // ── 6. Register HTTP route: POST /rc/upload ──────────────────────
     api.registerHttpRoute({
       path: '/rc/upload',

@@ -3,9 +3,11 @@ import { AutoComplete, Button, Input, Select, Typography, Space, Alert, Card, Di
 import {
   ApiOutlined,
   GlobalOutlined,
+  KeyOutlined,
   LoadingOutlined,
   RocketOutlined,
 } from '@ant-design/icons';
+import OAuthModal from '../OAuthModal';
 import { useTranslation } from 'react-i18next';
 import { useGatewayStore } from '../../stores/gateway';
 import { useConfigStore } from '../../stores/config';
@@ -129,6 +131,7 @@ export default function SetupWizard() {
   }, [restarting, connState]);
 
   const isOpenAICodexOAuth = provider === 'openai-codex';
+  const [oauthModalOpen, setOauthModalOpen] = useState(false);
   const canStart =
     (isOpenAICodexOAuth || apiKey.trim().length > 0 || hasExistingConfig.current) &&
     baseUrl.trim().length > 0 &&
@@ -325,9 +328,20 @@ export default function SetupWizard() {
               prefix={<ApiOutlined />}
             />
             {isOpenAICodexOAuth && (
-              <Text type="secondary" style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
-                {t('setup.openaiCodexOauthHint')}
-              </Text>
+              <div style={{ marginTop: 6 }}>
+                <Button
+                  size="small"
+                  icon={<KeyOutlined />}
+                  onClick={() => setOauthModalOpen(true)}
+                >
+                  {t('oauth.configureOAuth')}
+                </Button>
+                <OAuthModal
+                  open={oauthModalOpen}
+                  provider={provider}
+                  onClose={() => setOauthModalOpen(false)}
+                />
+              </div>
             )}
           </div>
 

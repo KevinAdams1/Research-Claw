@@ -359,6 +359,24 @@
     "error": "Error",
     "disconnected": "Disconnected"
   },
+  "oauth": {
+    "configureOAuth": "Configure OAuth",
+    "notConnected": "Not connected to gateway",
+    "stepAuth": "Authenticate",
+    "stepPaste": "Paste URL",
+    "stepDone": "Done",
+    "startAuth": "Start Authentication",
+    "step1Title": "Step 1: Authenticate with provider",
+    "step1Desc": "Click the button to open the authentication page. Log in and authorize access.",
+    "step2Title": "Step 2: Paste the redirect URL",
+    "step2Desc": "After authentication, your browser will redirect to a URL starting with http://localhost:1455/... — copy the full URL from your browser's address bar and paste it below.",
+    "openAuthPage": "Open Auth Page",
+    "copyUrl": "Copy URL",
+    "copied": "Copied!",
+    "confirmLogin": "Confirm Login",
+    "success": "Authentication successful! Token has been saved. You can now save your settings.",
+    "close": "Close"
+  },
   "panel": {
     "awaitingPlugin": "Awaiting plugin implementation"
   },

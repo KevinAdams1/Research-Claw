@@ -10,7 +10,8 @@ import {
   Spin,
   Typography,
 } from 'antd';
-import { CopyOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CopyOutlined, KeyOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
+import OAuthModal from '../OAuthModal';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../stores/config';
 import { useGatewayStore } from '../../stores/gateway';
@@ -211,6 +212,7 @@ export default function SettingsPanel() {
   const [restarting, setRestarting] = useState(false);
 
   const isOpenAICodexOAuth = provider === 'openai-codex';
+  const [oauthModalOpen, setOauthModalOpen] = useState(false);
 
   const handleProviderChange = (id: string) => {
     setProvider(id);
@@ -506,9 +508,18 @@ export default function SettingsPanel() {
       </SettingRow>
       {isOpenAICodexOAuth && (
         <div style={{ marginTop: -6, marginBottom: 6 }}>
-          <Text type="secondary" style={{ fontSize: 11 }}>
-            {t('setup.openaiCodexOauthHint')}
-          </Text>
+          <Button
+            size="small"
+            icon={<KeyOutlined />}
+            onClick={() => setOauthModalOpen(true)}
+          >
+            {t('oauth.configureOAuth')}
+          </Button>
+          <OAuthModal
+            open={oauthModalOpen}
+            provider={provider}
+            onClose={() => setOauthModalOpen(false)}
+          />
         </div>
       )}
 

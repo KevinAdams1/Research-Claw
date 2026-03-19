@@ -359,6 +359,24 @@
     "error": "错误",
     "disconnected": "已断开"
   },
+  "oauth": {
+    "configureOAuth": "配置 OAuth",
+    "notConnected": "未连接到网关",
+    "stepAuth": "认证",
+    "stepPaste": "粘贴 URL",
+    "stepDone": "完成",
+    "startAuth": "开始认证",
+    "step1Title": "第 1 步：在提供方认证",
+    "step1Desc": "点击按钮打开认证页面，登录并授权访问。",
+    "step2Title": "第 2 步：粘贴重定向 URL",
+    "step2Desc": "认证完成后，浏览器会跳转到 http://localhost:1455/... 开头的地址（页面可能显示无法访问，这是正常的）。请复制浏览器地址栏中的完整 URL，粘贴到下方。",
+    "openAuthPage": "打开认证页面",
+    "copyUrl": "复制链接",
+    "copied": "已复制！",
+    "confirmLogin": "确认登录",
+    "success": "认证成功！Token 已保存。现在可以保存设置了。",
+    "close": "关闭"
+  },
   "panel": {
     "awaitingPlugin": "等待插件实现"
   },
