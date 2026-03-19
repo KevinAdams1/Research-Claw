@@ -284,6 +284,7 @@ export class GatewayClient {
           mode: clientMode,
           displayName: this.opts.clientName ?? 'Research-Claw Dashboard',
         },
+        caps: ['tool-events'],
         role,
         scopes,
         ...(token ? { auth: { token } } : {}),

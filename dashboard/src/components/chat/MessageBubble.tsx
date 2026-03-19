@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Typography, Image } from 'antd';
+import { CopyOutlined, CheckOutlined, CodeOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import type { ChatMessage } from '../../gateway/types';
 import { useGatewayStore } from '../../stores/gateway';
@@ -234,6 +235,65 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
   const { t } = useTranslation();
   const isUser = message.role === 'user';
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [copied, setCopied] = useState<false | 'visible' | 'raw'>(false);
+  const [hovered, setHovered] = useState(false);
+  // Stable ref so callbacks don't depend on the message object identity
+  // (streaming messages create a new object every render).
+  const messageRef = useRef(message);
+  messageRef.current = message;
+
+  /** Extract raw text from message (only type:'text' blocks). */
+  const extractRawText = useCallback(() => {
+    const msg = messageRef.current;
+    return msg.text ??
+      (typeof msg.content === 'string'
+        ? msg.content
+        : Array.isArray(msg.content)
+          ? msg.content
+              .filter((c) => c.type === 'text' && c.text)
+              .map((c) => c.text!)
+              .join('')
+          : '');
+  }, []);
+
+  /** Copy visible text (stripped thinking tags, cleaned). */
+  const handleCopy = useCallback(() => {
+    if (copied) return;
+    const raw = extractRawText();
+    const msg = messageRef.current;
+    const copyText = msg.role === 'user'
+      ? stripUserMetaPrefix(raw)
+      : stripModelSpecialTokens(stripThinkingTags(raw));
+    navigator.clipboard.writeText(stripImageMarkers(copyText)).then(() => {
+      setCopied('visible');
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => { /* clipboard unavailable */ });
+  }, [copied, extractRawText]);
+
+  /** Copy full source: thinking chain + markdown raw (assistant only). */
+  const handleCopyRaw = useCallback(() => {
+    if (copied) return;
+    const msg = messageRef.current;
+    const raw = extractRawText();
+    // Prepend Anthropic-format thinking blocks (type:'thinking' in content array)
+    let thinkingPrefix = '';
+    if (Array.isArray(msg.content)) {
+      const parts = msg.content
+        .filter((c) => c.type === 'thinking' && typeof (c as Record<string, unknown>).thinking === 'string')
+        .map((c) => ((c as Record<string, unknown>).thinking as string).trim())
+        .filter(Boolean);
+      if (parts.length) {
+        thinkingPrefix = `<thinking>\n${parts.join('\n')}\n</thinking>\n\n`;
+      }
+    }
+    // Keep thinking tags in text (don't strip), only strip leaked model tokens + image markers
+    const cleanedRaw = stripModelSpecialTokens(raw);
+    const fullText = thinkingPrefix + stripImageMarkers(cleanedRaw);
+    navigator.clipboard.writeText(fullText).then(() => {
+      setCopied('raw');
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => { /* clipboard unavailable */ });
+  }, [copied, extractRawText]);
 
   // Extract raw text — only from type:'text' blocks (NOT type:'thinking')
   // Source: openclaw/ui/src/ui/chat/message-extract.ts:85-109 (extractRawText)
@@ -287,18 +347,30 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
         {isUser ? t('chat.you') : t('chat.assistant')}
       </Text>
 
-      {/* Message body */}
+      {/* Message row: bubble + copy button side by side */}
       <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         style={{
-          maxWidth: '80%',
-          padding: '10px 14px',
-          borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-          background: isUser ? 'var(--surface-hover)' : 'var(--surface)',
-          border: `1px solid ${isUser ? 'var(--border-hover)' : 'var(--border)'}`,
-          position: 'relative',
-          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: isUser ? 'row-reverse' : 'row',
+          alignItems: 'flex-start',
+          gap: 4,
+          maxWidth: '85%',
         }}
       >
+        {/* Message body */}
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+            background: isUser ? 'var(--surface-hover)' : 'var(--surface)',
+            border: `1px solid ${isUser ? 'var(--border-hover)' : 'var(--border)'}`,
+            position: 'relative',
+            overflow: 'hidden',
+            minWidth: 0,
+          }}
+        >
         {/* Attached images */}
         {images.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: text ? 8 : 0 }}>
@@ -445,6 +517,70 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
               verticalAlign: 'text-bottom',
             }}
           />
+        )}
+        </div>
+
+        {/* Action buttons — outside bubble, appear on row hover */}
+        {!isStreaming && text && (
+          <div
+            style={{
+              visibility: hovered ? 'visible' : 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              flexShrink: 0,
+              marginTop: 2,
+            }}
+          >
+            {/* Copy visible text */}
+            <button
+              onClick={handleCopy}
+              aria-label={t('code.copy')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 24,
+                height: 24,
+                padding: 0,
+                border: 'none',
+                borderRadius: 4,
+                background: 'transparent',
+                color: copied === 'visible' ? '#22C55E' : 'var(--text-tertiary)',
+                cursor: 'pointer',
+                fontSize: 13,
+                transition: 'color 0.15s',
+              }}
+              title={copied === 'visible' ? t('code.copied') : t('code.copy')}
+            >
+              {copied === 'visible' ? <CheckOutlined /> : <CopyOutlined />}
+            </button>
+            {/* Copy raw source (thinking + markdown) — assistant only */}
+            {!isUser && (
+              <button
+                onClick={handleCopyRaw}
+                aria-label={t('chat.copyRaw')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 24,
+                  height: 24,
+                  padding: 0,
+                  border: 'none',
+                  borderRadius: 4,
+                  background: 'transparent',
+                  color: copied === 'raw' ? '#22C55E' : 'var(--text-tertiary)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  transition: 'color 0.15s',
+                }}
+                title={copied === 'raw' ? t('code.copied') : t('chat.copyRaw')}
+              >
+                {copied === 'raw' ? <CheckOutlined /> : <CodeOutlined />}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

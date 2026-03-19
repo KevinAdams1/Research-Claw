@@ -3,9 +3,12 @@ import { Typography, Spin } from 'antd';
 import { MessageOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../../stores/chat';
+import { useToolStreamStore } from '../../stores/tool-stream';
 import type { ChatMessage } from '../../gateway/types';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
+import ToolActivityStream from './ToolActivityStream';
+import AgentActivityBar from './AgentActivityBar';
 
 const { Text } = Typography;
 
@@ -51,6 +54,7 @@ export default function ChatView() {
   const sending = useChatStore((s) => s.sending);
   const lastError = useChatStore((s) => s.lastError);
   const clearError = useChatStore((s) => s.clearError);
+  const pendingTools = useToolStreamStore((s) => s.pendingTools);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Smart scroll state — refs to avoid re-renders on every scroll event
@@ -106,7 +110,7 @@ export default function ChatView() {
         setNewMessagesBelow(true);
       }
     });
-  }, [messages, streamText, streaming]);
+  }, [messages, streamText, streaming, pendingTools]);
 
   // Cleanup rAF on unmount
   useEffect(() => {
@@ -134,6 +138,9 @@ export default function ChatView() {
         background: 'var(--bg)',
       }}
     >
+      {/* Background activity bar (P1-3) */}
+      <AgentActivityBar />
+
       {/* Message list */}
       <div
         role="log"
@@ -197,6 +204,9 @@ export default function ChatView() {
               </Text>
             </div>
           )}
+
+          {/* Tool activity stream — shows live tool calls during agent execution (P1-2) */}
+          {(sending || streaming) && <ToolActivityStream />}
         </div>
       </div>
 
