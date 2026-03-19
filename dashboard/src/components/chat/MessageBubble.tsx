@@ -316,49 +316,30 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
         {isUser ? t('chat.you') : t('chat.assistant')}
       </Text>
 
-      {/* Message body */}
+      {/* Message row: bubble + copy button side by side */}
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
-          maxWidth: '80%',
-          padding: '10px 14px',
-          borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-          background: isUser ? 'var(--surface-hover)' : 'var(--surface)',
-          border: `1px solid ${isUser ? 'var(--border-hover)' : 'var(--border)'}`,
-          position: 'relative',
-          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: isUser ? 'row-reverse' : 'row',
+          alignItems: 'flex-start',
+          gap: 4,
+          maxWidth: '85%',
         }}
       >
-        {/* Copy button — hover-reveal, hidden during streaming */}
-        {!isStreaming && hovered && text && (
-          <button
-            onClick={handleCopy}
-            aria-label={t('code.copy')}
-            style={{
-              position: 'absolute',
-              top: 6,
-              right: 6,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 26,
-              height: 26,
-              padding: 0,
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              background: 'var(--surface)',
-              color: copied ? '#22C55E' : 'var(--text-tertiary)',
-              cursor: 'pointer',
-              fontSize: 13,
-              zIndex: 1,
-              transition: 'color 0.15s, background 0.15s',
-            }}
-            title={copied ? t('code.copied') : t('code.copy')}
-          >
-            {copied ? <CheckOutlined /> : <CopyOutlined />}
-          </button>
-        )}
+        {/* Message body */}
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+            background: isUser ? 'var(--surface-hover)' : 'var(--surface)',
+            border: `1px solid ${isUser ? 'var(--border-hover)' : 'var(--border)'}`,
+            position: 'relative',
+            overflow: 'hidden',
+            minWidth: 0,
+          }}
+        >
         {/* Attached images */}
         {images.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: text ? 8 : 0 }}>
@@ -505,6 +486,36 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
               verticalAlign: 'text-bottom',
             }}
           />
+        )}
+        </div>
+
+        {/* Copy button — outside bubble, appears on row hover */}
+        {!isStreaming && text && (
+          <button
+            onClick={handleCopy}
+            aria-label={t('code.copy')}
+            style={{
+              visibility: hovered ? 'visible' : 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 24,
+              height: 24,
+              padding: 0,
+              border: 'none',
+              borderRadius: 4,
+              background: 'transparent',
+              color: copied ? '#22C55E' : 'var(--text-tertiary)',
+              cursor: 'pointer',
+              fontSize: 13,
+              flexShrink: 0,
+              marginTop: 2,
+              transition: 'color 0.15s',
+            }}
+            title={copied ? t('code.copied') : t('code.copy')}
+          >
+            {copied ? <CheckOutlined /> : <CopyOutlined />}
+          </button>
         )}
       </div>
     </div>
