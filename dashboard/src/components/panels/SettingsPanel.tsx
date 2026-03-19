@@ -210,6 +210,8 @@ export default function SettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
 
+  const isOpenAICodexOAuth = provider === 'openai-codex';
+
   const handleProviderChange = (id: string) => {
     setProvider(id);
     const preset = getPreset(id);
@@ -231,6 +233,12 @@ export default function SettingsPanel() {
     setApi(preset.api);
     if (preset.models.length > 0) {
       setTextModel(preset.models[0].id);
+    }
+    // Provider-specific auth UX:
+    // `openai-codex` uses OAuth profiles; do not carry over apiKeyConfigured from previous providers.
+    if (id === 'openai-codex') {
+      setApiKey('');
+      setApiKeyConfigured(false);
     }
   };
 
@@ -488,9 +496,21 @@ export default function SettingsPanel() {
           onChange={(e) => setApiKey(e.target.value)}
           size="small"
           style={{ width: 220 }}
-          placeholder={apiKeyConfigured && !apiKey ? t('setup.apiKeyExisting') : t('setup.apiKeyPlaceholder')}
+          disabled={isOpenAICodexOAuth}
+          placeholder={
+            isOpenAICodexOAuth
+              ? t('setup.openaiCodexOauthNoApiKey')
+              : (apiKeyConfigured && !apiKey ? t('setup.apiKeyExisting') : t('setup.apiKeyPlaceholder'))
+          }
         />
       </SettingRow>
+      {isOpenAICodexOAuth && (
+        <div style={{ marginTop: -6, marginBottom: 6 }}>
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            {t('setup.openaiCodexOauthHint')}
+          </Text>
+        </div>
+      )}
 
       <SettingRow label={t('settings.primaryModel')}>
         <AutoComplete

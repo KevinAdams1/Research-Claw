@@ -66,6 +66,25 @@ function cleanUrl(url: string): string {
   return url.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
 }
 
+function isMiniMaxOAuthToken(apiKey?: string): boolean {
+  return typeof apiKey === 'string' && apiKey.startsWith('sk-cp-');
+}
+
+function minimaxProxyBaseUrl(): string {
+  const port = 28790; // scripts/minimax-oauth-proxy.mjs default
+  return `http://127.0.0.1:${port}/anthropic`;
+}
+
+const RC_MINIMAX_UPSTREAM_BASEURL_ENV = 'RC_MINIMAX_UPSTREAM_BASEURL';
+
+function providerSupportsRedactedApiKeySentinel(providerKey: string): boolean {
+  // Providers that authenticate via OAuth profiles should not emit an apiKey sentinel
+  // when the user leaves the apiKey field empty.
+  // `openai-codex` uses auth-profiles (oauth refresh) rather than apiKey in config.
+  if (providerKey === 'openai-codex') return false;
+  return true;
+}
+
 /**
  * Resolve full model definition from provider presets.
  * Returns all metadata fields (input, contextWindow, maxTokens, reasoning).
@@ -248,9 +267,26 @@ export function buildSaveConfig(
     const existing = resolveExistingApiKey(currentConfig, providerKey);
     if (existing) {
       textProvider.apiKey = existing;
-    } else if (input.apiKeyConfigured) {
+    } else if (input.apiKeyConfigured && providerSupportsRedactedApiKeySentinel(providerKey)) {
       textProvider.apiKey = REDACTED_SENTINEL;
     }
+  }
+
+  // MiniMax OAuth (sk-cp-...) compatibility:
+  // Route MiniMax traffic through a local proxy that injects Authorization: Bearer <token>.
+  // OpenClaw 2026.3.8 rejects unknown provider keys, so we store the upstream URL
+  // in env.vars instead of adding `upstreamBaseUrl` under models.providers.*.
+  if ((providerKey === 'minimax' || providerKey === 'minimax-cn') && isMiniMaxOAuthToken(input.apiKey)) {
+    textProvider.baseUrl = minimaxProxyBaseUrl();
+    const envExisting = (base.env as Record<string, unknown> | undefined) ?? {};
+    const varsExisting = (envExisting.vars as Record<string, unknown> | undefined) ?? {};
+    base.env = {
+      ...envExisting,
+      vars: {
+        ...varsExisting,
+        [RC_MINIMAX_UPSTREAM_BASEURL_ENV]: baseUrl,
+      },
+    };
   }
 
   const providers: Record<string, unknown> = {
@@ -371,8 +407,13 @@ export function extractConfigFields(
     : undefined;
 
   // --- Proxy ---
-  const env = config.env as Record<string, string> | undefined;
-  const proxyUrl = env?.HTTP_PROXY || env?.HTTPS_PROXY || '';
+  const env = config.env as Record<string, unknown> | undefined;
+  const proxyUrl =
+    (typeof env?.HTTP_PROXY === 'string' && env.HTTP_PROXY) ||
+    (typeof env?.HTTPS_PROXY === 'string' && env.HTTPS_PROXY) ||
+    '';
+  const envVars =
+    (env?.vars as Record<string, unknown> | undefined) ?? undefined;
 
   const deRedact = (v: unknown): string => {
     const s = (v as string) ?? '';
@@ -382,9 +423,20 @@ export function extractConfigFields(
   const apiKeyRaw = textProviderDef?.apiKey;
   const visionApiKeyRaw = visionProviderDef?.apiKey;
 
+  const displayBaseUrl = (() => {
+    const raw = (textProviderDef?.baseUrl as string) ?? '';
+    if ((textProviderKey === 'minimax' || textProviderKey === 'minimax-cn') && raw.startsWith('http://127.0.0.1:28790')) {
+      const upstream =
+        (typeof envVars?.[RC_MINIMAX_UPSTREAM_BASEURL_ENV] === 'string' ? (envVars?.[RC_MINIMAX_UPSTREAM_BASEURL_ENV] as string) : '') ||
+        '';
+      return upstream || raw;
+    }
+    return raw;
+  })();
+
   return {
     provider: textProviderKey,
-    baseUrl: (textProviderDef?.baseUrl as string) ?? '',
+    baseUrl: displayBaseUrl,
     api: (textProviderDef?.api as string) ?? 'openai-completions',
     apiKey: deRedact(apiKeyRaw),
     apiKeyConfigured: typeof apiKeyRaw === 'string' && apiKeyRaw.length > 0,

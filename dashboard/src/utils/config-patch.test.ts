@@ -149,6 +149,24 @@ describe('buildSaveConfig', () => {
     expect(providers.zai.api).toBe('openai-completions');
   });
 
+  it('routes minimax via local proxy when apiKey is sk-cp-*', () => {
+    const config = buildSaveConfig(null, {
+      provider: 'minimax',
+      baseUrl: 'https://api.minimax.io/anthropic',
+      api: 'anthropic-messages',
+      apiKey: 'sk-cp-foo',
+      textModel: 'MiniMax-M2.5',
+    });
+
+    const providers = (config.models as Record<string, unknown>).providers as Record<string, Record<string, unknown>>;
+    expect(providers.minimax.baseUrl).toBe('http://127.0.0.1:28790/anthropic');
+    expect(providers.minimax.apiKey).toBe('sk-cp-foo');
+
+    const env = (config.env as Record<string, unknown>) ?? {};
+    const vars = (env.vars as Record<string, unknown>) ?? {};
+    expect(vars.RC_MINIMAX_UPSTREAM_BASEURL).toBe('https://api.minimax.io/anthropic');
+  });
+
   it('includes proxy env when proxyUrl is set', () => {
     const config = buildSaveConfig(null, {
       provider: 'openai',
