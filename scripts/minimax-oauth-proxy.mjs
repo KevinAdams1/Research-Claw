@@ -53,11 +53,15 @@ function loadMiniMaxConfig(configPath) {
   const provider = cfg?.models?.providers?.minimax ?? cfg?.models?.providers?.['minimax-cn'] ?? null;
   const apiKey = typeof provider?.apiKey === 'string' ? provider.apiKey : '';
 
-  // When we re-point baseUrl to this proxy, we preserve the original in `upstreamBaseUrl`.
+  // OpenClaw 2026.3.8 rejects unknown keys under models.providers.*.
+  // Store upstream URL in env.vars instead.
+  const upstreamFromEnv =
+    typeof cfg?.env?.vars?.RC_MINIMAX_UPSTREAM_BASEURL === 'string'
+      ? cfg.env.vars.RC_MINIMAX_UPSTREAM_BASEURL
+      : '';
   const upstreamBaseUrl =
-    typeof provider?.upstreamBaseUrl === 'string'
-      ? provider.upstreamBaseUrl
-      : (typeof provider?.baseUrl === 'string' ? provider.baseUrl : 'https://api.minimax.io/anthropic');
+    upstreamFromEnv ||
+    (typeof provider?.baseUrl === 'string' ? provider.baseUrl : 'https://api.minimax.io/anthropic');
 
   return { apiKey, upstreamBaseUrl };
 }
