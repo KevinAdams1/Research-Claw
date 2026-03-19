@@ -12,6 +12,7 @@
 # Options (environment variables):
 #   INSTALL_DIR  — where to install (default: ~/research-claw)
 #   PORT         — gateway port (default: 28789)
+#   BIND         — gateway bind: "loopback" or "lan" (default: auto-detect SSH)
 #   SKIP_START   — set to 1 to install only, don't launch gateway
 # ============================================================================
 set -euo pipefail
@@ -20,7 +21,7 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/research-claw}"
 PORT="${PORT:-28789}"
 REPO="https://github.com/wentorai/Research-Claw.git"
 NODE_MIN=22
-PNPM_VERSION=9.15.0
+PNPM_VERSION=9
 ISSUES_URL="https://github.com/wentorai/Research-Claw/issues"
 RC_PNPM_PREFIX="${RC_PNPM_PREFIX:-$INSTALL_DIR/.tools/pnpm}"
 PNPM_BIN=""
@@ -103,6 +104,15 @@ if ! command -v git &>/dev/null; then
   fi
 fi
 ok "git"
+
+# --- SSH/headless detection: resolve bind mode early (used for config patch + output) ---
+if [ -n "${BIND:-}" ]; then
+  RC_BIND="$BIND"
+elif [ -n "${SSH_CONNECTION:-}" ] || [ -n "${SSH_CLIENT:-}" ]; then
+  RC_BIND="lan"
+else
+  RC_BIND=""
+fi
 
 # --- [3/8] Build tools (macOS + Linux) ---
 if [ "$RC_OS" = mac ]; then
@@ -640,6 +650,43 @@ if [ -f config/openclaw.json ]; then
   " 2>/dev/null || true
 fi
 
+# --- Patch gateway.bind for SSH/headless servers ---
+# PVE CT, cloud VMs, etc. need LAN binding to access Dashboard from a browser.
+# Auto-detects SSH sessions; explicit BIND env var always wins.
+if [ -f config/openclaw.json ] && [ -n "${RC_BIND:-}" ]; then
+  node -e "
+    const fs = require('fs');
+    const f = 'config/openclaw.json';
+    const c = JSON.parse(fs.readFileSync(f, 'utf8'));
+    if (!c.gateway) c.gateway = {};
+    const target = process.argv[1];
+    if (c.gateway.bind === target) process.exit(0);
+    c.gateway.bind = target;
+    const o = JSON.stringify(c, null, 2) + '\n';
+    const t = f + '.tmp.' + process.pid;
+    fs.writeFileSync(t, o);
+    fs.renameSync(t, f);
+  " "$RC_BIND" 2>/dev/null || true
+  if [ -n "${BIND:-}" ]; then
+    info "gateway.bind=$RC_BIND (explicit BIND env)"
+  else
+    info "gateway.bind=lan (SSH session detected — remote access enabled)"
+  fi
+fi
+
+# --- Resolve Dashboard URL (LAN IP for remote access, 127.0.0.1 for local) ---
+GATEWAY_BIND="$(node -e "try{const c=JSON.parse(require('fs').readFileSync('config/openclaw.json','utf8'));console.log(c.gateway?.bind||'loopback')}catch{console.log('loopback')}" 2>/dev/null || echo loopback)"
+if [ "$GATEWAY_BIND" = "lan" ]; then
+  if [ "$RC_OS" = mac ]; then
+    DASHBOARD_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo '0.0.0.0')"
+  else
+    DASHBOARD_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo '0.0.0.0')"
+  fi
+else
+  DASHBOARD_IP="127.0.0.1"
+fi
+DASHBOARD_URL="http://$DASHBOARD_IP:$PORT"
+
 # --- Initialize L2/L3 bootstrap runtime files from .example templates ---
 RC_DIR="workspace/.ResearchClaw"
 [ ! -f "$RC_DIR/USER.md" ] && [ -f "$RC_DIR/USER.md.example" ] && \
@@ -874,14 +921,41 @@ if ! $RC_PROFILE_WRITTEN; then
   fi
 fi
 
+# --- Persist standalone pnpm in shell profile (if installed) ---
+# Without this, opening a new terminal and running `pnpm serve` would hit the
+# broken Corepack shim again. Same pattern as fnm profile persistence.
+if [ -x "$RC_PNPM_PREFIX/bin/pnpm" ]; then
+  RC_PNPM_LINE="export PATH=\"$RC_PNPM_PREFIX/bin:\$PATH\""
+  RC_PNPM_MARKER="$RC_PNPM_PREFIX/bin"
+  RC_PNPM_WRITTEN=false
+  for p in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    if [ -f "$p" ] && grep -q "$RC_PNPM_MARKER" "$p" 2>/dev/null; then
+      RC_PNPM_WRITTEN=true
+      break
+    fi
+  done
+  if ! $RC_PNPM_WRITTEN; then
+    # Find the profile that OPENCLAW_CONFIG_PATH was written to, or default
+    RC_PNPM_RC="$HOME/.bashrc"
+    case "$(basename "${SHELL:-/bin/bash}")" in zsh) RC_PNPM_RC="$HOME/.zshrc" ;; esac
+    for p in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+      if [ -f "$p" ]; then RC_PNPM_RC="$p"; break; fi
+    done
+    printf '\n# Standalone pnpm (added by Research-Claw install.sh)\n%s\n' "$RC_PNPM_LINE" >> "$RC_PNPM_RC" 2>/dev/null || true
+  fi
+fi
+
 # Apply to current session so the gateway startup below uses it
 export OPENCLAW_CONFIG_PATH="$INSTALL_DIR/config/openclaw.json"
 
 # --- Done ---
 printf "\n  ${G}${B}Ready!${N}\n\n"
-printf "  ${B}Dashboard:${N}  ${C}http://127.0.0.1:$PORT${N}\n"
+printf "  ${B}Dashboard:${N}  ${C}${DASHBOARD_URL}${N}\n"
 printf "  ${B}Location:${N}   $INSTALL_DIR\n"
 printf "  ${B}Start:${N}      cd $INSTALL_DIR && bash scripts/run.sh\n"
+if [ "$GATEWAY_BIND" = "lan" ]; then
+  printf "  ${Y}NOTE:${N}     Gateway bound to LAN — accessible from other devices on your network.\n"
+fi
 printf "  ${B}Plugins:${N}    cd $INSTALL_DIR && npx openclaw plugins install <name>\n"
 printf "  ${B}Update:${N}     curl -fsSL https://wentor.ai/install.sh | bash\n\n"
 printf "  ${Y}TIP:${N}  Use ${B}Chrome${N} for the best experience.\n"
@@ -906,16 +980,17 @@ fi
 # The gateway exits on SIGUSR1 after config save (API key, model, etc.),
 # expecting an external supervisor to restart it. This loop handles that.
 info "Starting gateway (auto-restart on config change)..."
-printf "  ${D}Dashboard will open automatically at${N} ${C}http://127.0.0.1:$PORT${N}\n"
+printf "  ${D}Dashboard will open automatically at${N} ${C}${DASHBOARD_URL}${N}\n"
 printf "  ${D}Press Ctrl+C to stop${N}\n\n"
 
 # Open browser when ready (background)
+# healthz always checks via loopback (works for both bind modes)
 (for _ in $(seq 1 30); do
   if curl -sf "http://127.0.0.1:$PORT/healthz" &>/dev/null; then
     if [ "$RC_OS" = mac ]; then
-      open "http://127.0.0.1:$PORT" 2>/dev/null || true
+      open "$DASHBOARD_URL" 2>/dev/null || true
     else
-      xdg-open "http://127.0.0.1:$PORT" 2>/dev/null || true
+      xdg-open "$DASHBOARD_URL" 2>/dev/null || true
     fi
     exit 0
   fi
