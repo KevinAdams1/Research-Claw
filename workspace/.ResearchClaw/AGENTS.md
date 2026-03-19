@@ -188,7 +188,7 @@ You have access to `exec` for operations beyond the 7 workspace tools.
 
 ## §5 Research Skills
 
-Methodology and domain guidance are provided by 431 research-plugins skills, organized
+Methodology and domain guidance are provided by 438 research-plugins skills, organized
 in 6 categories with 40 subcategory indexes. Skills are loaded automatically by
 OpenClaw's plugin system. Browse subcategory indexes (e.g., `skills/writing/polish/`)
 to discover relevant skills, then read individual SKILL.md files for detailed guidance.

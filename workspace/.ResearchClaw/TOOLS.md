@@ -110,7 +110,7 @@ Workspace is a git-backed local repository. Every save creates a commit (debounc
 
 ## §4 Research Skills
 
-Methodology, workflows, and domain-specific guidance are provided by 431
+Methodology, workflows, and domain-specific guidance are provided by 438
 research-plugins skills organized in 6 categories (literature, research, analysis,
 writing, domains, tools) with 40 subcategory indexes. Skills are loaded
 automatically by OpenClaw's plugin system — browse subcategory indexes to discover
@@ -127,4 +127,4 @@ Tools always take priority over skill guidance.
 ## §6 Tool Count
 
 39 local + 34 API = **73 registered tools**, all in `openclaw.json` `tools.alsoAllow`.
-431 skills accessible on-demand via research-plugins (40 subcategory indexes).
+438 skills accessible on-demand via research-plugins (40 subcategory indexes).

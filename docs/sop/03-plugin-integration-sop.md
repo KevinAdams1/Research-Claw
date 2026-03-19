@@ -8,7 +8,7 @@
 ## 1. Scope
 
 This SOP governs:
-1. **research-plugins** integration — 594 items (432 Skills + 6 Agent Tools + 150 MCP Configs + 6 Curated Lists) from `@wentorai/research-plugins`
+1. **research-plugins** integration — 478 items (438 Skills + 34 Agent Tools + 6 Curated Lists) from `@wentorai/research-plugins`
 2. **wentor-connect** plugin — OAuth, sync, telemetry (post-MVP placeholder)
 3. **Third-party plugin** compatibility and testing
 4. **Plugin SDK** usage patterns and best practices
@@ -68,11 +68,10 @@ Research-Claw config (`openclaw.json`) adds:
 
 | Category | Count | Type |
 |----------|------:|------|
-| Skills | 432 | SKILL.md files (incl. 40 index skills) |
-| Agent Tools | 6 | TypeScript tool factories (13 tools total) |
-| MCP Configs | 150 | Configuration templates (reference-only, all verified:false) |
+| Skills | 438 | SKILL.md files (+ 40 index skills = 478 total) |
+| Agent Tools | 34 | TypeScript tool factories (18 modules) |
 | Curated Lists | 6 | Recommended combinations |
-| **Total** | **594** | |
+| **Total** | **478** | MCP configs archived in v1.4.0 |
 
 **Installation:** `openclaw plugins install @wentorai/research-plugins`
 
@@ -240,7 +239,7 @@ OpenClaw commit `a1520d70f` introduced scope enforcement for plugin HTTP handler
 - [ ] Skill files appear under `node_modules/@wentorai/research-plugins/skills/`
 - [ ] Gateway loads skills from `extraDirs` path
 - [ ] Agent can reference research skills in conversation
-- [ ] Skill count matches expected (432)
+- [ ] Skill count matches expected (438 + 40 indexes)
 
 ### 4.2 research-claw-core
 
@@ -270,6 +269,7 @@ OpenClaw commit `a1520d70f` introduced scope enforcement for plugin HTTP handler
 - [2026-03-11] v1.0.0 published to NPM + PyPI + GitHub
 - [2026-03-11] v1.1.0 content complete (S1-S10), awaiting publish
 - [2026-03-14] v1.3.2 published — 432 skills, 13 tools, progressive disclosure architecture
+- [2026-03-18] v1.4.0 published — 438 skills, 34 tools (18 modules), MCP configs archived
 
 ### 5.2 wentor-connect
 

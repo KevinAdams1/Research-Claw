@@ -859,7 +859,7 @@ scripts/run.sh → node entry.js gateway run --allow-unconfigured --auth token -
   │    └─ (others as defined in C4)
   │
   ├─ Load skills
-  │    ├─ ./node_modules/@wentorai/research-plugins/skills/  (431 skills)
+  │    ├─ ./node_modules/@wentorai/research-plugins/skills/  (438 skills)
   │    └─ ./skills/                                           (local custom skills)
   │
   ├─ Load plugins
