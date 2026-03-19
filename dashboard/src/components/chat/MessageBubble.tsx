@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Typography, Image } from 'antd';
+import { CopyOutlined, CheckOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import type { ChatMessage } from '../../gateway/types';
 import { useGatewayStore } from '../../stores/gateway';
@@ -234,6 +235,29 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
   const { t } = useTranslation();
   const isUser = message.role === 'user';
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [hovered, setHovered] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    if (copied) return;
+    const rawText =
+      message.text ??
+      (typeof message.content === 'string'
+        ? message.content
+        : Array.isArray(message.content)
+          ? message.content
+              .filter((c) => c.type === 'text' && c.text)
+              .map((c) => c.text!)
+              .join('')
+          : '');
+    const copyText = message.role === 'user'
+      ? stripUserMetaPrefix(rawText)
+      : stripModelSpecialTokens(stripThinkingTags(rawText));
+    navigator.clipboard.writeText(stripImageMarkers(copyText)).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => { /* clipboard unavailable */ });
+  }, [message, copied]);
 
   // Extract raw text — only from type:'text' blocks (NOT type:'thinking')
   // Source: openclaw/ui/src/ui/chat/message-extract.ts:85-109 (extractRawText)
@@ -289,6 +313,8 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
 
       {/* Message body */}
       <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         style={{
           maxWidth: '80%',
           padding: '10px 14px',
@@ -299,6 +325,35 @@ export default function MessageBubble({ message, isStreaming }: MessageBubblePro
           overflow: 'hidden',
         }}
       >
+        {/* Copy button — hover-reveal, hidden during streaming */}
+        {!isStreaming && hovered && text && (
+          <button
+            onClick={handleCopy}
+            aria-label={t('code.copy')}
+            style={{
+              position: 'absolute',
+              top: 6,
+              right: 6,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 26,
+              height: 26,
+              padding: 0,
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              background: 'var(--surface)',
+              color: copied ? '#22C55E' : 'var(--text-tertiary)',
+              cursor: 'pointer',
+              fontSize: 13,
+              zIndex: 1,
+              transition: 'color 0.15s, background 0.15s',
+            }}
+            title={copied ? t('code.copied') : t('code.copy')}
+          >
+            {copied ? <CheckOutlined /> : <CopyOutlined />}
+          </button>
+        )}
         {/* Attached images */}
         {images.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: text ? 8 : 0 }}>

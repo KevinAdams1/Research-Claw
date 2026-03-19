@@ -15,6 +15,7 @@ import RightPanel from './components/RightPanel';
 import StatusBar from './components/StatusBar';
 import SetupWizard from './components/setup/SetupWizard';
 import type { ChatStreamEvent } from './gateway/types';
+import { useToolStreamStore } from './stores/tool-stream';
 
 /** Derive WebSocket URL from page origin so Docker port mapping always works.
  *  When served by the gateway (port 28789), origin already points to gateway.
@@ -116,6 +117,11 @@ export default function App() {
 
     const unsubChat = client.subscribe('chat', (payload) => {
       handleChatEvent(payload as ChatStreamEvent);
+      // Clear foreground tool stream when a run completes
+      const event = payload as ChatStreamEvent;
+      if (event.state === 'final' || event.state === 'aborted' || event.state === 'error') {
+        useToolStreamStore.setState({ pendingTools: [] });
+      }
     });
 
     const unsubAgent = client.subscribe('agent', (payload) => {
@@ -123,6 +129,9 @@ export default function App() {
       if (status.state) {
         setAgentStatus(status.state as 'idle' | 'thinking' | 'tool_running' | 'streaming' | 'error');
       }
+      // Feed tool stream store for P1-2 (inline tool display) and P1-3 (bg activity)
+      const chatRunId = useChatStore.getState().runId;
+      useToolStreamStore.getState().handleAgentEvent(payload, chatRunId);
     });
 
     return () => {

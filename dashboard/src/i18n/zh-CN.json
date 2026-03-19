@@ -33,7 +33,8 @@
     "imageTooLarge": "图片超过 5MB 限制",
     "dragDropHint": "拖放图片到此处",
     "thinkingLabel": "思考过程",
-    "imageNotSupported": "当前模型不支持图片处理。请在设置中启用独立视觉模型，或切换到支持图片的主模型（如 Claude、GPT-4o）。"
+    "imageNotSupported": "当前模型不支持图片处理。请在设置中启用独立视觉模型，或切换到支持图片的主模型（如 Claude、GPT-4o）。",
+    "bgWorking": "正在后台工作..."
   },
   "library": {
     "title": "文献库",
