@@ -11,12 +11,24 @@ PORT=${PORT:-28789}
 # --- One-time migration: v0.5.3 fixed volume mount from /root → /app ---
 # Earlier versions mounted rc-data at /root/.research-claw but the plugin
 # resolves dbPath to /app/.research-claw. Copy data to the correct path.
+#
+# Atomicity: copy to .migrating/ staging dir first, validate, then mv.
+# If interrupted mid-copy, .migrating/ is cleaned up on next boot and
+# migration retries (source still intact at /root/.research-claw).
 if [ -f "/root/.research-claw/library.db" ] && [ ! -f "/app/.research-claw/library.db" ]; then
-  mkdir -p /app/.research-claw
-  if cp -a /root/.research-claw/* /app/.research-claw/ 2>/dev/null && [ -f "/app/.research-claw/library.db" ]; then
+  MIGRATE_STAGING="/app/.research-claw.migrating"
+  rm -rf "$MIGRATE_STAGING"
+  mkdir -p "$MIGRATE_STAGING"
+  if cp -a /root/.research-claw/* "$MIGRATE_STAGING/" 2>/dev/null && [ -f "$MIGRATE_STAGING/library.db" ]; then
+    # Staging complete and validated — atomic move to final location
+    mkdir -p /app/.research-claw
+    mv "$MIGRATE_STAGING"/* /app/.research-claw/ 2>/dev/null
+    rm -rf "$MIGRATE_STAGING"
     echo "[research-claw] Migrated database from /root/.research-claw → /app/.research-claw"
   else
-    echo "[research-claw] WARNING: Database migration failed — check disk space"
+    rm -rf "$MIGRATE_STAGING"
+    echo "[research-claw] ERROR: Database migration failed — data preserved at /root/.research-claw"
+    echo "[research-claw] Check disk space: df -h /app"
   fi
 fi
 
@@ -93,7 +105,10 @@ if [ -f "$GLOBAL_CONFIG" ] && [ -f "$CONFIG_FILE" ]; then
     if (!migrated) process.exit(0);
     const output = JSON.stringify(p, null, 2) + '\n';
     try { JSON.parse(output); } catch { process.exit(1); }
-    fs.writeFileSync(projectPath, output);
+    const tmp = projectPath + '.tmp.' + process.pid;
+    fs.writeFileSync(tmp, output);
+    try { JSON.parse(fs.readFileSync(tmp, 'utf8')); } catch { fs.unlinkSync(tmp); process.exit(1); }
+    fs.renameSync(tmp, projectPath);
     const parts = [];
     if (hasGlobalProviders) parts.push('models');
     if (hasGlobalModel) parts.push('model');
@@ -150,7 +165,7 @@ node -e "
     if (c.tools.alsoAllow.length !== before) changed = true;
   }
 
-  if (changed) fs.writeFileSync(f, JSON.stringify(c, null, 2) + '\n');
+  if (changed) { const o=JSON.stringify(c,null,2)+'\n',t=f+'.tmp.'+process.pid; fs.writeFileSync(t,o); fs.renameSync(t,f); }
 " 2>&1 || echo "[research-claw] WARNING: Config patch failed — gateway may not start correctly"
 
 # --- Resolve relative paths to absolute (prevents CWD drift during agent runs) ---
@@ -174,7 +189,7 @@ node -e "
   if (cfg.agents?.defaults?.workspace && !path.isAbsolute(cfg.agents.defaults.workspace)) {
     cfg.agents.defaults.workspace = abs(cfg.agents.defaults.workspace); changed = true;
   }
-  if (changed) fs.writeFileSync(f, JSON.stringify(cfg, null, 2) + '\n');
+  if (changed) { const o=JSON.stringify(cfg,null,2)+'\n',t=f+'.tmp.'+process.pid; fs.writeFileSync(t,o); fs.renameSync(t,f); }
 " 2>/dev/null || true
 
 # --- Sync research-plugins from image → volume if version differs ---

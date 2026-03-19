@@ -50,7 +50,7 @@ if (cfg.gateway?.controlUi?.root && !path.isAbsolute(cfg.gateway.controlUi.root)
 if (cfg.agents?.defaults?.workspace && !path.isAbsolute(cfg.agents.defaults.workspace)) {
   cfg.agents.defaults.workspace = abs(cfg.agents.defaults.workspace); changed = true;
 }
-if (changed) { fs.writeFileSync(f, JSON.stringify(cfg, null, 2) + '\n'); console.log('[run] Config paths resolved to absolute'); }
+if (changed) { const o=JSON.stringify(cfg,null,2)+'\n',t=f+'.tmp.'+process.pid; fs.writeFileSync(t,o); fs.renameSync(t,f); console.log('[run] Config paths resolved to absolute'); }
 "
 
 # --- Detect the correct Node for the gateway ---

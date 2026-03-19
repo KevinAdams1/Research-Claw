@@ -117,7 +117,10 @@ if (project.channels) {
     }
   }
   if (projectChanged) {
-    fs.writeFileSync(PROJECT_CONFIG, JSON.stringify(project, null, 2) + '\n');
+    const out = JSON.stringify(project, null, 2) + '\n';
+    const tmp = PROJECT_CONFIG + '.tmp.' + process.pid;
+    fs.writeFileSync(tmp, out);
+    fs.renameSync(tmp, PROJECT_CONFIG);
     console.log('[sync] Fixed channels.*.commands.native=false in project config');
   }
 }
@@ -157,8 +160,10 @@ if (overlay.plugins?.entries) {
 // --- Merge into global config ---
 const merged = merge(global, overlay);
 
-// --- Write ---
+// --- Atomic write: temp → rename (survives disk-full) ---
 fs.mkdirSync(GLOBAL_DIR, { recursive: true, mode: 0o700 });
-fs.writeFileSync(GLOBAL_CONFIG, JSON.stringify(merged, null, 2) + '\n', { mode: 0o600 });
+const tmpGlobal = GLOBAL_CONFIG + '.tmp.' + process.pid;
+fs.writeFileSync(tmpGlobal, JSON.stringify(merged, null, 2) + '\n', { mode: 0o600 });
+fs.renameSync(tmpGlobal, GLOBAL_CONFIG);
 
 console.log('[sync] RC settings → ~/.openclaw/openclaw.json');

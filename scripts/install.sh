@@ -513,11 +513,13 @@ node -e "
 
   if (!migrated) process.exit(0);
 
-  // Validation: re-parse to catch any corruption before writing
+  // Atomic write: temp file → validate → rename (survives disk-full)
   const output = JSON.stringify(p, null, 2) + '\n';
   try { JSON.parse(output); } catch { process.exit(1); }
-
-  fs.writeFileSync(projectPath, output);
+  const tmp = projectPath + '.tmp.' + process.pid;
+  fs.writeFileSync(tmp, output);
+  try { JSON.parse(fs.readFileSync(tmp, 'utf8')); } catch { fs.unlinkSync(tmp); process.exit(1); }
+  fs.renameSync(tmp, projectPath);
 
   // Report what was migrated
   const parts = [];
@@ -584,7 +586,10 @@ if [ -f config/openclaw.json ]; then
         }
 
         if (changed) {
-          fs.writeFileSync(f, JSON.stringify(c, null, 2) + '\n');
+          const out = JSON.stringify(c, null, 2) + '\n';
+          const t = f + '.tmp.' + process.pid;
+          fs.writeFileSync(t, out);
+          fs.renameSync(t, f);
           anyChanged = true;
         }
       } catch {}
@@ -906,7 +911,7 @@ if (cfg.gateway?.controlUi?.root && !path.isAbsolute(cfg.gateway.controlUi.root)
 if (cfg.agents?.defaults?.workspace && !path.isAbsolute(cfg.agents.defaults.workspace)) {
   cfg.agents.defaults.workspace = abs(cfg.agents.defaults.workspace); changed = true;
 }
-if (changed) fs.writeFileSync(f, JSON.stringify(cfg, null, 2) + '\n');
+if (changed) { const o=JSON.stringify(cfg,null,2)+'\n',t=f+'.tmp.'+process.pid; fs.writeFileSync(t,o); fs.renameSync(t,f); }
 "
 
 # Token auth — matches Dashboard's DEFAULT_TOKEN ('research-claw').
