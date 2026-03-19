@@ -469,6 +469,22 @@ if ! (PATH="$GW_NODE_DIR:$PATH" "$PNPM_BIN" install --frozen-lockfile 2>/dev/nul
 fi
 ok "Dependencies installed"
 
+# --- Ensure `openclaw` CLI is in PATH ---
+# The agent's system.run tool spawns a new shell that doesn't inherit
+# node_modules/.bin. Symlink to ~/.local/bin so `openclaw doctor`,
+# `openclaw plugins list`, etc. work when the agent runs diagnostics.
+OC_BIN="$INSTALL_DIR/node_modules/.bin/openclaw"
+if [ -x "$OC_BIN" ]; then
+  LOCAL_BIN="$HOME/.local/bin"
+  mkdir -p "$LOCAL_BIN"
+  ln -sf "$OC_BIN" "$LOCAL_BIN/openclaw"
+  case ":$PATH:" in
+    *":$LOCAL_BIN:"*) ;;
+    *) export PATH="$LOCAL_BIN:$PATH" ;;
+  esac
+  ok "openclaw CLI → $LOCAL_BIN/openclaw"
+fi
+
 if [ ! -f config/openclaw.json ]; then
   if [ -f config/openclaw.example.json ]; then
     cp config/openclaw.example.json config/openclaw.json
@@ -942,6 +958,27 @@ if [ -x "$RC_PNPM_PREFIX/bin/pnpm" ]; then
       if [ -f "$p" ]; then RC_PNPM_RC="$p"; break; fi
     done
     printf '\n# Standalone pnpm (added by Research-Claw install.sh)\n%s\n' "$RC_PNPM_LINE" >> "$RC_PNPM_RC" 2>/dev/null || true
+  fi
+fi
+
+# --- Persist ~/.local/bin in shell profile (for openclaw CLI) ---
+LOCAL_BIN="$HOME/.local/bin"
+if [ -d "$LOCAL_BIN" ]; then
+  LOCAL_BIN_MARKER='.local/bin'
+  LOCAL_BIN_WRITTEN=false
+  for p in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    if [ -f "$p" ] && grep -q "$LOCAL_BIN_MARKER" "$p" 2>/dev/null; then
+      LOCAL_BIN_WRITTEN=true
+      break
+    fi
+  done
+  if ! $LOCAL_BIN_WRITTEN; then
+    RC_LB_RC="$HOME/.bashrc"
+    case "$(basename "${SHELL:-/bin/bash}")" in zsh) RC_LB_RC="$HOME/.zshrc" ;; esac
+    for p in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+      if [ -f "$p" ]; then RC_LB_RC="$p"; break; fi
+    done
+    printf '\n# ~/.local/bin (added by Research-Claw install.sh)\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$RC_LB_RC" 2>/dev/null || true
   fi
 fi
 
