@@ -494,7 +494,7 @@ export default function FilePreviewModal({ open, filePath, workspaceRoot, onClos
         </div>
 
         {/* Footer: Open File | Open Folder | Copy Path | Delete */}
-        {data && (
+        {(data || error) && (
           <div
             style={{
               display: 'flex',
