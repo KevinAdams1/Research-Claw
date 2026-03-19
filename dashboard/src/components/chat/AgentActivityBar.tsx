@@ -8,6 +8,12 @@ export default function AgentActivityBar() {
 
   if (!bgActivity) return null;
 
+  const statusKey = bgActivity.status === 'tool_running'
+    ? 'agent.toolRunning'
+    : bgActivity.status === 'streaming'
+      ? 'agent.streaming'
+      : 'agent.thinking';
+
   return (
     <div
       style={{
@@ -35,6 +41,7 @@ export default function AgentActivityBar() {
         }}
       />
       <span>{t('chat.bgWorking')}</span>
+      <span style={{ color: 'var(--text-tertiary)' }}>{t(statusKey)}</span>
       {bgActivity.currentTool && (
         <>
           <ToolOutlined style={{ fontSize: 11, color: 'var(--text-tertiary)' }} />

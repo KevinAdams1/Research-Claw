@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Badge, Button, Dropdown, Empty, Typography } from 'antd';
 import {
   BellOutlined,
@@ -41,6 +41,109 @@ function relativeTimestamp(ts: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+function NotificationItem({
+  item,
+  tokens,
+  onMarkRead,
+}: {
+  item: AppNotification;
+  tokens: ReturnType<typeof getThemeTokens>;
+  onMarkRead: (id: string) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => {
+        if (!item.read) onMarkRead(item.id);
+      }}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !item.read) {
+          e.preventDefault();
+          onMarkRead(item.id);
+        }
+      }}
+      style={{
+        padding: '10px 14px',
+        display: 'flex',
+        gap: 10,
+        alignItems: 'flex-start',
+        background: item.read ? 'transparent' : tokens.bg.surfaceHover,
+        cursor: item.read ? 'default' : 'pointer',
+        borderBottom: `1px solid ${tokens.border.default}`,
+        transition: 'background 0.15s ease',
+      }}
+    >
+      {/* Type icon */}
+      <span style={{ flexShrink: 0, marginTop: 2, fontSize: 14 }}>
+        {getNotificationIcon(item.type, tokens)}
+      </span>
+
+      {/* Content — expand on hover */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: item.read ? 400 : 600,
+            color: tokens.text.primary,
+            display: 'block',
+            lineHeight: '18px',
+            whiteSpace: hovered ? 'normal' : undefined,
+            wordBreak: hovered ? 'break-word' : undefined,
+          }}
+          ellipsis={!hovered}
+        >
+          {item.title}
+        </Text>
+        {item.body && (
+          <Text
+            style={{
+              fontSize: 12,
+              color: tokens.text.secondary,
+              display: 'block',
+              marginTop: 2,
+              lineHeight: '16px',
+              whiteSpace: hovered ? 'normal' : undefined,
+              wordBreak: hovered ? 'break-word' : undefined,
+            }}
+            ellipsis={!hovered}
+          >
+            {item.body}
+          </Text>
+        )}
+        <Text
+          style={{
+            fontSize: 11,
+            color: tokens.text.muted,
+            display: 'block',
+            marginTop: 3,
+          }}
+        >
+          {relativeTimestamp(item.timestamp)}
+        </Text>
+      </div>
+
+      {/* Unread indicator dot */}
+      {!item.read && (
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: tokens.accent.blue,
+            flexShrink: 0,
+            marginTop: 6,
+          }}
+        />
+      )}
+    </div>
+  );
 }
 
 export default function NotificationDropdown() {
@@ -132,89 +235,12 @@ export default function NotificationDropdown() {
       ) : (
         <div style={{ maxHeight: 400, overflowY: 'auto' }}>
           {visibleNotifications.map((item) => (
-            <div
+            <NotificationItem
               key={item.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                if (!item.read) markRead(item.id);
-              }}
-              onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && !item.read) {
-                  e.preventDefault();
-                  markRead(item.id);
-                }
-              }}
-              style={{
-                padding: '10px 14px',
-                display: 'flex',
-                gap: 10,
-                alignItems: 'flex-start',
-                background: item.read ? 'transparent' : tokens.bg.surfaceHover,
-                cursor: item.read ? 'default' : 'pointer',
-                borderBottom: `1px solid ${tokens.border.default}`,
-                transition: 'background 0.15s ease',
-              }}
-            >
-              {/* Type icon */}
-              <span style={{ flexShrink: 0, marginTop: 2, fontSize: 14 }}>
-                {getNotificationIcon(item.type, tokens)}
-              </span>
-
-              {/* Content */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: item.read ? 400 : 600,
-                    color: tokens.text.primary,
-                    display: 'block',
-                    lineHeight: '18px',
-                  }}
-                  ellipsis
-                >
-                  {item.title}
-                </Text>
-                {item.body && (
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: tokens.text.secondary,
-                      display: 'block',
-                      marginTop: 2,
-                      lineHeight: '16px',
-                    }}
-                    ellipsis
-                  >
-                    {item.body}
-                  </Text>
-                )}
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: tokens.text.muted,
-                    display: 'block',
-                    marginTop: 3,
-                  }}
-                >
-                  {relativeTimestamp(item.timestamp)}
-                </Text>
-              </div>
-
-              {/* Unread indicator dot */}
-              {!item.read && (
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: tokens.accent.blue,
-                    flexShrink: 0,
-                    marginTop: 6,
-                  }}
-                />
-              )}
-            </div>
+              item={item}
+              tokens={tokens}
+              onMarkRead={markRead}
+            />
           ))}
         </div>
       )}

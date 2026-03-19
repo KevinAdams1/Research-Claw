@@ -2,11 +2,13 @@ import { create } from 'zustand';
 
 /**
  * Tracks live tool execution events from the gateway's `agent` event stream.
- * Consumes events with `stream: "tool"` to provide real-time tool activity
- * in the chat UI (P1-2) and background activity bar (P1-3).
  *
- * Gateway agent event payload for tool stream:
- *   { runId, sessionKey, stream: "tool", ts, data: { phase, name, toolCallId, args?, result?, partialResult? } }
+ * Agent events come in two flavors:
+ * 1. Status events: { state: "thinking" | "tool_running" | "streaming" | "idle" | "error" }
+ *    — Broadcast to all clients, used by the status dot and background activity bar.
+ * 2. Detailed events: { stream: "tool" | "lifecycle", data: { phase, name, toolCallId, ... } }
+ *    — Only sent to clients with caps: ["tool-events"] for tool stream,
+ *      or broadcast for lifecycle/assistant/error streams.
  */
 
 export interface PendingTool {
@@ -20,6 +22,7 @@ export interface AgentActivity {
   runId: string;
   isBackground: boolean;
   currentTool: string | null;
+  status: string;
   startedAt: number;
 }
 
@@ -33,6 +36,8 @@ interface ToolStreamState {
   clearAll: () => void;
 }
 
+const ACTIVE_STATES = new Set(['thinking', 'tool_running', 'streaming']);
+
 export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
   pendingTools: [],
   bgActivity: null,
@@ -40,6 +45,7 @@ export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
   handleAgentEvent: (payload: unknown, chatRunId: string | null) => {
     const evt = payload as {
       runId?: string;
+      state?: string;
       stream?: string;
       data?: {
         phase?: string;
@@ -49,16 +55,39 @@ export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
       };
     };
 
-    if (!evt.stream || !evt.data) return;
-
-    // Background = different runId from the user's active chat.
-    // When chatRunId is null (no active user chat), server-initiated runs are foreground-ish
-    // but we still show them as background since the user didn't initiate them.
+    // Background = different runId from the user's active chat, or no active chat.
     const isBackground = !!evt.runId && (!chatRunId || evt.runId !== chatRunId);
 
+    // ── Path A: Status-only events (state field, no stream) ──
+    // These are broadcast to ALL clients. The status dot uses them.
+    // We use them for background activity detection (P1-3).
+    if (evt.state && !evt.stream) {
+      if (isBackground && ACTIVE_STATES.has(evt.state)) {
+        set({
+          bgActivity: {
+            runId: evt.runId!,
+            isBackground: true,
+            currentTool: null,
+            status: evt.state,
+            startedAt: get().bgActivity?.runId === evt.runId
+              ? get().bgActivity!.startedAt
+              : Date.now(),
+          },
+        });
+      } else if (evt.state === 'idle' || evt.state === 'error') {
+        // Any idle/error clears background activity
+        if (get().bgActivity?.runId === evt.runId || !evt.runId) {
+          set({ bgActivity: null });
+        }
+      }
+      return;
+    }
+
+    // ── Path B: Detailed events (stream + data fields) ──
+    // Tool events require caps: ["tool-events"] registration.
+    if (!evt.stream || !evt.data) return;
+
     // Handle tool stream events
-    // Gateway sends data.name (server-chat.agent-events.test.ts:537), but also
-    // accept data.toolName for forward-compat with any gateway variants.
     if (evt.stream === 'tool' && evt.data.phase && evt.data.toolCallId) {
       const { phase, toolCallId } = evt.data;
       const name = evt.data.name ?? evt.data.toolName;
@@ -89,7 +118,6 @@ export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
             }));
             break;
           case 'end':
-            // Remove completed tool after brief display
             setTimeout(() => {
               set((s) => ({
                 pendingTools: s.pendingTools.filter((t) => t.toolCallId !== toolCallId),
@@ -103,13 +131,14 @@ export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
             break;
         }
       } else {
-        // Background: update bgActivity for activity bar
+        // Background: update bgActivity with tool name
         if (phase === 'start' || phase === 'running') {
           set({
             bgActivity: {
               runId: evt.runId!,
               isBackground: true,
               currentTool: name ?? null,
+              status: 'tool_running',
               startedAt: get().bgActivity?.runId === evt.runId
                 ? get().bgActivity!.startedAt
                 : Date.now(),
@@ -128,6 +157,7 @@ export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
             runId: evt.runId!,
             isBackground: true,
             currentTool: null,
+            status: 'thinking',
             startedAt: Date.now(),
           },
         });
