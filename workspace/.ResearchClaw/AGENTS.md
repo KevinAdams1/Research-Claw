@@ -203,7 +203,7 @@ Full reference in TOOLS.md §1.
 **For complex tasks**:
 1. Check MEMORY.md Environment for installed CLIs (`codex`, `claude`, `opencode`).
 2. If CLI found → inform user and suggest delegating. If user agrees or has set
-   "默认运行" preference → `exec` the CLI (skill: tools/codex-cli etc.).
+   "默认运行" preference → `exec` the CLI (skill: codex-cli / claude-code / opencode-cli).
    If user wants RC to handle it → proceed with RC's own capabilities.
 3. If no CLI → recommend installing one and **wait for user's decision**.
    If user insists → RC proceeds via repeated `workspace_save` (slower but works).

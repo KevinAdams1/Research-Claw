@@ -279,7 +279,7 @@ export class GatewayClient {
         maxProtocol: MAX_PROTOCOL,
         client: {
           id: clientId,
-          version: this.opts.clientVersion ?? '0.5.5',
+          version: this.opts.clientVersion ?? '0.5.6',
           platform,
           mode: clientMode,
           displayName: this.opts.clientName ?? 'Research-Claw Dashboard',

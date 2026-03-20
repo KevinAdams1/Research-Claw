@@ -14,7 +14,7 @@ import type { PaperInput } from './service.js';
 const BASE_URL = 'https://api.zotero.org';
 const FETCH_TIMEOUT = 10_000;
 const MAX_PER_PAGE = 100;
-const USER_AGENT = 'Research-Claw/0.5.5';
+const USER_AGENT = 'Research-Claw/0.5.6';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
