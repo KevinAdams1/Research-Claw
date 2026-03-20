@@ -932,11 +932,12 @@ else
     if [ "$RP_EXIT" -eq 124 ]; then
       warn "research-plugins download timed out (>120s)."
     else
-      warn "research-plugins install failed (offline?). You can retry later:"
-      printf "    cd $INSTALL_DIR && npx openclaw plugins install @wentorai/research-plugins\n"
+      warn "research-plugins install failed (offline?)."
       warn "Error details (last 5 lines):"
       tail -5 "$RP_LOG" 2>/dev/null | while IFS= read -r line; do printf "    %s\n" "$line"; done
     fi
+    warn "You can retry later:"
+    printf "    cd $INSTALL_DIR && npx openclaw plugins install @wentorai/research-plugins\n"
     rp_network_hint
   fi
   rm -f "$RP_LOG"

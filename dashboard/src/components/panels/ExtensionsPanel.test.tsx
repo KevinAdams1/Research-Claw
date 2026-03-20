@@ -10,6 +10,30 @@ import {
   CHANNELS_STATUS_RESPONSE,
 } from '../../__fixtures__/gateway-payloads/extensions-responses';
 
+// Mock react-window — render all items without virtualization (jsdom has no layout engine)
+vi.mock('react-window', () => ({
+  List: function MockList({ rowComponent: Row, rowCount, rowProps }: {
+    rowComponent: React.ComponentType<any>;
+    rowCount: number;
+    rowProps: Record<string, unknown>;
+    [key: string]: unknown;
+  }) {
+    return (
+      <div data-testid="virtual-list">
+        {Array.from({ length: rowCount }, (_, index) => (
+          <Row
+            key={index}
+            index={index}
+            style={{}}
+            ariaAttributes={{ 'aria-posinset': index + 1, 'aria-setsize': rowCount, role: 'listitem' }}
+            {...rowProps}
+          />
+        ))}
+      </div>
+    );
+  },
+}));
+
 // Mock i18n — t() returns fallback string if provided, else the key
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

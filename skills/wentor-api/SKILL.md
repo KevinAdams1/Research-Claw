@@ -33,14 +33,7 @@ Authorization: Bearer <token>
 ```
 
 ```json
-{
-  "query": "how does attention mechanism improve transformer performance",
-  "size": 10,
-  "offset": 0,
-  "sort": "relevance",
-  "year": [2023, 2024, 2025],
-  "sci_only": false
-}
+{ "query": "attention mechanism transformer", "size": 10, "year": [2024, 2025] }
 ```
 
 | Field      | Type       | Required | Default     | Description                                |
@@ -52,30 +45,7 @@ Authorization: Bearer <token>
 | `year`     | int[]      | no       | null        | Filter by publication year(s)              |
 | `sci_only` | bool       | no       | false       | Only return SCI-indexed papers             |
 
-### Response
-
-```json
-{
-  "items": [
-    {
-      "id": "53e99784b7602d9701f3e148",
-      "title": "Attention Is All You Need",
-      "title_zh": "注意力机制是你所需要的一切",
-      "doi": "10.5555/3295222.3295349"
-    }
-  ],
-  "total": 1582
-}
-```
-
-### cURL Example
-
-```bash
-curl -X POST https://wentor.ai/api/v1/academic/qa \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer wnt_abc123" \
-  -d '{"query": "graph neural networks for molecular property prediction", "size": 5}'
-```
+Response: `{ items: [{ id, title, title_zh, doi, ... }], total }`.
 
 ---
 
@@ -106,33 +76,7 @@ Authorization: Bearer <token>
 
 At least one of `title`, `keyword`, `author`, `org`, or `venue` is required.
 
-### Response
-
-```json
-{
-  "items": [
-    {
-      "id": "53e99784b7602d9701f3e148",
-      "title": "Attention Is All You Need",
-      "title_zh": "注意力机制是你所需要的一切",
-      "doi": "10.5555/3295222.3295349"
-    }
-  ],
-  "total": 42,
-  "page": 0,
-  "size": 10
-}
-```
-
-### cURL Example
-
-```bash
-curl -G https://wentor.ai/api/v1/academic/search \
-  -H "Authorization: Bearer wnt_abc123" \
-  --data-urlencode "author=Yoshua Bengio" \
-  --data-urlencode "keyword=deep learning" \
-  --data-urlencode "size=5"
-```
+Response: `{ items: [{ id, title, title_zh, doi, ... }], total, page, size }`.
 
 ---
 
@@ -152,37 +96,15 @@ Authorization: Bearer <token>
 ```
 
 ```json
-{
-  "prompt": "A bar chart comparing BLEU scores of 5 machine translation models on WMT-2023, with error bars and a clean academic style"
-}
+{ "prompt": "A bar chart comparing BLEU scores of 5 MT models on WMT-2023" }
 ```
 
 | Field    | Type   | Required | Description                                          |
 |----------|--------|----------|------------------------------------------------------|
 | `prompt` | string | yes      | Figure description in natural language (2–2000 chars) |
 
-### Response
-
-```json
-{
-  "image": "data:image/png;base64,iVBORw0KGgo...",
-  "text": "Here is a bar chart comparing BLEU scores...",
-  "prompt": "A bar chart comparing BLEU scores..."
-}
-```
-
-- `image`: base64-encoded PNG (data URI), or `null` if generation failed
-- `text`: optional textual explanation from the model, or `null`
-- `prompt`: echo of the original prompt
-
-### cURL Example
-
-```bash
-curl -X POST https://wentor.ai/api/v1/academic/plot \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer wnt_abc123" \
-  -d '{"prompt": "A scatter plot of citation count vs h-index for top 50 AI researchers, log scale, labeled outliers"}'
-```
+Response: `{ image: "data:image/png;base64,..."|null, text: string|null, prompt: string }`.
+`image` is a base64-encoded PNG data URI. `null` if generation failed.
 
 ---
 

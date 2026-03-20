@@ -176,8 +176,13 @@ communication preferences -- just follow this default.
 
 7. "Do you use a reference manager? If so, which one?"
    Options: Zotero / EndNote / Mendeley / Paperpile / JabRef / None / Other
-   - If Zotero: ask for library path, note integration capability.
-   - Store in MEMORY.md under `## Global > ### Environment`.
+   - If **Zotero**: run `library_zotero_detect` to verify SQLite access.
+     If Zotero is running, also try `library_zotero_local_detect` (Local API).
+     Ask: "Do you have a Zotero Web API Key? It enables cloud sync from RC."
+     If yes → run `library_zotero_web_detect` to validate. Record all tiers.
+   - If **EndNote**: run `library_endnote_detect`. Record path and status.
+   - Other managers: note BibTeX/RIS import workflow.
+   - Store results in MEMORY.md under `## Global > ### Environment`.
 
 8. "What citation style do you typically use?"
    Options: APA / MLA / Chicago / IEEE / Vancouver / Harvard / Nature / Custom
@@ -246,6 +251,11 @@ Silently detect and record in MEMORY.md under `## Global > ### Environment`:
 - Reference managers: Zotero (`library_zotero_detect`), EndNote (`library_endnote_detect`)
 - AI coding CLIs: `which codex`, `which claude`, `which opencode`
 - Any relevant academic tools in PATH
+- **Research-Plugins**: Check if `@wentorai/research-plugins` is installed
+  (`openclaw plugins info research-plugins`). If not installed, inform user:
+  "Research skill pack not found. Install for 438 research skills + 34 API tools:
+  `openclaw plugins install @wentorai/research-plugins`"
+  Record install status in Environment.
 
 ## Completion
 

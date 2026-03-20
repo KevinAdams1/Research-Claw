@@ -60,6 +60,11 @@ Zotero directory as Docker volume.
 `library_zotero_web_create` (requires approval_card). Otherwise →
 `library_export_bibtex` + guide user to File > Import in their reference manager.
 
+**Other reference managers** (Mendeley, ReadCube, Papers, JabRef, Citavi, etc.):
+No direct bridge. Guide user to: (1) export BibTeX/RIS from their tool →
+`library_import_bibtex` / `library_import_ris`; (2) if user has custom API/DB,
+use `web_fetch` or `exec` to query, then `library_batch_add`.
+
 #### Layer 1 — Built-in API Tools (free, no auth, structured data)
 
 These tools are always available and require NO API keys from the user.
@@ -151,18 +156,7 @@ Know what each tool CAN and CANNOT filter. This determines routing.
 When the user asks for "最新", "latest", "recent", or "past N months/weeks" papers,
 you **MUST** override default relevance sorting with date-based sorting.
 
-**Per-tool recency parameters:**
-
-| Tool | Sort param | Recency value | Date filter |
-|:-----|:-----------|:-------------|:------------|
-| `search_arxiv` | `sort_by` | `'submittedDate'` | — |
-| `search_crossref` | `sort` | `'published'` | `from_year` / `until_year` |
-| `search_openalex` | `sort_by` | `'publication_date'` | `from_year` / `to_year` |
-| `search_pubmed` | — | — | `min_date` / `max_date` |
-| `search_biorxiv/medrxiv` | — | date-ordered | `interval: 'YYYY-MM-DD/YYYY-MM-DD'` |
-| `search_europe_pmc` | query prefix | `'SORT_DATE:y'` | — |
-| `search_inspire` | — | `'mostrecent'` | — |
-| `search_zenodo` | — | `'mostrecent'` | — |
+**Per-tool recency parameters** → TOOLS.md §2 Sort Parameters Quick Reference.
 
 **Recency search workflow:**
 1. Determine time range: "最新" = last 3 months; "近期" = last 6 months; explicit
@@ -424,6 +418,7 @@ Common requests span multiple skill categories. Use these combinations:
 | Systematic review | research/deep-research + research/methodology |
 | Entering a new field | domains/{field} |
 | Grant writing | research/funding + writing/composition |
+| Ongoing monitoring | monitor_create → cron → monitor_report → library_add_paper |
 
 ## Workspace Integration
 
@@ -437,7 +432,7 @@ content only in chat messages.
 | Literature review | `outputs/drafts/` | `literature-review-{topic}.md` |
 | Paper reading notes | `outputs/notes/` | `{paper-short-title}-notes.md` |
 | Data analysis results | `outputs/reports/` | `analysis-{dataset}.md` |
-| Monitor scan findings | `outputs/monitor/` | `monitor-scan-{date}.md` |
+| Monitor scan digest | `outputs/monitor/` | `monitor-scan-{date}.md` |
 | Weekly/progress report | `outputs/reports/` | `weekly-report-{date}.md` |
 | BibTeX export | `outputs/exports/` | `bibliography-{project}.bib` |
 | Figures/plots | `outputs/figures/` | `fig-{description}.{ext}` |

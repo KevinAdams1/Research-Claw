@@ -34,7 +34,7 @@
 ## Stats
 - Dashboard: 1071 tests (57 files), +25 new
 - Plugin: 47 tools, 81 RPC, 8 hooks
-- Prompt: AGENTS.md v3.4 (19,412/20,000 chars), TOOLS.md v3.3
+- Prompt: AGENTS.md v3.5 (19,214/20,000 chars), TOOLS.md v3.3
 
 ## Contributors
 - @KevinAdams1 — Settings panel model revert fix (PR #18)

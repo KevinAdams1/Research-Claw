@@ -1,7 +1,7 @@
 ---
 file: HEARTBEAT.md
-version: 2.0
-updated: 2026-03-12
+version: 2.1
+updated: 2026-03-20
 ---
 
 # Heartbeat -- Periodic Research Check
@@ -51,7 +51,19 @@ schedule (default: first heartbeat after 09:00 local time each day).
   and no activity for longer than the stale threshold.
 - For each stale paper, note it in highlights.
 
-### 5. Quiet Hours [configurable: start = 23:00, end = 08:00]
+### 5. Monitor Scan Status
+
+- Query `monitor_list` for monitors with `status: "active"`.
+- If any monitor's `last_check` is older than 2× its schedule interval,
+  flag as **STALE** in highlights.
+- If a monitor reported new findings since last heartbeat, note the count.
+
+### 6. MEMORY.md Size Check
+
+- If MEMORY.md exists and exceeds 5,000 characters, add a highlight:
+  "MEMORY.md is {n} chars — consider pruning completed projects."
+
+### 7. Quiet Hours [configurable: start = 23:00, end = 08:00]
 
 - If the current local time falls within quiet hours, suppress all output
   except **URGENT** deadline alerts.
@@ -85,3 +97,4 @@ defaults used by the agent when executing heartbeat routines:
 | Stale threshold | — | 7 | ⚠️ hardcoded | Days before a "reading" paper is flagged (not yet configurable) |
 | Quiet start | — | `"23:00"` | ⚠️ hardcoded | Start of quiet hours (not yet configurable) |
 | Quiet end | — | `"08:00"` | ⚠️ hardcoded | End of quiet hours (not yet configurable) |
+| MEMORY.md limit | — | 5,000 | ⚠️ hardcoded | Chars before pruning reminder (not yet configurable) |
