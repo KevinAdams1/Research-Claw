@@ -160,7 +160,7 @@ describe('PR #18: syncNeeded — form sync gating', () => {
     useGatewayStore.setState({
       client: createMockClient(),
       state: 'connected',
-      serverVersion: '0.5.5',
+      serverVersion: '0.5.6',
     });
   });
 
