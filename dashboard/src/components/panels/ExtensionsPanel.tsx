@@ -9,7 +9,7 @@
  * Pattern: follows MonitorPanel (expandable cards + toggle switches)
  */
 
-import React, { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { App, Button, Input, Modal, Segmented, Switch, Tag, Tooltip, Typography } from 'antd';
 import {
   ApiOutlined,
@@ -633,7 +633,9 @@ function PluginCard({
 
 function SkillsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
   const { t } = useTranslation();
-  const { skills, skillsLoading } = useExtensionsStore();
+  const skills = useExtensionsStore((s) => s.skills);
+  const skillsLoading = useExtensionsStore((s) => s.skillsLoading);
+  const skillsLoaded = useExtensionsStore((s) => s.skillsLoaded);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
 
@@ -664,7 +666,7 @@ function SkillsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
     return map;
   }, [filteredSkills]);
 
-  if (skillsLoading) {
+  if (!skillsLoaded || skillsLoading) {
     return (
       <div style={{ textAlign: 'center', padding: '40px 16px' }}>
         <LoadingOutlined style={{ fontSize: 24, color: tokens.text.muted, display: 'block', marginBottom: 12 }} />
@@ -738,10 +740,12 @@ function SkillsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
 
 function ChannelsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
   const { t } = useTranslation();
-  const { channels, channelsLoading } = useExtensionsStore();
+  const channels = useExtensionsStore((s) => s.channels);
+  const channelsLoading = useExtensionsStore((s) => s.channelsLoading);
+  const channelsLoaded = useExtensionsStore((s) => s.channelsLoaded);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  if (channelsLoading) {
+  if (!channelsLoaded || channelsLoading) {
     return (
       <div style={{ textAlign: 'center', padding: '40px 16px' }}>
         <LoadingOutlined style={{ fontSize: 24, color: tokens.text.muted, display: 'block', marginBottom: 12 }} />
@@ -871,7 +875,18 @@ export default function ExtensionsPanel() {
   const { loadSkills, loadChannels, loadPlugins } = useExtensionsStore();
 
   const [activeTab, setActiveTab] = useState<SubTab>('skills');
-  const [isPending, startTransition] = useTransition();
+  // Track which tabs have been visited — render once, then keep in DOM with display:none
+  const [visited, setVisited] = useState<Set<SubTab>>(() => new Set(['skills']));
+
+  const handleTabChange = useCallback((tab: SubTab) => {
+    setActiveTab(tab);
+    setVisited((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
+  }, []);
 
   // Load data on connection
   useEffect(() => {
@@ -946,7 +961,7 @@ export default function ExtensionsPanel() {
         <Segmented
           block
           value={activeTab}
-          onChange={(val) => startTransition(() => setActiveTab(val as SubTab))}
+          onChange={(val) => handleTabChange(val as SubTab)}
           options={[
             { label: t('extensions.tabs.skills', 'Skills'), value: 'skills' },
             { label: t('extensions.tabs.channels', 'Channels'), value: 'channels' },
@@ -956,24 +971,23 @@ export default function ExtensionsPanel() {
         />
       </div>
 
-      {/* Content — show spinner overlay during tab transition */}
-      <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
-        {isPending && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--surface)',
-            zIndex: 1,
-          }}>
-            <LoadingOutlined style={{ fontSize: 24, color: tokens.text.muted }} />
+      {/* Content — visited tabs stay in DOM (display:none), switching is instant CSS toggle */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {visited.has('skills') && (
+          <div style={{ display: activeTab === 'skills' ? 'block' : 'none', height: '100%' }}>
+            <SkillsTab tokens={tokens} />
           </div>
         )}
-        {activeTab === 'skills' && <SkillsTab tokens={tokens} />}
-        {activeTab === 'channels' && <ChannelsTab tokens={tokens} />}
-        {activeTab === 'plugins' && <PluginsTab tokens={tokens} />}
+        {visited.has('channels') && (
+          <div style={{ display: activeTab === 'channels' ? 'block' : 'none', height: '100%' }}>
+            <ChannelsTab tokens={tokens} />
+          </div>
+        )}
+        {visited.has('plugins') && (
+          <div style={{ display: activeTab === 'plugins' ? 'block' : 'none', height: '100%' }}>
+            <PluginsTab tokens={tokens} />
+          </div>
+        )}
       </div>
     </div>
   );
