@@ -54,6 +54,7 @@ coverage/
 # Temp
 .tmp/
 .tools/
+.act/
 dashboard/test-image-send.mjs
 
 # Lock files (using pnpm, not npm)

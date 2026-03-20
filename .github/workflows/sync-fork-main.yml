@@ -1,0 +1,48 @@
+name: Sync Fork Main
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-fork-main
+  cancel-in-progress: false
+
+jobs:
+  sync-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/wentorai/Research-Claw.git
+          git remote -v
+
+      - name: Fetch upstream main
+        run: git fetch upstream main
+
+      - name: Merge upstream/main into main
+        run: |
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "origin/main already contains upstream/main"
+            exit 0
+          fi
+
+          git merge --no-edit upstream/main
+
+      - name: Push updated main
+        run: git push origin HEAD:main
