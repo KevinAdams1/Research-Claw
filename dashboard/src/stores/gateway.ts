@@ -42,15 +42,26 @@ export const useGatewayStore = create<GatewayState>()((set, get) => ({
       },
       onHello: (hello: HelloOk) => {
         get().setServerInfo(hello);
-        // Reset orphaned chat streaming state from before disconnect/refresh.
-        // Any in-flight run's final event was lost during the disconnect window.
-        // Matches OC: app-gateway.ts:218-221
+        // Fix 2 — Reconnection-safe streaming state reset.
+        // Old behavior: unconditionally clear streaming/runId on every reconnect.
+        // Problem: if the user sent a message that the gateway queued (collect mode),
+        // the WS reconnection destroys the pending run state. Combined with
+        // loadHistory() not finding the queued message in the transcript, the
+        // optimistic user message vanishes.
+        //
+        // New behavior: if we have a pending runId (user sent a message and is
+        // waiting for a response), keep the runId and streaming state alive.
+        // The stale-stream timer (60s) will recover if the run is truly dead.
+        // Only clear streamText (partial stream data was lost during reconnect).
         void import('./chat').then(({ useChatStore }) => {
-          useChatStore.setState({
-            streaming: false,
-            streamText: null,
-            runId: null,
-          });
+          const { runId } = useChatStore.getState();
+          if (runId) {
+            // Pending user-initiated run — preserve state, clear partial stream
+            useChatStore.setState({ streamText: null });
+          } else {
+            // No pending run — reset orphaned state (original behavior)
+            useChatStore.setState({ streaming: false, streamText: null, runId: null });
+          }
         });
         // Reset retry counter for fresh evaluation on (re)connection
         useConfigStore.setState({ _configRetryCount: 0 });
