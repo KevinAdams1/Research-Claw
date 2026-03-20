@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import CardContainer from './CardContainer';
 import { useConfigStore } from '@/stores/config';
 import { useGatewayStore } from '@/stores/gateway';
+import { useChatStore } from '@/stores/chat';
 import { getThemeTokens } from '@/styles/theme';
 import type { ApprovalCard as ApprovalCardType } from '@/types/cards';
 
@@ -29,29 +30,37 @@ export default function ApprovalCard(props: ApprovalCardProps) {
   const theme = useConfigStore((s) => s.theme);
   const tokens = getThemeTokens(theme);
   const client = useGatewayStore((s) => s.client);
+  const chatSend = useChatStore((s) => s.send);
   const [status, setStatus] = useState<ApprovalStatus>('pending');
 
   const borderColor = RISK_BORDER_COLORS[props.risk_level] ?? '#F59E0B';
 
   const handleResolve = useCallback(async (decision: 'allow-once' | 'allow-always' | 'deny') => {
-    if (!client || !props.approval_id) {
-      // No approval_id: update visual state only (informational card).
-      // The onResolve callback may also fire if the parent provided one.
-      setStatus(decision === 'deny' ? 'denied' : 'allowed');
-      props.onResolve?.(decision);
-      return;
+    const isApproved = decision !== 'deny';
+    const newStatus: ApprovalStatus = isApproved ? 'allowed' : 'denied';
+
+    if (props.approval_id && client) {
+      // OC native exec.approval system — call the RPC (agent is blocking on Promise).
+      try {
+        await client.request('exec.approval.resolve', {
+          id: props.approval_id,
+          decision,
+        });
+      } catch {
+        // Error handled by gateway layer
+      }
+    } else {
+      // RC custom approval card — no blocking Promise exists.
+      // Send a chat message so the agent receives the user's decision.
+      const message = isApproved
+        ? `✅ 已批准: ${props.action}`
+        : `❌ 已拒绝: ${props.action}`;
+      chatSend(message).catch(() => {});
     }
-    try {
-      await client.request('exec.approval.resolve', {
-        id: props.approval_id,
-        decision,
-      });
-      setStatus(decision === 'deny' ? 'denied' : 'allowed');
-      props.onResolve?.(decision);
-    } catch {
-      // Error handled by gateway layer
-    }
-  }, [client, props]);
+
+    setStatus(newStatus);
+    props.onResolve?.(decision);
+  }, [client, chatSend, props]);
 
   const riskLabel = {
     low: t('card.approval.riskLow'),

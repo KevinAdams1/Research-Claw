@@ -373,10 +373,10 @@ research-claw/
 
 ```bash
 # 1. 停止运行中的进程
-cd ~/Research-Claw && pnpm stop 2>/dev/null
+pkill -f "openclaw.*gateway" 2>/dev/null
 
 # 2. 删除项目目录
-rm -rf ~/Research-Claw
+rm -rf ~/research-claw
 
 # 3. 删除本地数据（数据库、配置、记忆）
 rm -rf ~/.research-claw
@@ -384,7 +384,10 @@ rm -rf ~/.research-claw
 # 4.（可选）删除 OpenClaw 全局配置
 rm -rf ~/.openclaw
 
-# 5.（可选）清除 pnpm 全局缓存
+# 5.（可选）删除 CLI wrapper
+rm -f ~/.local/bin/openclaw
+
+# 6.（可选）清除 pnpm 全局缓存
 pnpm store prune
 ```
 
@@ -398,18 +401,18 @@ docker stop research-claw && docker rm research-claw
 docker rmi ghcr.io/wentorai/research-claw:latest
 
 # 3.（可选）删除持久化数据（配置、数据库、工作区）
-docker volume rm rc-config rc-data rc-workspace
+docker volume rm rc-config rc-data rc-workspace rc-state
 ```
 
 Windows PowerShell 命令相同，在 PowerShell 中逐行执行即可。
 
-> **注意**：执行第 3 步将永久删除所有数据（论文库、任务、工作区文件、雷达配置）。如需保留数据，跳过此步。
+> **注意**：执行第 3 步将永久删除所有数据（论文库、任务、工作区文件、会话历史）。如需保留数据，跳过此步。
 
 ### WSL2（Windows 手动安装）
 
 ```powershell
 # 1. 在 WSL2 中停止并删除（同 Linux 步骤）
-wsl -e bash -c "cd ~/Research-Claw && pnpm stop 2>/dev/null; rm -rf ~/Research-Claw ~/.research-claw ~/.openclaw"
+wsl -e bash -c "pkill -f 'openclaw.*gateway' 2>/dev/null; rm -rf ~/research-claw ~/.research-claw ~/.openclaw ~/.local/bin/openclaw"
 
 # 2.（可选）如果 WSL2 仅用于科研龙虾，可以完全卸载 WSL 发行版
 wsl --unregister Ubuntu

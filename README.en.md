@@ -373,10 +373,10 @@ research-claw/
 
 ```bash
 # 1. Stop the running process
-cd ~/Research-Claw && pnpm stop 2>/dev/null
+pkill -f "openclaw.*gateway" 2>/dev/null
 
 # 2. Remove the project directory
-rm -rf ~/Research-Claw
+rm -rf ~/research-claw
 
 # 3. Remove local data (database, config, memory)
 rm -rf ~/.research-claw
@@ -384,7 +384,10 @@ rm -rf ~/.research-claw
 # 4. (Optional) Remove OpenClaw global config
 rm -rf ~/.openclaw
 
-# 5. (Optional) Clean pnpm global cache
+# 5. (Optional) Remove CLI wrapper
+rm -f ~/.local/bin/openclaw
+
+# 6. (Optional) Clean pnpm global cache
 pnpm store prune
 ```
 
@@ -398,18 +401,18 @@ docker stop research-claw && docker rm research-claw
 docker rmi ghcr.io/wentorai/research-claw:latest
 
 # 3. (Optional) Remove persistent data (config, database, workspace)
-docker volume rm rc-config rc-data rc-workspace
+docker volume rm rc-config rc-data rc-workspace rc-state
 ```
 
 On Windows, run the same commands in PowerShell.
 
-> **Warning**: Step 3 permanently deletes all data (paper library, tasks, workspace files, radar config). Skip this step if you want to keep your data.
+> **Warning**: Step 3 permanently deletes all data (paper library, tasks, workspace files, session history). Skip this step if you want to keep your data.
 
 ### WSL2 (Windows Manual Install)
 
 ```powershell
 # 1. Stop and remove inside WSL2 (same as Linux steps)
-wsl -e bash -c "cd ~/Research-Claw && pnpm stop 2>/dev/null; rm -rf ~/Research-Claw ~/.research-claw ~/.openclaw"
+wsl -e bash -c "pkill -f 'openclaw.*gateway' 2>/dev/null; rm -rf ~/research-claw ~/.research-claw ~/.openclaw ~/.local/bin/openclaw"
 
 # 2. (Optional) If WSL2 was only used for Research-Claw, unregister the distro entirely
 wsl --unregister Ubuntu
