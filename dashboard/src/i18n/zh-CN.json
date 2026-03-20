@@ -469,6 +469,8 @@
     "newProject": "新建项目...",
     "switchProject": "切换项目",
     "mainSession": "主会话",
+    "searchSessions": "搜索会话...",
+    "noResults": "无匹配会话",
     "renamePrompt": "输入新名称：",
     "deleteConfirm": "删除此项目？聊天记录将丢失。"
   },

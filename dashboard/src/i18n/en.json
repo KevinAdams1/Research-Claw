@@ -469,6 +469,8 @@
     "newProject": "New Project...",
     "switchProject": "Switch Project",
     "mainSession": "Main Session",
+    "searchSessions": "Search sessions...",
+    "noResults": "No matching sessions",
     "renamePrompt": "Enter new name:",
     "deleteConfirm": "Delete this project? Chat history will be lost."
   },

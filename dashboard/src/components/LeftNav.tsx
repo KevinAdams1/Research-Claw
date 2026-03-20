@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo } from 'react';
-import { Button, Dropdown, Tooltip, Typography, type MenuProps } from 'antd';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Dropdown, Input, Tooltip, Typography, type MenuProps } from 'antd';
 import {
   ApiOutlined,
   BookOutlined,
@@ -13,6 +13,7 @@ import {
   PlusOutlined,
   DeleteOutlined,
   EditOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useUiStore, type PanelTab } from '../stores/ui';
@@ -93,70 +94,141 @@ export default function LeftNav() {
     }
   };
 
-  // Build project switcher dropdown items
-  const projectMenuItems = useMemo(() => {
-    const items: NonNullable<MenuProps['items']> = [];
+  // ── Project switcher dropdown content ──────────────────────────────────────
 
-    // Session items — sorted by updatedAt desc (server already does this)
-    for (const session of sessions.slice(0, 15)) {
-      const isActive = session.key === activeSessionKey;
-      const isMain = isMainSession(session.key);
-      const name = getSessionName(session, t);
+  const [sessionSearch, setSessionSearch] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-      items.push({
-        key: session.key,
-        label: (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 180 }}>
+  // Reset search when dropdown closes
+  const handleDropdownOpenChange = useCallback((open: boolean) => {
+    setDropdownOpen(open);
+    if (!open) setSessionSearch('');
+  }, []);
+
+  const filteredSessions = useMemo(() => {
+    const list = sessions.slice(0, 30);
+    if (!sessionSearch.trim()) return list;
+    const q = sessionSearch.toLowerCase();
+    return list.filter((s) => {
+      const name = getSessionName(s, t).toLowerCase();
+      return name.includes(q);
+    });
+  }, [sessions, sessionSearch, t]);
+
+  const projectDropdownRender = useCallback(() => (
+    <div
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        boxShadow: '0 6px 16px rgba(0,0,0,0.3)',
+        minWidth: 220,
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: '66vh',
+      }}
+    >
+      {/* Search */}
+      <div style={{ padding: '8px 8px 4px' }}>
+        <Input
+          size="small"
+          placeholder={t('project.searchSessions', 'Search sessions...')}
+          prefix={<SearchOutlined style={{ color: 'var(--text-tertiary)' }} />}
+          value={sessionSearch}
+          onChange={(e) => setSessionSearch(e.target.value)}
+          allowClear
+          autoFocus
+          onKeyDown={(e) => e.stopPropagation()}
+        />
+      </div>
+
+      {/* Scrollable session list */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+        {filteredSessions.map((session) => {
+          const isActive = session.key === activeSessionKey;
+          const isMain = isMainSession(session.key);
+          const name = getSessionName(session, t);
+
+          return (
             <div
+              key={session.key}
+              onClick={() => { switchSession(session.key); setDropdownOpen(false); }}
               style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                flexShrink: 0,
-                background: isActive ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                cursor: 'pointer',
+                background: isActive ? 'var(--surface-active)' : 'transparent',
+                transition: 'background 0.1s',
               }}
-            />
-            <span style={{ flex: 1, fontWeight: isActive ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {name}
-            </span>
-            {/* Rename button */}
-            <EditOutlined
-              style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}
-              onClick={(e) => { e.stopPropagation(); handleRename(session.key, name); }}
-            />
-            {/* Delete button — hidden for main session */}
-            {!isMain && (
-              <DeleteOutlined
-                style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}
-                onClick={(e) => { e.stopPropagation(); handleDelete(session.key); }}
+              onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--surface-hover)'; }}
+              onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              <div
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                  background: isActive ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+                }}
               />
-            )}
+              <span style={{
+                flex: 1,
+                fontWeight: isActive ? 600 : 400,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontSize: 13,
+                color: 'var(--text-primary)',
+              }}>
+                {name}
+              </span>
+              <EditOutlined
+                style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}
+                onClick={(e) => { e.stopPropagation(); handleRename(session.key, name); }}
+              />
+              {!isMain && (
+                <DeleteOutlined
+                  style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(session.key); }}
+                />
+              )}
+            </div>
+          );
+        })}
+        {filteredSessions.length === 0 && (
+          <div style={{ padding: '8px 12px', color: 'var(--text-tertiary)', fontSize: 12, textAlign: 'center' }}>
+            {t('project.noResults', 'No matching sessions')}
           </div>
-        ),
-        onClick: () => switchSession(session.key),
-      });
-    }
+        )}
+      </div>
 
-    // Divider + "New Project"
-    if (sessions.length > 0) {
-      items.push({ key: 'divider', type: 'divider' });
-    }
-    items.push({
-      key: 'new',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      {/* Fixed footer: New Project */}
+      <div style={{ borderTop: '1px solid var(--border)', padding: '4px 0' }}>
+        <div
+          onClick={async () => { await createSession(); setDropdownOpen(false); }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 12px',
+            cursor: 'pointer',
+            color: 'var(--text-secondary)',
+            fontSize: 13,
+            transition: 'background 0.1s',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-hover)'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        >
           <PlusOutlined style={{ fontSize: 12 }} />
           <span>{t('project.newProject')}</span>
         </div>
-      ),
-      onClick: async () => {
-        await createSession();
-      },
-    });
-
-    return items;
+      </div>
+    </div>
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions, activeSessionKey, t]);
+  ), [filteredSessions, activeSessionKey, sessionSearch, t]);
 
   const activeSessionLabel = useMemo(() => {
     const session = sessions.find((s) => s.key === activeSessionKey);
@@ -186,7 +258,7 @@ export default function LeftNav() {
       >
         {collapsed ? (
           <Tooltip title={t('project.switchProject')} placement="right">
-            <Dropdown menu={{ items: projectMenuItems, style: { maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' } }} trigger={['click']} placement="bottomLeft">
+            <Dropdown open={dropdownOpen} onOpenChange={handleDropdownOpenChange} dropdownRender={projectDropdownRender} trigger={['click']} placement="bottomLeft">
               <Button
                 type="text"
                 icon={<AppstoreOutlined />}
@@ -195,7 +267,7 @@ export default function LeftNav() {
             </Dropdown>
           </Tooltip>
         ) : (
-          <Dropdown menu={{ items: projectMenuItems, style: { maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' } }} trigger={['click']} placement="bottomLeft">
+          <Dropdown open={dropdownOpen} onOpenChange={handleDropdownOpenChange} dropdownRender={projectDropdownRender} trigger={['click']} placement="bottomLeft">
             <div
               style={{
                 display: 'flex',
