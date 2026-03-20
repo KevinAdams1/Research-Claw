@@ -17,6 +17,17 @@ Tracks: `Dashboard` (S1), `Modules` (S2), `Plugins` (S3), `Prompt` (S4), `Infra`
 
 ## Log
 
+### 2026-03-20 — Extensions Skills Tab Performance Fix
+
+- [2026-03-20] [Dashboard] [Claude] perf: Skills tab virtual scrolling — react-window v2 `List`, DOM 7500→450 nodes (94% reduction)
+- [2026-03-20] [Dashboard] [Claude] perf: `SkillCard` wrapped in `React.memo` + stable props (`onToggleExpand`/`onToggle` lifted to parent)
+- [2026-03-20] [Dashboard] [Claude] perf: removed 500× `useExtensionsStore()` subscriptions from SkillCard — store access moved to SkillsTab
+- [2026-03-20] [Dashboard] [Claude] perf: memoized `activeCount`/`totalCount` in ExtensionsPanel header
+- [2026-03-20] [Dashboard] [Claude] fix: content wrapper `overflow: hidden` + per-tab scroll strategy (virtual for skills, native for channels/plugins)
+- [2026-03-20] [Dashboard] [Claude] test: added react-window mock for jsdom (no ResizeObserver), 10/10 component + 12/12 store tests pass
+- [2026-03-20] [Dashboard] [Claude] docs: 踩坑记录 `extensions-skills-tab-lag.md` — 4-layer root cause + react-window v2 migration pitfalls
+- [2026-03-20] [Infra] [Claude] Tests: 57 files, 1069/1074 pass (5 bootstrap pre-existing from AGENTS.md rewrite)
+
 ### 2026-03-20 — Dashboard Panel Empty State Fix (Issue #10)
 
 - [2026-03-20] [Dashboard] [Claude] fix: TaskPanel early return on empty state hid Segmented tab control — user trapped on empty "助手任务" tab, required page refresh to escape

@@ -7,6 +7,9 @@
  *   - Plugins:  Plugin entries from openclaw.json
  *
  * Pattern: follows MonitorPanel (expandable cards + toggle switches)
+ *
+ * Performance: Skills tab uses react-window v2 virtual list to handle 500+ skills
+ * without DOM bloat. SkillCard is React.memo'd with stable props.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -26,6 +29,7 @@ import {
   UpOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import { List } from 'react-window';
 import { useGatewayStore } from '../../stores/gateway';
 import { useConfigStore } from '../../stores/config';
 import {
@@ -46,22 +50,62 @@ const { Search } = Input;
 
 type SubTab = 'skills' | 'channels' | 'plugins';
 
-// ── Skill Card ──────────────────────────────────────────────────────────────
+// ── Virtual list types & constants ───────────────────────────────────────────
 
-function SkillCard({
+type FlatItem =
+  | { type: 'header'; group: SkillGroup }
+  | { type: 'skill'; skill: SkillStatusEntry };
+
+interface SkillRowProps {
+  flatItems: FlatItem[];
+  expandedKey: string | null;
+  onToggleExpand: (skillKey: string) => void;
+  onToggle: (skillKey: string, enabled: boolean) => Promise<void>;
+  tokens: ReturnType<typeof getThemeTokens>;
+  groupLabels: Record<string, string>;
+}
+
+const COLLAPSED_SKILL_HEIGHT = 52;
+const GROUP_HEADER_HEIGHT = 36;
+
+function estimateExpandedHeight(skill: SkillStatusEntry): number {
+  let h = 50; // collapsed row
+  h += 22; // detail padding (8 top + 12 bottom + marginTop -2 overlap)
+  h += 20; // key line + margin
+  h += 20; // source line + margin
+  h += 20; // path line + margin
+  const reqCount =
+    skill.requirements.bins.length +
+    skill.configChecks.length +
+    skill.requirements.env.length;
+  if (reqCount > 0) {
+    h += 20; // "Requirements:" label
+    h += reqCount * 18;
+    h += 8; // section margin
+  }
+  if (skill.homepage) h += 26;
+  h += 44; // action buttons + marginTop
+  h += 16; // safety buffer
+  return h;
+}
+
+// ── Skill Card (memoized) ────────────────────────────────────────────────────
+
+const SkillCard = React.memo(function SkillCard({
   skill,
   expanded,
   onToggleExpand,
+  onToggle,
   tokens,
 }: {
   skill: SkillStatusEntry;
   expanded: boolean;
-  onToggleExpand: () => void;
+  onToggleExpand: (skillKey: string) => void;
+  onToggle: (skillKey: string, enabled: boolean) => Promise<void>;
   tokens: ReturnType<typeof getThemeTokens>;
 }) {
   const { t } = useTranslation();
   const { message: messageApi } = App.useApp();
-  const { toggleSkill } = useExtensionsStore();
 
   const isActive = !skill.disabled && skill.eligible;
   const hasMissing =
@@ -71,7 +115,7 @@ function SkillCard({
 
   const handleToggle = useCallback(
     (checked: boolean) => {
-      toggleSkill(skill.skillKey, checked).then(() => {
+      onToggle(skill.skillKey, checked).then(() => {
         messageApi.success(
           checked
             ? t('extensions.skills.enableSuccess', 'Skill enabled')
@@ -81,7 +125,7 @@ function SkillCard({
         messageApi.error(t('extensions.skills.updateFailed', 'Failed to update skill'));
       });
     },
-    [skill.skillKey, toggleSkill, messageApi, t],
+    [skill.skillKey, onToggle, messageApi, t],
   );
 
   const handleCopyPath = useCallback((path: string) => {
@@ -100,15 +144,19 @@ function SkillCard({
     return `~/${parts.slice(-3).join('/')}`;
   }, [skill.filePath]);
 
+  const handleExpand = useCallback(() => {
+    onToggleExpand(skill.skillKey);
+  }, [onToggleExpand, skill.skillKey]);
+
   return (
     <>
       {/* Collapsed row */}
       <div
-        onClick={onToggleExpand}
+        onClick={handleExpand}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onToggleExpand();
+            handleExpand();
           }
         }}
         role="button"
@@ -272,6 +320,56 @@ function SkillCard({
         </div>
       )}
     </>
+  );
+});
+
+// ── Skill Row (virtual list row renderer for react-window v2) ────────────────
+
+function SkillRow({
+  index,
+  style,
+  flatItems,
+  expandedKey,
+  onToggleExpand,
+  onToggle,
+  tokens,
+  groupLabels,
+}: SkillRowProps & {
+  index: number;
+  style: React.CSSProperties;
+  ariaAttributes: { 'aria-posinset': number; 'aria-setsize': number; role: 'listitem' };
+}) {
+  const item = flatItems[index];
+  if (!item) return null;
+
+  if (item.type === 'header') {
+    return (
+      <div style={{ ...style, padding: '8px 12px 4px' }}>
+        <Text
+          style={{
+            color: tokens.text.muted,
+            fontSize: 11,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}
+        >
+          {groupLabels[item.group] ?? item.group}
+        </Text>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...style, padding: '0 8px' }}>
+      <SkillCard
+        skill={item.skill}
+        expanded={expandedKey === item.skill.skillKey}
+        onToggleExpand={onToggleExpand}
+        onToggle={onToggle}
+        tokens={tokens}
+      />
+    </div>
   );
 }
 
@@ -629,13 +727,14 @@ function PluginCard({
   );
 }
 
-// ── Skills Sub-Tab ──────────────────────────────────────────────────────────
+// ── Skills Sub-Tab (virtualized) ─────────────────────────────────────────────
 
 function SkillsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
   const { t } = useTranslation();
   const skills = useExtensionsStore((s) => s.skills);
   const skillsLoading = useExtensionsStore((s) => s.skillsLoading);
   const skillsLoaded = useExtensionsStore((s) => s.skillsLoaded);
+  const toggleSkill = useExtensionsStore((s) => s.toggleSkill);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
 
@@ -650,21 +749,62 @@ function SkillsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
     );
   }, [skills, filter]);
 
-  const grouped = useMemo(() => {
+  // Flatten grouped skills into a single list for virtual rendering
+  const flatItems = useMemo(() => {
     const map = new Map<SkillGroup, SkillStatusEntry[]>();
-    for (const group of GROUP_ORDER) {
-      map.set(group, []);
-    }
+    for (const group of GROUP_ORDER) map.set(group, []);
     for (const skill of filteredSkills) {
       const group = classifySkill(skill);
       map.get(group)!.push(skill);
     }
-    // Remove empty groups
+    const items: FlatItem[] = [];
     for (const group of GROUP_ORDER) {
-      if (map.get(group)!.length === 0) map.delete(group);
+      const groupSkills = map.get(group)!;
+      if (groupSkills.length === 0) continue;
+      items.push({ type: 'header', group });
+      for (const skill of groupSkills) {
+        items.push({ type: 'skill', skill });
+      }
     }
-    return map;
+    return items;
   }, [filteredSkills]);
+
+  const handleToggleExpand = useCallback((skillKey: string) => {
+    setExpandedKey((prev) => (prev === skillKey ? null : skillKey));
+  }, []);
+
+  const groupLabels = useMemo(() => ({
+    local: t('extensions.skills.group.local', 'local'),
+    'research-plugins': t('extensions.skills.group.research-plugins', 'research-plugins'),
+    managed: t('extensions.skills.group.managed', 'managed'),
+    bundled: t('extensions.skills.group.bundled', 'bundled'),
+  }), [t]);
+
+  // Row height calculator — receives current rowProps so heights update when expandedKey changes
+  const getRowHeight = useCallback(
+    (index: number, rowProps: SkillRowProps): number => {
+      const item = rowProps.flatItems[index];
+      if (!item) return COLLAPSED_SKILL_HEIGHT;
+      if (item.type === 'header') return GROUP_HEADER_HEIGHT;
+      if (rowProps.expandedKey === item.skill.skillKey) {
+        return estimateExpandedHeight(item.skill);
+      }
+      return COLLAPSED_SKILL_HEIGHT;
+    },
+    [],
+  );
+
+  const rowProps = useMemo<SkillRowProps>(
+    () => ({
+      flatItems,
+      expandedKey,
+      onToggleExpand: handleToggleExpand,
+      onToggle: toggleSkill,
+      tokens,
+      groupLabels,
+    }),
+    [flatItems, expandedKey, handleToggleExpand, toggleSkill, tokens, groupLabels],
+  );
 
   if (!skillsLoaded || skillsLoading) {
     return (
@@ -689,9 +829,9 @@ function SkillsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
   }
 
   return (
-    <div>
+    <>
       {/* Search/filter */}
-      <div style={{ padding: '8px 12px 4px' }}>
+      <div style={{ padding: '8px 12px 4px', flexShrink: 0 }}>
         <Search
           placeholder={t('extensions.skills.search', 'Filter skills...')}
           value={filter}
@@ -701,38 +841,17 @@ function SkillsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
         />
       </div>
 
-      {/* Grouped skill list */}
-      <div style={{ padding: '4px 8px' }}>
-        {GROUP_ORDER.filter((g) => grouped.has(g)).map((group) => (
-          <div key={group} style={{ marginBottom: 12 }}>
-            <Text
-              style={{
-                color: tokens.text.muted,
-                fontSize: 11,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-                display: 'block',
-                padding: '8px 4px 4px',
-              }}
-            >
-              {t(`extensions.skills.group.${group}`, group)}
-            </Text>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {grouped.get(group)!.map((skill) => (
-                <SkillCard
-                  key={skill.skillKey}
-                  skill={skill}
-                  expanded={expandedKey === skill.skillKey}
-                  onToggleExpand={() => setExpandedKey((prev) => (prev === skill.skillKey ? null : skill.skillKey))}
-                  tokens={tokens}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+      {/* Virtualized skill list — react-window v2 auto-sizes via ResizeObserver */}
+      <List<SkillRowProps>
+        rowComponent={SkillRow}
+        rowCount={flatItems.length}
+        rowHeight={getRowHeight}
+        rowProps={rowProps}
+        overscanCount={10}
+        defaultHeight={600}
+        style={{ flex: '1 1 0', minHeight: 0 }}
+      />
+    </>
   );
 }
 
@@ -903,12 +1022,16 @@ export default function ExtensionsPanel() {
 
   const isLoading = activeTab === 'skills' ? skillsLoading : activeTab === 'channels' ? channelsLoading : false;
 
-  const totalCount = skills.length + channels.length;
-  const activeCount = skills.filter((s) => !s.disabled && s.eligible).length +
-    channels.filter((c) => {
-      const account = c.accounts.find((a) => a.accountId === c.defaultAccountId) ?? c.accounts[0];
-      return account?.connected === true;
-    }).length;
+  const totalCount = useMemo(() => skills.length + channels.length, [skills, channels]);
+  const activeCount = useMemo(
+    () =>
+      skills.filter((s) => !s.disabled && s.eligible).length +
+      channels.filter((c) => {
+        const account = c.accounts.find((a) => a.accountId === c.defaultAccountId) ?? c.accounts[0];
+        return account?.connected === true;
+      }).length,
+    [skills, channels],
+  );
 
   if (!isConnected) {
     return (
@@ -971,20 +1094,20 @@ export default function ExtensionsPanel() {
         />
       </div>
 
-      {/* Content — visited tabs stay in DOM (display:none), switching is instant CSS toggle */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      {/* Content — Skills uses virtual list (internal scroll), Channels/Plugins use native scroll */}
+      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         {visited.has('skills') && (
-          <div style={{ display: activeTab === 'skills' ? 'block' : 'none', height: '100%' }}>
+          <div style={{ display: activeTab === 'skills' ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
             <SkillsTab tokens={tokens} />
           </div>
         )}
         {visited.has('channels') && (
-          <div style={{ display: activeTab === 'channels' ? 'block' : 'none', height: '100%' }}>
+          <div style={{ display: activeTab === 'channels' ? 'block' : 'none', height: '100%', overflow: 'auto' }}>
             <ChannelsTab tokens={tokens} />
           </div>
         )}
         {visited.has('plugins') && (
-          <div style={{ display: activeTab === 'plugins' ? 'block' : 'none', height: '100%' }}>
+          <div style={{ display: activeTab === 'plugins' ? 'block' : 'none', height: '100%', overflow: 'auto' }}>
             <PluginsTab tokens={tokens} />
           </div>
         )}

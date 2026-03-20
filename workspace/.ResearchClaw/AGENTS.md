@@ -1,6 +1,6 @@
 ---
 file: AGENTS.md
-version: 3.4
+version: 3.5
 updated: 2026-03-20
 ---
 
@@ -57,27 +57,29 @@ Academic queries should primarily use L1 API tools — not `web_search`.
 
 | Trigger (zh/en) | Primary tool | Fallback |
 |:----------------|:------------|:---------|
-| 搜论文 / search papers | search_arxiv, search_crossref | search_openalex, skill: literature/search |
-| 最新论文 / latest papers | search_arxiv (按时间排序), search_crossref (按时间排序) | search_openalex, browser → 排序参数见 TOOLS.md §2 |
+| 搜论文 / search papers | search_arxiv, search_crossref | search_openalex, browse skills/literature/search/ |
+| 最新论文 / latest papers | search_arxiv (按时间排序), search_crossref (按时间排序) | search_openalex, browser → TOOLS.md §2 |
 | 入库 / add paper | library_add_paper | library_batch_add |
 | 标签 / tag | library_tag_paper | library_manage_collection |
-| 引用 / cite / bibtex | library_export_bibtex | skill: writing/citation |
-| 写 / 草稿 / draft | workspace_save | skill: writing/composition |
+| 引用 / cite / bibtex | library_export_bibtex | browse skills/writing/citation/ |
+| 写 / 草稿 / draft | workspace_save | browse skills/writing/composition/ |
 | 任务 / 截止 / deadline | task_create, task_list | — |
 | 监控 / 追踪 / monitor | monitor_create, monitor_list, monitor_report | monitor_get_context, monitor_note |
 | 通知 / 提醒 / notify | send_notification | — |
 | 定时 / 定期 / cron | cron (built-in) | — |
-| 统计 / 分析 / stats | — | skill: analysis/* |
-| 写作 / 润色 / polish | — | skill: writing/polish |
-| 领域 / 学科 / domain | — | skill: domains/* |
+| 统计 / 分析 / stats | — | browse skills/analysis/ |
+| 写作 / 润色 / polish | — | browse skills/writing/polish/ |
+| 领域 / 学科 / domain | — | browse skills/domains/ |
 | 导入 / 添加PDF / import PDF | library_add_paper | Read (built-in) + search_arxiv |
-| Zotero 导入 / import Zotero | library_zotero_detect → import | Fallback chain: §3 Local Library Bridge |
-| 同步到 Zotero / sync to Zotero | library_export_bibtex → guide import | With API Key: library_zotero_web_* (§3) |
+| Zotero 导入 / import Zotero | library_zotero_detect → import | research-sop Layer 0 fallback chain |
+| 同步到 Zotero / sync to Zotero | library_export_bibtex → guide import | With API Key: library_zotero_web_* |
 | EndNote 导入 / import EndNote | library_endnote_detect → import | BibTeX/RIS fallback |
 | RIS 导入 / import RIS | library_import_ris | library_import_bibtex |
-| 导出PDF / md2pdf / export PDF | skill: md2pdf-export | exec pandoc (fallback) |
+| 导出PDF / md2pdf / export PDF | skills/md2pdf-export/ | exec pandoc (fallback) |
 | 委托 / complex coding / 项目 | → §4 Professional Tool Delegation | exec CLI if available |
 | 配置 / 网关 / gateway | gateway (built-in) | — |
+| 自检 / health / 诊断 | → run health check (see SOP §6) | — |
+| 重新初始化 / re-onboard | Recreate BOOTSTRAP.md from .example → restart session | — |
 
 ### Special Tool Constraints
 
@@ -90,38 +92,14 @@ Academic queries should primarily use L1 API tools — not `web_search`.
 
 ### Local Library Bridge (Zotero / EndNote)
 
-Zotero and EndNote bridges read **local SQLite databases directly** (read-only).
-Full details → research-sop Layer 0.
+**Zotero fallback**: SQLite → Local API → Web API v3 → format export.
+**EndNote fallback**: SQLite → format export.
+Full details (Docker guidance, reverse path, other managers) → research-sop Layer 0.
 
-**Zotero fallback chain** (try in order, stop at first success):
-1. SQLite direct (`~/Zotero/zotero.sqlite`) — fastest, offline
-2. Local API (`localhost:23119`) — Zotero must be running
-3. Web API v3 (`api.zotero.org`) — needs API Key + User ID, supports CRUD
-4. Format export — `library_export_bibtex/ris` → guide user to File > Import
-
-**EndNote fallback chain**: SQLite direct (`.enl`) → Format export.
-
-**When `detect` returns `available: false`**:
-- **Docker env**: Explain: "Zotero/EndNote database is on your host machine; the
-  Docker container's filesystem is isolated. Alternatives: mount ~/Zotero as
-  volume, or export BibTeX/RIS from your reference manager and use
-  `library_import_bibtex` / `library_import_ris`."
-- **Native env**: "Not installed or database not at default path. You can specify
-  a custom path via the `db_path` parameter."
-
-**Reverse path (RC → Zotero/EndNote)**:
-- Zotero Web API Key configured → `library_zotero_web_create` (approval_card,
-  risk_level: medium). Write operations always require user confirmation.
-- No Key → `library_export_bibtex` (BibTeX or RIS) → guide user to import manually.
-  Suggest configuring Zotero API Key for direct sync.
-
-**Other reference managers** (Mendeley, ReadCube, Papers, JabRef, Citavi, etc.):
-No direct bridge. Guide user to: (1) export BibTeX/RIS from their tool →
-`library_import_bibtex` / `library_import_ris`; (2) if user has custom API/DB,
-use `web_fetch` or `exec` to query, then `library_batch_add`.
-
-**First detection**: When Zotero/EndNote is first discovered, record availability
-and path in MEMORY.md `## Global > ### Environment`.
+**Key behavior**:
+- `detect` → `available: false` in Docker → explain host isolation, suggest BibTeX/RIS.
+- Reverse write via Web API → `approval_card` (risk_level: medium).
+- First detection → record in MEMORY.md `## Global > ### Environment`.
 
 ### Dynamic Tool Priority
 
@@ -219,18 +197,21 @@ Local tools always take priority over skill guidance.
 
 ## §6 Cross-Module Handoff
 
-Five rules govern how modules coordinate:
+Six rules govern how modules coordinate:
 
 1. **monitor_report → new findings** → Present `paper_card` for each
    notable result. User selects which to add; only then call `library_add_paper`.
    Emit `monitor_digest` card with summary.
-2. **library_add_paper + active project** → Auto-call `task_link` to associate the
+2. **monitor_create → cron setup** → After creating a monitor, suggest scheduling
+   it via `cron`. On each cron tick: `monitor_get_context` → execute scan →
+   `monitor_report` → `monitor_note` observations. Save digest via `workspace_save`.
+3. **library_add_paper + active project** → Auto-call `task_link` to associate the
    paper with the current project task. (Reversible — no confirmation needed.)
-3. **task_complete → research task done** → Output a `progress_card` summarizing
+4. **task_complete → research task done** → Output a `progress_card` summarizing
    what was accomplished.
-4. **Phase 1 search complete** → Output a `progress_card` with search summary and
+5. **Phase 1 search complete** → Output a `progress_card` with search summary and
    suggest whether to proceed to Phase 2 (deep reading).
-5. **Phase 3 cites a paper** → First `library_search` to confirm it's in the local
+6. **Phase 3 cites a paper** → First `library_search` to confirm it's in the local
    library. If not found, add it before citing.
 
 ## §7 Tool Feedback
@@ -331,9 +312,9 @@ Required: `type`, `period`, `papers_read`, `papers_added`, `tasks_completed`,
 ### approval_card
 
 Required: `type`, `action` (string), `context` (string), `risk_level` ("low"|"medium"|"high").
-Optional: `details` (**must be a JSON object**, not a string — e.g. `{"paper_count": 7}`),
-`approval_id`. **IMPORTANT**: Always include `approval_id` from `exec.approval.requested`
+Required (for exec approvals): `approval_id` from `exec.approval.requested`
 — without it, dashboard buttons are non-functional.
+Optional: `details` (**must be a JSON object**, not a string — e.g. `{"paper_count": 7}`).
 
 ### file_card
 
