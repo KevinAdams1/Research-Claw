@@ -49,12 +49,46 @@ function clearStaleStreamTimer() {
   }
 }
 
+/**
+ * SessionStorage persistence for pending user messages.
+ * Survives browser refresh (F5) within the same tab so optimistic messages
+ * don't vanish when the gateway has queued them in-memory (collect mode).
+ */
+const PENDING_MSGS_STORAGE_KEY = 'rc-pending-user-msgs';
+const PENDING_EXPIRY_MS = 3 * 60 * 1000; // 3 min auto-expiry
+
+function savePendingMsgs(msgs: ChatMessage[]): void {
+  try {
+    if (msgs.length === 0) {
+      sessionStorage.removeItem(PENDING_MSGS_STORAGE_KEY);
+    } else {
+      sessionStorage.setItem(PENDING_MSGS_STORAGE_KEY, JSON.stringify(msgs));
+    }
+  } catch { /* storage full — non-fatal */ }
+}
+
+function loadPendingMsgs(): ChatMessage[] {
+  try {
+    const raw = sessionStorage.getItem(PENDING_MSGS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ChatMessage[];
+    // Filter out expired entries
+    const now = Date.now();
+    return parsed.filter((m) => m.timestamp && (now - m.timestamp) < PENDING_EXPIRY_MS);
+  } catch { return []; }
+}
+
 function isSilentReply(text: string | undefined): boolean {
   return text !== undefined && SILENT_REPLY_PATTERN.test(text);
 }
 
 /** Roles that should be displayed in the chat UI. */
 const VISIBLE_ROLES = new Set(['user', 'assistant']);
+const CRON_REMINDER_RE = /A scheduled reminder has been triggered\b/i;
+
+function isCronReminderInjection(text: string): boolean {
+  return CRON_REMINDER_RE.test(text);
+}
 
 /**
  * Strip system-injected context that OpenClaw stores inside user messages.
@@ -67,6 +101,11 @@ const VISIBLE_ROLES = new Set(['user', 'assistant']);
  *   2. `System: ...` lines (exec events, run commands, etc.)
  */
 function stripInjectedContext(text: string): string {
+  // Hide cron-injected reminder template messages from chat UI.
+  if (isCronReminderInjection(text)) {
+    return '';
+  }
+
   const lines = text.split('\n');
   const cleaned: string[] = [];
   let inRcBlock = false;
@@ -238,6 +277,20 @@ interface ChatState {
   tokensOut: number;
   /** Set when a seq gap is detected during streaming — cleared after deferred reload. */
   _pendingGapReload: boolean;
+  /**
+   * Optimistic user messages added to messages[] before the gateway persists them
+   * to the session transcript. When the gateway queues messages behind an active
+   * run (collect mode), the transcript won't contain them. loadHistory() uses
+   * this array to preserve ALL pending messages across transcript reloads.
+   * Cleared when: matching final event arrives (all resolved), or session switches.
+   * Auto-expires after 3 minutes to prevent stale messages from sticking.
+   */
+  _pendingUserMsgs: ChatMessage[];
+  /**
+   * Timestamp when streaming started (RPC ACK received). Used to prevent
+   * false-positive queue-drain detection from quick heartbeat/cron finals.
+   */
+  _streamStartedAt: number | null;
 
   send: (text: string, attachments?: ChatAttachment[]) => Promise<void>;
   abort: () => void;
@@ -251,8 +304,13 @@ interface ChatState {
   updateTokens: (input: number, output: number) => void;
 }
 
+// Restore pending messages from sessionStorage on module load (survives F5).
+const _restoredPendingMsgs = loadPendingMsgs();
+
 export const useChatStore = create<ChatState>()((set, get) => ({
-  messages: [],
+  // Initialize messages with restored pending so they're visible immediately
+  // after F5, before WS reconnects and loadHistory() runs.
+  messages: _restoredPendingMsgs,
   sending: false,
   streaming: false,
   streamText: null,
@@ -262,18 +320,23 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   tokensIn: 0,
   tokensOut: 0,
   _pendingGapReload: false,
+  _pendingUserMsgs: _restoredPendingMsgs,
+  _streamStartedAt: null,
 
   onGapDetected: () => {
-    if (!get().streaming) {
-      // Idle: debounced reload — batches multiple rapid gaps into one RPC
+    if (!get().streaming && !get().sending) {
+      // Idle & not mid-send: debounced reload — batches multiple rapid gaps into one RPC.
+      // The `sending` guard prevents reloads during the chat.send RPC await window,
+      // where the optimistic user message isn't in the transcript yet (gateway queues
+      // it in-memory in collect mode, NOT on disk).
       if (_gapDebounceTimer) clearTimeout(_gapDebounceTimer);
       _gapDebounceTimer = setTimeout(() => {
         _gapDebounceTimer = null;
         get().loadHistory();
       }, GAP_DEBOUNCE_MS);
     } else {
-      // Streaming: defer reload to avoid wiping streamText / causing duplication.
-      // The pending flag is consumed when streaming ends (final/aborted/error).
+      // Streaming or mid-send: defer reload to avoid wiping streamText / optimistic
+      // messages. The pending flag is consumed when streaming ends (final/aborted/error).
       set({ _pendingGapReload: true });
     }
   },
@@ -323,6 +386,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       lastError: null,
       streamText: null,
       runId: localRunId,
+      _pendingUserMsgs: [...s._pendingUserMsgs, userMessage],
     }));
 
     try {
@@ -416,7 +480,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         idempotencyKey: localRunId,
         ...(finalAttachments?.length ? { attachments: finalAttachments } : {}),
       });
-      set({ sending: false, streaming: true });
+      set({ sending: false, streaming: true, _streamStartedAt: Date.now() });
 
       // Start stale-streaming recovery timer. If no delta arrives within 60s,
       // loadHistory() will fetch the response from the gateway transcript.
@@ -426,18 +490,21 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         const s = get();
         if (s.streaming && !s.streamText) {
           console.log('[Chat] Stale streaming detected (60s no delta) — recovering via loadHistory');
-          set({ streaming: false, streamText: null, runId: null });
+          set({ streaming: false, streamText: null, runId: null, _streamStartedAt: null });
+          // Don't clear _pendingUserMessages here — loadHistory() will check and preserve it
           get().loadHistory();
         }
       }, STALE_STREAM_TIMEOUT_MS);
     } catch (err) {
       clearStaleStreamTimer();
-      // Match OC chat.ts:226-230: clear runId + chatStream on failure
+      // Match OC chat.ts:226-230: clear runId + chatStream on failure.
+      // Keep _pendingUserMessages so loadHistory() preserves the optimistic message.
       set({
         sending: false,
         streaming: false,
         streamText: null,
         runId: null,
+        _streamStartedAt: null,
         lastError: err instanceof Error ? err.message : 'Failed to send message',
       });
     }
@@ -461,7 +528,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     // If no runId, this is an orphan streaming state (e.g. after session switch
     // or reconnect). Clean up immediately — no server event will come.
     if (!runId) {
-      set({ streaming: false, streamText: null, runId: null });
+      set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null });
       return;
     }
 
@@ -479,9 +546,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             streaming: false,
             streamText: null,
             runId: null,
+            _pendingUserMsgs: [],
+            _streamStartedAt: null,
           }));
         } else {
-          set({ streaming: false, streamText: null, runId: null });
+          set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null });
         }
       }
     }, 3000);
@@ -514,7 +583,53 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           return { ...m, text: stripped };
         })
         .filter(Boolean) as ChatMessage[];
-      set({ messages: cleaned });
+
+      // Fix: Preserve optimistic user messages when the gateway has queued them
+      // (collect mode) but hasn't persisted them to the transcript yet.
+      // Without this, loadHistory() replaces messages[] and pending messages
+      // vanish because they only exist in the gateway's in-memory followup queue.
+      const now = Date.now();
+      const allPending = get()._pendingUserMsgs;
+      // Remove expired entries
+      const activePending = allPending.filter((m) =>
+        m.timestamp && (now - m.timestamp) < PENDING_EXPIRY_MS,
+      );
+
+      if (activePending.length > 0) {
+        // Filter out pending messages that are already in the transcript.
+        // A pending message is "resolved" if the transcript contains a user message
+        // whose text includes the pending text (covers both direct match and
+        // collect-mode combined format "[Queued messages...]\nQueued #1\n你好").
+        const transcriptUserTexts = cleaned
+          .filter((m) => m.role === 'user')
+          .map((m) => m.text ?? '');
+        const stillPending = activePending.filter((p) => {
+          const pText = p.text?.trim();
+          if (!pText) return false;
+          return !transcriptUserTexts.some((tt) => tt.includes(pText));
+        });
+
+        if (stillPending.length > 0) {
+          // Insert pending messages at their chronological positions in the transcript.
+          // This keeps the chat order correct (user msg above its response).
+          const merged = [...cleaned];
+          for (const p of stillPending) {
+            const pt = p.timestamp ?? 0;
+            const insertIdx = merged.findIndex((m) => (m.timestamp ?? 0) > pt);
+            if (insertIdx === -1) {
+              merged.push(p);
+            } else {
+              merged.splice(insertIdx, 0, p);
+            }
+          }
+          set({ messages: merged, _pendingUserMsgs: stillPending });
+        } else {
+          // All pending messages now in transcript — clear
+          set({ messages: cleaned, _pendingUserMsgs: [] });
+        }
+      } else {
+        set({ messages: cleaned, _pendingUserMsgs: [] });
+      }
     } catch {
       // History load failure is non-fatal
     }
@@ -562,9 +677,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       }
     }
 
-    // Any meaningful streaming event means the gateway is alive — cancel
-    // the stale-streaming recovery timer (started in send()).
-    clearStaleStreamTimer();
+    // Cancel the stale-streaming recovery timer ONLY for events matching our
+    // current run (or events without a runId, e.g. server-initiated).
+    // Events from OTHER runs (e.g. processing queued messages) must NOT cancel
+    // our timer — otherwise the 60s recovery never fires for rapid-fire sends.
+    if (!event.runId || !runId || event.runId === runId) {
+      clearStaleStreamTimer();
+    }
 
     switch (event.state) {
       case 'delta': {
@@ -575,6 +694,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         if (event.runId && runId && event.runId !== runId) return;
         // Skip non-visible roles (e.g. toolResult deltas)
         if (event.message && !isVisibleRole(event.message.role)) return;
+        if (event.message?.role === 'user') {
+          const raw = extractText(event.message);
+          if (isCronReminderInjection(raw)) return;
+        }
         const deltaText = event.message ? extractText(event.message) : '';
         // Gateway sends full accumulated text in each delta (not incremental).
         // Match OpenClaw native UI: REPLACE stream text, taking the longer value.
@@ -593,7 +716,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           // MiniMax and some providers send final without a message body.
           // Clear streaming state and reload history to show the result.
           if (event.runId === runId || (get().streaming && !runId)) {
-            set({ streaming: false, streamText: null, runId: null, _pendingGapReload: false });
+            set({ streaming: false, streamText: null, runId: null, _pendingGapReload: false, _streamStartedAt: null });
             get().loadHistory();
             setTimeout(() => {
               useLibraryStore.getState().loadPapers();
@@ -613,6 +736,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         if (!isVisibleRole(event.message.role)) return;
         const text = extractText(event.message);
         if (isSilentReply(text)) return;
+        if (event.message.role === 'user' && isCronReminderInjection(text)) return;
 
         const finalMsg: ChatMessage = {
           ...event.message,
@@ -626,6 +750,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             streaming: false,
             streamText: null,
             runId: null,
+            _pendingUserMsgs: [],
+            _streamStartedAt: null,
           }));
           // After a full conversation turn, refresh panel data
           // (the LLM may have used tools that modified library/tasks/workspace)
@@ -659,10 +785,45 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           // Sub-agent, heartbeat, cron, or different run — append message.
           // If this was a server-initiated run that we were streaming (runId was null),
           // clean up orphaned streaming state so UI doesn't stay stuck.
+          //
+          // Fix 4 — Queue-drain runId mismatch recovery:
+          // When gateway queues our message (collect mode) and drains it later,
+          // the drained run uses a NEW runId ≠ our localRunId. The response arrives
+          // here (else branch) because event.runId !== runId. Detect this case:
+          // we're streaming, never received any deltas (streamText is null), AND
+          // we've been waiting long enough (>5s) to rule out quick heartbeat/cron finals.
+          const isQueueDrainResponse = (() => {
+            const s = get();
+            if (!s.streaming || s.streamText || !s.runId || !s._streamStartedAt) return false;
+            return Date.now() - s._streamStartedAt > 5000;
+          })();
+
           set((s) => ({
             messages: [...s.messages, finalMsg],
-            ...(s.streaming && !s.runId ? { streaming: false, streamText: null } : {}),
+            ...(isQueueDrainResponse
+              // Don't clear _pendingUserMessages here — more queue-drain responses
+              // may follow. Let loadHistory() handle them via the 3-min expiry.
+              ? { streaming: false, streamText: null, runId: null, _streamStartedAt: null }
+              : s.streaming && !s.runId
+                ? { streaming: false, streamText: null }
+                : {}),
           }));
+
+          if (isQueueDrainResponse) {
+            console.log('[Chat] Queue-drain response detected (runId mismatch, no prior deltas) — clearing streaming state');
+            // Refresh panels since the queued run may have used tools
+            setTimeout(() => {
+              useLibraryStore.getState().loadPapers();
+              useLibraryStore.getState().loadTags();
+              useTasksStore.getState().loadTasks();
+              useSessionsStore.getState().loadSessions();
+              useMonitorStore.getState().loadMonitors();
+              useCronStore.getState().loadPresets();
+              useUiStore.getState().triggerWorkspaceRefresh();
+              useUiStore.getState().checkNotifications();
+              get().loadSessionUsage();
+            }, 500);
+          }
 
           // Channel B: server-initiated runs (heartbeat, cron, monitor) also produce
           // card notifications (progress_card from heartbeat, monitor_digest from monitor).
@@ -672,6 +833,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       }
 
       case 'aborted': {
+        // Fix 1 — runId guard: skip aborted events from OTHER runs (e.g. queryA aborting
+        // while queryB is streaming). Without this, queryA's abort destroys queryB's state.
+        // Uses the same triple-AND pattern as the delta handler (line 575).
+        if (event.runId && runId && event.runId !== runId) return;
+
         const partialText = get().streamText;
         if (partialText) {
           const abortedMsg: ChatMessage = {
@@ -684,9 +850,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             streaming: false,
             streamText: null,
             runId: null,
+            _pendingUserMsgs: [],
+            _streamStartedAt: null,
           }));
         } else {
-          set({ streaming: false, streamText: null, runId: null });
+          set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null });
         }
         // Deferred gap recovery
         if (get()._pendingGapReload) {
@@ -697,10 +865,16 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       }
 
       case 'error': {
+        // Fix 1 — runId guard: skip error events from OTHER runs.
+        // Same triple-AND pattern as delta/aborted.
+        if (event.runId && runId && event.runId !== runId) return;
+
         set({
           streaming: false,
           streamText: null,
           runId: null,
+          _pendingUserMsgs: [],
+          _streamStartedAt: null,
           lastError: event.errorMessage ?? 'Unknown streaming error',
         });
         // Deferred gap recovery
@@ -729,6 +903,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       tokensIn: 0,
       tokensOut: 0,
       _pendingGapReload: false,
+      _pendingUserMsgs: [],
+      _streamStartedAt: null,
     });
   },
 
@@ -743,3 +919,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }));
   },
 }));
+
+// Auto-persist _pendingUserMsgs to sessionStorage whenever it changes.
+// This ensures optimistic messages survive browser refresh (F5).
+useChatStore.subscribe(
+  (state, prev) => {
+    if (state._pendingUserMsgs !== prev._pendingUserMsgs) {
+      savePendingMsgs(state._pendingUserMsgs);
+    }
+  },
+);
