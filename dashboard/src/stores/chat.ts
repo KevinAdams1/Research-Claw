@@ -84,6 +84,11 @@ function isSilentReply(text: string | undefined): boolean {
 
 /** Roles that should be displayed in the chat UI. */
 const VISIBLE_ROLES = new Set(['user', 'assistant']);
+const CRON_REMINDER_RE = /A scheduled reminder has been triggered\b/i;
+
+function isCronReminderInjection(text: string): boolean {
+  return CRON_REMINDER_RE.test(text);
+}
 
 /**
  * Strip system-injected context that OpenClaw stores inside user messages.
@@ -96,6 +101,11 @@ const VISIBLE_ROLES = new Set(['user', 'assistant']);
  *   2. `System: ...` lines (exec events, run commands, etc.)
  */
 function stripInjectedContext(text: string): string {
+  // Hide cron-injected reminder template messages from chat UI.
+  if (isCronReminderInjection(text)) {
+    return '';
+  }
+
   const lines = text.split('\n');
   const cleaned: string[] = [];
   let inRcBlock = false;
@@ -684,6 +694,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         if (event.runId && runId && event.runId !== runId) return;
         // Skip non-visible roles (e.g. toolResult deltas)
         if (event.message && !isVisibleRole(event.message.role)) return;
+        if (event.message?.role === 'user') {
+          const raw = extractText(event.message);
+          if (isCronReminderInjection(raw)) return;
+        }
         const deltaText = event.message ? extractText(event.message) : '';
         // Gateway sends full accumulated text in each delta (not incremental).
         // Match OpenClaw native UI: REPLACE stream text, taking the longer value.
@@ -722,6 +736,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         if (!isVisibleRole(event.message.role)) return;
         const text = extractText(event.message);
         if (isSilentReply(text)) return;
+        if (event.message.role === 'user' && isCronReminderInjection(text)) return;
 
         const finalMsg: ChatMessage = {
           ...event.message,

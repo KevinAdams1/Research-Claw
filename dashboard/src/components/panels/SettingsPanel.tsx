@@ -10,7 +10,7 @@ import {
   Spin,
   Typography,
 } from 'antd';
-import { CopyOutlined, KeyOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CopyOutlined, KeyOutlined, ReloadOutlined } from '@ant-design/icons';
 import OAuthModal from '../OAuthModal';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../stores/config';
@@ -495,6 +495,7 @@ export default function SettingsPanel() {
             style={{ width: 220 }}
             options={[
               { value: 'openai-completions', label: 'OpenAI Compatible' },
+              { value: 'openai-responses', label: 'OpenAI Responses' },
               { value: 'anthropic-messages', label: 'Anthropic Compatible' },
             ]}
           />
