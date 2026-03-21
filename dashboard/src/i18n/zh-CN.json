@@ -328,7 +328,14 @@
     "restartHint": "保存后 gateway 将自动重启，仪表盘会自动重连。",
     "start": "启动科研龙虾",
     "configuring": "配置中...",
-    "skipToDashboard": "跳过，进入 Dashboard \u2192"
+    "skipToDashboard": "跳过，进入 Dashboard \u2192",
+    "ollamaNoApiKey": "无需 API 密钥（本地模型）",
+    "ollamaDetectModels": "检测模型",
+    "ollamaDetecting": "检测中...",
+    "ollamaDetected": "检测到 {{count}} 个模型",
+    "ollamaDetectFailed": "无法连接 Ollama，请确保 Ollama 已启动。",
+    "ollamaNoModels": "Ollama 已运行但未安装模型。请运行：ollama pull <model>",
+    "ollamaBaseUrlHint": "默认：http://127.0.0.1:11434 — 如 Ollama 运行在其他主机可修改"
   },
   "boot": {
     "connecting": "正在连接网关...",

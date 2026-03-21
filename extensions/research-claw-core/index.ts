@@ -95,6 +95,22 @@ interface PluginDefinition {
   register?: (api: PluginApi) => void | Promise<void>;
 }
 
+// ── Module-level state (survives multiple register() calls per boot) ──────
+// OC calls register() multiple times per gateway boot (full + discovery
+// registration modes). jiti loads .ts directly so module scope persists
+// across calls. All stateful resources (DB, services, workspace) must be
+// initialized once and reused — creating duplicates wastes file handles
+// and causes git lock races.
+let _initialized = false;
+let _dbManager: DatabaseManager | null = null;
+let _litService: InstanceType<typeof LiteratureService> | null = null;
+let _taskService: InstanceType<typeof TaskService> | null = null;
+let _heartbeatService: InstanceType<typeof HeartbeatService> | null = null;
+let _monitorService: InstanceType<typeof MonitorService> | null = null;
+let _wsService: InstanceType<typeof WorkspaceService> | null = null;
+let _wsConfig: WorkspaceConfig | null = null;
+let _wsInitPromise: Promise<void> | null = null;
+
 // ── Plugin definition ──────────────────────────────────────────────────
 
 const plugin: PluginDefinition = {
@@ -110,37 +126,51 @@ const plugin: PluginDefinition = {
 
     api.logger.info(`Research-Claw Core initializing (db: ${dbPath})`);
 
-    // ── 1. Initialize database ───────────────────────────────────────
-    let dbManager: DatabaseManager | null = createDatabaseManager(dbPath);
-    runMigrations(dbManager.db);
+    // ── 1. Initialize stateful resources (once per process) ──────────
+    // OC calls register() 2× per gateway boot (full + discovery mode).
+    // jiti loads .ts as ESM — module scope persists across calls.
+    // All stateful resources are created once and reused to avoid:
+    //   - Duplicate SQLite connections (file handle leak)
+    //   - Duplicate git-tracker inits (config lock race)
+    //   - Duplicate seedDefaults() calls
+    if (!_initialized) {
+      _dbManager = createDatabaseManager(dbPath);
+      runMigrations(_dbManager.db);
 
-    // ── 2. Initialize services ───────────────────────────────────────
-    const litService = new LiteratureService(dbManager.db);
-    const taskService = new TaskService(dbManager.db);
-    const heartbeatService = new HeartbeatService(dbManager.db);
-    const monitorService = new MonitorService(dbManager.db);
-    monitorService.seedDefaults();
+      _litService = new LiteratureService(_dbManager.db);
+      _taskService = new TaskService(_dbManager.db);
+      _heartbeatService = new HeartbeatService(_dbManager.db);
+      _monitorService = new MonitorService(_dbManager.db);
+      _monitorService.seedDefaults();
 
-    const wsConfig: WorkspaceConfig = {
-      root: api.resolvePath(cfg.workspace?.root ?? 'workspace'),
-      autoTrackGit: cfg.autoTrackGit ?? true,
-      commitDebounceMs: cfg.workspace?.commitDebounceMs ?? 5000,
-      maxGitFileSize: cfg.workspace?.maxGitFileSize ?? 10_485_760,
-      maxUploadSize: cfg.workspace?.maxUploadSize ?? 0, // 0 = unlimited (local tool, no need to restrict)
-      gitAuthorName: cfg.workspace?.gitAuthorName ?? 'Research-Claw',
-      gitAuthorEmail: cfg.workspace?.gitAuthorEmail ?? 'research-claw@wentor.ai',
-    };
-    const wsService = new WorkspaceService(wsConfig);
+      _wsConfig = {
+        root: api.resolvePath(cfg.workspace?.root ?? 'workspace'),
+        autoTrackGit: cfg.autoTrackGit ?? true,
+        commitDebounceMs: cfg.workspace?.commitDebounceMs ?? 5000,
+        maxGitFileSize: cfg.workspace?.maxGitFileSize ?? 10_485_760,
+        maxUploadSize: cfg.workspace?.maxUploadSize ?? 0,
+        gitAuthorName: cfg.workspace?.gitAuthorName ?? 'Research-Claw',
+        gitAuthorEmail: cfg.workspace?.gitAuthorEmail ?? 'research-claw@wentor.ai',
+      };
+      _wsService = new WorkspaceService(_wsConfig);
 
-    // Fire-and-forget: scaffold directories + git tracker in background.
-    // MUST NOT await here — OpenClaw's plugin loader does not support async
-    // register(). The gateway snapshots pluginRegistry.gatewayHandlers via
-    // spread operator BEFORE an async register() resolves, so all RPC
-    // methods would be "unknown". Completing within ~100ms, well before
-    // any dashboard connection (~18s after startup).
-    wsService.init().catch((err) => {
-      api.logger.error(`Workspace init failed: ${err instanceof Error ? err.message : String(err)}`);
-    });
+      // Fire-and-forget: scaffold directories + git tracker in background.
+      // MUST NOT await — OC plugin loader does not support async register().
+      _wsInitPromise = _wsService.init().catch((err) => {
+        api.logger.error(`Workspace init failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      _initialized = true;
+    }
+
+    // Local aliases for the rest of register() — guaranteed non-null after init
+    const dbManager = _dbManager!;
+    const litService = _litService!;
+    const taskService = _taskService!;
+    const heartbeatService = _heartbeatService!;
+    const monitorService = _monitorService!;
+    const wsService = _wsService!;
+    const wsConfig = _wsConfig!;
 
     // ── 3. Register database lifecycle service ───────────────────────
     api.registerService({
@@ -155,13 +185,22 @@ const plugin: PluginDefinition = {
       },
       stop() {
         wsService.destroy();
-        if (dbManager?.isOpen()) {
+        if (_dbManager?.isOpen()) {
           // Checkpoint WAL before closing to ensure all data is flushed to the main DB file
-          dbManager.db.pragma('wal_checkpoint(TRUNCATE)');
-          dbManager.close();
-          dbManager = null;
+          _dbManager.db.pragma('wal_checkpoint(TRUNCATE)');
+          _dbManager.close();
           api.logger.info('Research-Claw database closed');
         }
+        // Reset module-level state so a fresh gateway restart re-initializes
+        _dbManager = null;
+        _litService = null;
+        _taskService = null;
+        _heartbeatService = null;
+        _monitorService = null;
+        _wsService = null;
+        _wsConfig = null;
+        _wsInitPromise = null;
+        _initialized = false;
       },
     });
 

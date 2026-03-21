@@ -43,13 +43,46 @@ interface PendingRequest {
 }
 
 const REQUEST_TIMEOUT_MS = 30_000;
+
+// Top-level error codes that are definitely non-recoverable (legacy check)
 const NON_RECOVERABLE_CODES = new Set([
   'UNAUTHORIZED',
   'FORBIDDEN',
   'NOT_PAIRED',
   'DEVICE_AUTH_PUBLIC_KEY_INVALID',
   'DEVICE_AUTH_DEVICE_ID_MISMATCH',
+  'CONTROL_UI_ORIGIN_NOT_ALLOWED',
 ]);
+
+// Structured detail codes from OC v2026.3.12+ (error.details.code).
+// Auth errors that won't resolve without user action — don't auto-reconnect.
+// Aligned with OC's isNonRecoverableAuthError() in gateway.ts.
+const NON_RECOVERABLE_DETAIL_CODES = new Set([
+  'AUTH_TOKEN_MISSING',
+  'AUTH_BOOTSTRAP_TOKEN_INVALID',
+  'AUTH_PASSWORD_MISSING',
+  'AUTH_PASSWORD_MISMATCH',
+  'AUTH_RATE_LIMITED',
+  'PAIRING_REQUIRED',
+  'CONTROL_UI_DEVICE_IDENTITY_REQUIRED',
+  'CONTROL_UI_ORIGIN_NOT_ALLOWED',
+  'DEVICE_IDENTITY_REQUIRED',
+]);
+
+/** Check both legacy top-level code and structured details.code */
+function isNonRecoverableError(err: GatewayRequestError): boolean {
+  // Legacy: check top-level code
+  if (NON_RECOVERABLE_CODES.has(err.code)) return true;
+  // OC v2026.3.12+: check details.code
+  const detailCode =
+    err.details && typeof err.details === 'object' && !Array.isArray(err.details)
+      ? (err.details as { code?: string }).code
+      : undefined;
+  if (detailCode && NON_RECOVERABLE_DETAIL_CODES.has(detailCode)) return true;
+  // Fallback: token-related INVALID_REQUEST
+  if (err.code === 'INVALID_REQUEST' && err.message.includes('token')) return true;
+  return false;
+}
 
 export class GatewayClient {
   private ws: WebSocket | null = null;
@@ -127,13 +160,12 @@ export class GatewayClient {
         return;
       }
 
-      // Schedule reconnect
-      if (wasConnected || this.state === 'reconnecting') {
-        this.setState('reconnecting');
-        this.reconnector.schedule(() => this.connect());
-      } else {
-        this.setState('disconnected');
-      }
+      // Always schedule reconnect on abnormal close (including first connect failure).
+      // OC UI reconnects unconditionally; the old RC logic only reconnected after
+      // a successful connection, leaving users stuck on "disconnected" when the
+      // Dashboard loads before the gateway is ready (cold-start race).
+      this.setState('reconnecting');
+      this.reconnector.schedule(() => this.connect());
     };
 
     ws.onerror = () => {
@@ -310,9 +342,7 @@ export class GatewayClient {
         console.error('[GatewayClient] Connect handshake rejected:', err instanceof GatewayRequestError ? `${err.code}: ${err.message}` : err);
         if (err instanceof GatewayRequestError) {
           this.opts.onConnectError?.(err.code, err.message);
-          const isNonRecoverable = NON_RECOVERABLE_CODES.has(err.code) ||
-            (err.code === 'INVALID_REQUEST' && err.message.includes('token'));
-          if (isNonRecoverable) {
+          if (isNonRecoverableError(err)) {
             this.reconnector.cancel();
             this.ws?.close();
             this.setState('disconnected');

@@ -643,9 +643,19 @@ if [ -f config/openclaw.json ]; then
           changed = true;
         }
 
-        // --- v0.5.2+: remove plugins.allow (auto-discover replaces whitelist) ---
-        if (c.plugins?.allow) {
-          delete c.plugins.allow;
+        // --- v0.5.6+: ensure plugins.allow lists trusted plugin IDs (OC 2026.3.12+ security) ---
+        const REQUIRED_ALLOW = ['research-claw-core', 'research-plugins'];
+        if (!c.plugins) c.plugins = {};
+        if (!Array.isArray(c.plugins.allow) || !REQUIRED_ALLOW.every(id => c.plugins.allow.includes(id))) {
+          c.plugins.allow = REQUIRED_ALLOW;
+          changed = true;
+        }
+
+        // --- v0.5.6+: disable mDNS/wideArea discovery (OC 2026.3.13 mDNS crash prevention) ---
+        if (!c.discovery) c.discovery = {};
+        if (c.discovery.mdns?.mode !== 'off' || c.discovery.wideArea?.enabled !== false) {
+          c.discovery.mdns = { mode: 'off' };
+          c.discovery.wideArea = { enabled: false };
           changed = true;
         }
 

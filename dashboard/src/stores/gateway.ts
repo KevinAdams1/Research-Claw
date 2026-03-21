@@ -67,9 +67,27 @@ export const useGatewayStore = create<GatewayState>()((set, get) => ({
         useConfigStore.setState({ _configRetryCount: 0 });
         // Auto-fetch config on every (re)connection
         useConfigStore.getState().loadGatewayConfig();
+        // Subscribe to session changes (aligned with OC UI: sessions.subscribe).
+        // NOTE: sessions.subscribe is not in OC v2026.3.13 npm dist yet (unreleased).
+        // The call will silently fail. When OC publishes a version with this method,
+        // session list will auto-sync across clients. Until then, we rely on
+        // post-chat-final session reload.
+        client.request('sessions.subscribe', {}).catch(() => {
+          // Expected: method not yet available in current OC version
+        });
       },
-      onEvent: (_event: EventFrame) => {
-        // Global event handler — individual subscribers handle specifics
+      onEvent: (event: EventFrame) => {
+        // Handle session change events (aligned with OC UI sessions.subscribe)
+        if (event.event === 'sessions.changed') {
+          void import('./sessions').then(({ useSessionsStore }) => {
+            useSessionsStore.getState().loadSessions();
+          });
+        }
+        // Handle shutdown event (gateway restart notification)
+        if (event.event === 'shutdown') {
+          const payload = event.payload as { reason?: string } | undefined;
+          console.info(`[Gateway] Shutdown event: ${payload?.reason ?? 'unknown reason'}`);
+        }
       },
       onGap: (expected: number, actual: number) => {
         console.warn(`[Gateway] Event sequence gap: expected ${expected}, got ${actual} — scheduling history sync`);

@@ -82,7 +82,16 @@ function providerSupportsRedactedApiKeySentinel(providerKey: string): boolean {
   // when the user leaves the apiKey field empty.
   // `openai-codex` uses auth-profiles (oauth refresh) rather than apiKey in config.
   if (providerKey === 'openai-codex') return false;
+  // Ollama runs locally with no API key required. The OC Ollama extension injects
+  // a default placeholder key ("ollama-local") during discovery, so the dashboard
+  // should never emit a redacted sentinel for ollama providers.
+  if (providerKey === 'ollama') return false;
   return true;
+}
+
+/** Returns true when the provider runs locally and does not require an API key. */
+export function isLocalProvider(providerKey: string): boolean {
+  return providerKey === 'ollama' || providerKey === 'vllm';
 }
 
 /**
@@ -261,7 +270,10 @@ export function buildSaveConfig(
   // Defensive fallback: if resolveExistingApiKey can't find the key (e.g., OC
   // normalized the config structure), emit REDACTED_SENTINEL so restoreRedactedValues
   // can restore the real key from the gateway's in-memory copy.
-  if (input.apiKey) {
+  // Local providers (ollama, vllm) use an empty API key; never emit the sentinel.
+  if (isLocalProvider(providerKey) && !input.apiKey) {
+    textProvider.apiKey = '';
+  } else if (input.apiKey) {
     textProvider.apiKey = input.apiKey;
   } else {
     const existing = resolveExistingApiKey(currentConfig, providerKey);

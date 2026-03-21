@@ -8,6 +8,21 @@
 
 cd "$(dirname "$0")/.."
 
+# --- PID lock: prevent multiple run.sh instances from fighting ---
+PIDFILE="/tmp/research-claw-gateway.pid"
+if [ -f "$PIDFILE" ]; then
+  OLD_PID=$(cat "$PIDFILE" 2>/dev/null)
+  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+    echo "[run] Another run.sh is already running (PID $OLD_PID). Stopping it first..."
+    kill "$OLD_PID" 2>/dev/null || true
+    sleep 2
+    kill -9 "$OLD_PID" 2>/dev/null || true
+  fi
+fi
+echo $$ > "$PIDFILE"
+cleanup_pid() { rm -f "$PIDFILE"; }
+trap cleanup_pid EXIT
+
 # --- Ensure project config exists ---
 # RC project config contains plugin paths, tool whitelist, dashboard root, port 28789.
 # Global ~/.openclaw/openclaw.json is vanilla OpenClaw and MUST NOT override these.

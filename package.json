@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.16.0"
   },
   "packageManager": "pnpm@9.15.0",
   "scripts": {
@@ -23,7 +23,7 @@
     "sync-upstream": "bash scripts/sync-upstream.sh"
   },
   "dependencies": {
-    "openclaw": "2026.3.8"
+    "openclaw": "2026.3.13"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
@@ -32,7 +32,7 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "openclaw@2026.3.8": "patches/openclaw@2026.3.8.patch"
+      "openclaw@2026.3.13": "patches/openclaw@2026.3.13.patch"
     }
   }
 }

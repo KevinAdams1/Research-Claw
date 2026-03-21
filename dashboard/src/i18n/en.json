@@ -328,7 +328,14 @@
     "restartHint": "After saving, the gateway will restart automatically. The dashboard reconnects on its own.",
     "start": "Start Research-Claw",
     "configuring": "Configuring...",
-    "skipToDashboard": "Skip to Dashboard \u2192"
+    "skipToDashboard": "Skip to Dashboard \u2192",
+    "ollamaNoApiKey": "No API key required (local model)",
+    "ollamaDetectModels": "Detect Models",
+    "ollamaDetecting": "Detecting...",
+    "ollamaDetected": "{{count}} model(s) detected",
+    "ollamaDetectFailed": "Cannot connect to Ollama. Please ensure Ollama is running.",
+    "ollamaNoModels": "Ollama is running but no models installed. Run: ollama pull <model>",
+    "ollamaBaseUrlHint": "Default: http://127.0.0.1:11434 — change if Ollama runs on another host"
   },
   "boot": {
     "connecting": "Connecting to gateway...",

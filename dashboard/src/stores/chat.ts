@@ -478,6 +478,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         message: finalMessage,
         sessionKey: get().sessionKey,
         idempotencyKey: localRunId,
+        deliver: false, // Don't deliver response to external channels (Telegram/Discord etc.)
         ...(finalAttachments?.length ? { attachments: finalAttachments } : {}),
       });
       set({ sending: false, streaming: true, _streamStartedAt: Date.now() });
