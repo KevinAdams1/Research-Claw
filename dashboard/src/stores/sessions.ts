@@ -51,10 +51,11 @@ function persistKey(key: string) {
   }
 }
 
+import { isMainSessionKey } from '../utils/session-key';
+
 /** Check if a key refers to the main session (handles both bare and canonical forms). */
 function isMain(key: string): boolean {
-  const k = key.toLowerCase();
-  return k === 'main' || k === 'agent:main:main';
+  return isMainSessionKey(key);
 }
 
 export const useSessionsStore = create<SessionsState>()((set, get) => ({
@@ -69,6 +70,7 @@ export const useSessionsStore = create<SessionsState>()((set, get) => ({
     try {
       const result = await client.request<{ sessions: Session[] }>('sessions.list', {
         includeDerivedTitles: true,
+        limit: 100,
       });
       const serverSessions = result.sessions ?? [];
       // Ensure the main session is always present in the list
@@ -131,7 +133,7 @@ export const useSessionsStore = create<SessionsState>()((set, get) => ({
     const client = useGatewayStore.getState().client;
     if (!client?.isConnected) return;
     try {
-      await client.request('sessions.delete', { key });
+      await client.request('sessions.delete', { key, deleteTranscript: true });
     } catch {
       // Deletion failed — session may already be gone
     }

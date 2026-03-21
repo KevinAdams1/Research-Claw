@@ -131,7 +131,8 @@ export default function App() {
       }
       // Feed tool stream store for P1-2 (inline tool display) and P1-3 (bg activity)
       const chatRunId = useChatStore.getState().runId;
-      useToolStreamStore.getState().handleAgentEvent(payload, chatRunId);
+      const activeSessionKey = useChatStore.getState().sessionKey;
+      useToolStreamStore.getState().handleAgentEvent(payload, chatRunId, activeSessionKey);
     };
 
     const unsubAgent = client.subscribe('agent', handleAgentPayload);

@@ -12,17 +12,7 @@ import i18n from '../i18n';
 
 const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/;
 
-/**
- * Normalize session key for comparison.
- * The gateway canonicalizes bare keys: "project-xxx" → "agent:main:project-xxx".
- * Dashboard stores the bare key, but gateway broadcasts events with the canonical form.
- * Strip the "agent:<agentId>:" prefix to compare on the bare key.
- */
-const CANONICAL_PREFIX_RE = /^agent:[^:]+:/;
-function normalizeSessionKey(key: string | undefined): string {
-  if (!key) return '';
-  return key.replace(CANONICAL_PREFIX_RE, '');
-}
+import { normalizeSessionKey } from '../utils/session-key';
 
 /**
  * Debounce timer for gap-triggered history reloads.
@@ -565,6 +555,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     try {
       const result = await client.request<{ messages: ChatMessage[] }>('chat.history', {
         sessionKey: requestedKey,
+        limit: 200,
       });
       // Guard: discard stale response if session changed during the await
       if (get().sessionKey !== requestedKey) return;

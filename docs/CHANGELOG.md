@@ -17,6 +17,30 @@ Tracks: `Dashboard` (S1), `Modules` (S2), `Plugins` (S3), `Prompt` (S4), `Infra`
 
 ## Log
 
+### 2026-03-22 — Dashboard ↔ OC Protocol Alignment (Phase 2)
+
+- [2026-03-22] [Dashboard] [Claude] fix(P1-8): scopes 对齐 OC — `[admin, approvals, pairing]` 替换旧 `[read, write, admin]`
+- [2026-03-22] [Dashboard] [Claude] fix(P1-5): tool stream 添加 sessionKey 过滤 — 防止 cron/monitor 事件串台
+- [2026-03-22] [Dashboard] [Claude] fix(P1-6): cron reconcile 恢复 — gateway 重启后自动重新注册定时任务
+- [2026-03-22] [Dashboard] [Claude] fix(P2-9): hello snapshot 解析 — 提取 sessionDefaults + tool stream reset + sessions reload
+- [2026-03-22] [Dashboard] [Claude] fix(P2-11): sessions.delete 加 `deleteTranscript: true` — 清理残留 transcript 文件
+- [2026-03-22] [Dashboard] [Claude] fix(P2-12): chat.history 加 `limit: 200` — 防止长会话全量加载卡顿
+- [2026-03-22] [Dashboard] [Claude] fix(P2-10): sessions.list 加 `limit: 100` — 大量 session 时性能优化
+- [2026-03-22] [Dashboard] [Claude] refactor(P2-14): 提取 `utils/session-key.ts` 共享模块 — 统一 normalizeSessionKey 和 isMainSessionKey
+- [2026-03-22] [Infra] [Claude] doc: 新增 `docs/core-upgrade/07-DASHBOARD-DEEP-ALIGNMENT.md` 深度对齐审查报告
+- [2026-03-22] [Infra] [Claude] doc: 更新 `docs/core-upgrade/05-DASHBOARD-ALIGNMENT-AUDIT.md` — 已修复 5→16 项
+
+### 2026-03-22 — Literature Library Pagination Fix
+
+- [2026-03-22] [Dashboard] [Claude] fix: library inbox limited to 50 papers — dashboard never sent `limit`/`offset` to `rc.lit.list`, backend defaulted to 50
+- [2026-03-22] [Dashboard] [Claude] feat: server-side pagination with `PAGE_SIZE=30` and "Load More" button
+- [2026-03-22] [Dashboard] [Claude] feat: server-side tab filtering — inbox sends `read_status: ['unread', 'reading']`, archive sends `read_status: ['read', 'reviewed']`, starred sorts by `-rating`
+- [2026-03-22] [Modules] [Claude] feat: `rc.lit.list` now supports array `read_status` filter (SQL `IN` clause)
+- [2026-03-22] [Dashboard] [Claude] fix: virtual scroll overlap — `rowHeight` 80→112, threshold 50→100, added `overflow: hidden` on VirtualRow
+- [2026-03-22] [Dashboard] [Claude] i18n: added `loadMore`, `showingCount` keys (en + zh-CN)
+- [2026-03-22] [Infra] [Claude] script: added `scripts/seed-mock-papers.sh` for testing with 100 mock papers
+- [2026-03-22] [Infra] [Claude] Tests: 5 test files updated to match new pagination behavior
+
 ### 2026-03-20 — Extensions Skills Tab Performance Fix
 
 - [2026-03-20] [Dashboard] [Claude] perf: Skills tab virtual scrolling — react-window v2 `List`, DOM 7500→450 nodes (94% reduction)

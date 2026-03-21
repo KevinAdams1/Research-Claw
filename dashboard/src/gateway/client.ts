@@ -258,7 +258,7 @@ export class GatewayClient {
     const clientId = 'openclaw-control-ui';
     const clientMode = 'ui';
     const role = 'operator';
-    const scopes = ['operator.read', 'operator.write', 'operator.admin'];
+    const scopes = ['operator.admin', 'operator.approvals', 'operator.pairing'];
     const token = this.opts.token ?? '';
     const platform = this.opts.platform ?? 'browser';
 
@@ -344,6 +344,7 @@ export class GatewayClient {
           this.opts.onConnectError?.(err.code, err.message);
           if (isNonRecoverableError(err)) {
             this.reconnector.cancel();
+            this.intentionalClose = true; // Prevent onclose from scheduling reconnect
             this.ws?.close();
             this.setState('disconnected');
           }

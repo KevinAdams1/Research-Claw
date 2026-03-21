@@ -48,12 +48,34 @@ export interface GatewayErrorInfo {
 
 // --- Hello/Auth ---
 
+/** Session defaults from gateway hello snapshot (OC schema: SessionDefaultsSchema). */
+export interface SessionDefaults {
+  defaultAgentId: string;
+  mainKey: string;
+  mainSessionKey: string;
+  scope?: string;
+}
+
+export interface HelloSnapshot {
+  sessionDefaults?: SessionDefaults;
+  authMode?: string;
+  configPath?: string;
+  stateDir?: string;
+  uptimeMs?: number;
+  presence?: unknown[];
+  health?: unknown;
+  stateVersion?: { presence: number; health: number };
+  updateAvailable?: { currentVersion?: string; latestVersion?: string; channel?: string };
+  /** Allow forward-compatible extra fields from future OC versions. */
+  [key: string]: unknown;
+}
+
 export interface HelloOk {
   type: 'hello-ok';
   protocol: number;
   server?: { version?: string; connId?: string };
   features?: { methods?: string[]; events?: string[] };
-  snapshot?: unknown;
+  snapshot?: HelloSnapshot;
   auth?: { deviceToken?: string; role?: string; scopes?: string[]; issuedAtMs?: number };
   policy?: { tickIntervalMs?: number };
 }

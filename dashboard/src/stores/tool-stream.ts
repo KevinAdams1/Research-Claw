@@ -11,6 +11,8 @@ import { create } from 'zustand';
  *      or broadcast for lifecycle/assistant/error streams.
  */
 
+import { normalizeSessionKey } from '../utils/session-key';
+
 export interface PendingTool {
   toolCallId: string;
   name: string;
@@ -32,7 +34,7 @@ interface ToolStreamState {
   /** Background activity — displayed in the AgentActivityBar. */
   bgActivity: AgentActivity | null;
 
-  handleAgentEvent: (payload: unknown, chatRunId: string | null) => void;
+  handleAgentEvent: (payload: unknown, chatRunId: string | null, activeSessionKey: string) => void;
   clearAll: () => void;
 }
 
@@ -48,9 +50,10 @@ export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
   pendingTools: [],
   bgActivity: null,
 
-  handleAgentEvent: (payload: unknown, chatRunId: string | null) => {
+  handleAgentEvent: (payload: unknown, chatRunId: string | null, activeSessionKey: string) => {
     const evt = payload as {
       runId?: string;
+      sessionKey?: string;
       state?: string;
       stream?: string;
       data?: {
@@ -60,6 +63,13 @@ export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
         toolCallId?: string;
       };
     };
+
+    // Session isolation: drop events from other sessions (aligned with OC
+    // app-tool-stream.ts:311,415-416). Without this, cron/monitor tool events
+    // from other sessions leak into the current chat view.
+    if (evt.sessionKey && normalizeSessionKey(evt.sessionKey) !== normalizeSessionKey(activeSessionKey)) {
+      return;
+    }
 
     // Background = different runId from the user's active chat, or no active chat.
     const isBackground = !!evt.runId && (!chatRunId || evt.runId !== chatRunId);
