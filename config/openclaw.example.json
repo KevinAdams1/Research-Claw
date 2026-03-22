@@ -24,6 +24,15 @@
       }
     }
   },
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "research-claw",
+    "profiles": {
+      "research-claw": {
+        "cdpPort": 18800
+      }
+    }
+  },
   "gateway": {
     "port": 28789,
     "mode": "local",
@@ -107,7 +116,9 @@
       "get_arxiv_paper",
       "search_pubmed",
       "get_article",
-      "find_oa_version"
+      "find_oa_version",
+      "memory_search",
+      "memory_get"
     ],
     "sessions": {
       "visibility": "all"
