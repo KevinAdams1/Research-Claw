@@ -134,7 +134,10 @@ function resetStores() {
     papers: [],
     tags: [],
     loading: false,
+    loadingMore: false,
     total: 0,
+    offset: 0,
+    hasMore: false,
     searchQuery: '',
     activeTab: 'inbox',
     filters: {},
@@ -189,21 +192,21 @@ describe('GAP-3: Empty state copy — no drag/drop/upload mention', () => {
     expect(screen.getByText('library.empty')).toBeInTheDocument();
   });
 
-  it('renders "no papers match filters" when filters active and no matches', async () => {
-    const paper = makePaper({ id: 'p1', read_status: 'read', tags: ['physics'] });
-    const tag = makeTag({ name: 'physics', paper_count: 1 });
-
+  it('renders "no papers match filters" when search query active and server returns empty', async () => {
+    // With server-side pagination, the server applies tab + filter constraints.
+    // If the result is empty but a search query is active, we show emptyFiltered.
     useLibraryStore.setState({
-      papers: [paper],
-      tags: [tag],
-      total: 1,
+      papers: [],
+      tags: [],
+      total: 0,
       activeTab: 'inbox',
+      searchQuery: 'nonexistent',
     });
 
     setupMethodRouter({
-      'rc.lit.list': { items: [paper], total: 1 },
-      'rc.lit.tags': [tag],
-      'rc.lit.search': { items: [paper], total: 1 },
+      'rc.lit.list': { items: [], total: 0 },
+      'rc.lit.tags': [],
+      'rc.lit.search': { items: [], total: 0 },
     });
 
     await act(async () => {

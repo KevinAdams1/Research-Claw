@@ -111,7 +111,7 @@ export interface Paper {
 }
 
 export interface PaperFilter {
-  read_status?: string;
+  read_status?: string | string[];
   year?: number;
   source?: string;
   tag?: string;
@@ -926,8 +926,14 @@ export class LiteratureService {
 
     if (filter) {
       if (filter.read_status) {
-        conditions.push('p.read_status = ?');
-        bindValues.push(filter.read_status);
+        if (Array.isArray(filter.read_status)) {
+          const placeholders = filter.read_status.map(() => '?').join(', ');
+          conditions.push(`p.read_status IN (${placeholders})`);
+          for (const s of filter.read_status) bindValues.push(s);
+        } else {
+          conditions.push('p.read_status = ?');
+          bindValues.push(filter.read_status);
+        }
       }
       if (filter.year != null) {
         conditions.push('p.year = ?');

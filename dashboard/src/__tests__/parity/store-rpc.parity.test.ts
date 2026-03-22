@@ -468,12 +468,11 @@ describe('Tasks store RPC parity (rc.task.*)', () => {
 
       expect(mockGatewayClient.request).toHaveBeenCalledWith(
         'rc.task.list',
-        expect.objectContaining({
+        {
           sort: 'priority',
           include_completed: true,
           task_type: 'human',
-          limit: 200,
-        }),
+        },
       );
     });
 

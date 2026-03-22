@@ -143,7 +143,10 @@ function resetStores() {
     papers: [],
     tags: [],
     loading: false,
+    loadingMore: false,
     total: 0,
+    offset: 0,
+    hasMore: false,
     searchQuery: '',
     activeTab: 'inbox',
     filters: {},
@@ -320,32 +323,30 @@ describe('Issue 2: Filtered empty state shows clear filter button', () => {
     });
   }
 
-  it('shows emptyFiltered text and clearFilter button when tag filter yields no results', async () => {
-    // Paper is "read" status. On the "inbox" tab (unread|reading), filteredPapers = 0.
-    // papers.length > 0 so the top-level empty guard does NOT fire.
-    const paper = makePaper({ id: 'p1', read_status: 'read', tags: ['physics'] });
-    const tag = makeTag({ name: 'physics', paper_count: 1 });
-
+  it('shows emptyFiltered text when search query returns no papers', async () => {
+    // With server-side pagination, if a search returns 0 results we show the
+    // filtered empty state (not the global empty state).
     useLibraryStore.setState({
-      papers: [paper],
-      tags: [tag],
-      total: 1,
+      papers: [],
+      tags: [],
+      total: 0,
       activeTab: 'inbox',
+      searchQuery: 'nonexistent',
     });
 
-    // Route all RPC calls to return our paper/tags data so mount effects don't wipe state
-    setupMethodRouter({
-      'rc.lit.list': { items: [paper], total: 1 },
-      'rc.lit.tags': [tag],
-      'rc.lit.search': { items: [paper], total: 1 },
+    // Server returns empty for the search request
+    mockGatewayClient.request.mockImplementation((method: string) => {
+      if (method === 'rc.lit.list') return Promise.resolve({ items: [], total: 0 });
+      if (method === 'rc.lit.tags') return Promise.resolve([]);
+      if (method === 'rc.lit.search') return Promise.resolve({ items: [], total: 0 });
+      return Promise.resolve({});
     });
 
     await act(async () => {
       render(<LibraryPanel />);
     });
 
-    // The "inbox" tab filters to unread|reading only, so filteredPapers = []
-    // The emptyFiltered text should appear
+    // papers is empty with active search → emptyFiltered state
     expect(screen.getByText('library.emptyFiltered')).toBeInTheDocument();
   });
 

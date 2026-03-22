@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Input, Segmented, Select, Tag, Tooltip, Typography, Dropdown, message } from 'antd';
+import { Button, Input, Segmented, Select, Spin, Tag, Tooltip, Typography, Dropdown, message } from 'antd';
 import {
   BookOutlined,
   CloseCircleOutlined,
   EllipsisOutlined,
   FilePdfOutlined,
+  LoadingOutlined,
   SearchOutlined,
   StarFilled,
   StarOutlined,
@@ -32,7 +33,7 @@ function VirtualRow(props: {
 } & VirtualRowProps) {
   const { index, style, ariaAttributes, papers, tokens, onEditTags } = props;
   return (
-    <div style={style} {...ariaAttributes}>
+    <div style={{ ...style, overflow: 'hidden' }} {...ariaAttributes}>
       <PaperListItem paper={papers[index]} tokens={tokens} onEditTags={onEditTags} />
     </div>
   );
@@ -262,12 +263,15 @@ export default function LibraryPanel() {
 
   const papers = useLibraryStore((s) => s.papers);
   const loading = useLibraryStore((s) => s.loading);
+  const loadingMore = useLibraryStore((s) => s.loadingMore);
+  const hasMore = useLibraryStore((s) => s.hasMore);
   const total = useLibraryStore((s) => s.total);
   const activeTab = useLibraryStore((s) => s.activeTab);
   const setActiveTab = useLibraryStore((s) => s.setActiveTab);
   const searchQuery = useLibraryStore((s) => s.searchQuery);
   const setSearchQuery = useLibraryStore((s) => s.setSearchQuery);
   const loadPapers = useLibraryStore((s) => s.loadPapers);
+  const loadMorePapers = useLibraryStore((s) => s.loadMorePapers);
   const loadTags = useLibraryStore((s) => s.loadTags);
   const tags = useLibraryStore((s) => s.tags);
   const filters = useLibraryStore((s) => s.filters);
@@ -342,55 +346,20 @@ export default function LibraryPanel() {
     [],
   );
 
-  // Filter papers by active tab
-  const filteredPapers = useMemo(() => {
-    if (activeTab === 'inbox') {
-      return papers.filter((p) => p.read_status === 'unread' || p.read_status === 'reading');
-    }
-    if (activeTab === 'archive') {
-      return papers.filter((p) => p.read_status === 'read' || p.read_status === 'reviewed');
-    }
-    return papers.filter((p) => p.rating != null && p.rating > 0); // starred
-  }, [papers, activeTab]);
+  const useVirtualScroll = papers.length > 100;
 
-  const inboxCount = useMemo(
-    () => papers.filter((p) => p.read_status === 'unread' || p.read_status === 'reading').length,
-    [papers],
-  );
-
-  const archiveCount = useMemo(
-    () => papers.filter((p) => p.read_status === 'read' || p.read_status === 'reviewed').length,
-    [papers],
-  );
-
-  const starredCount = useMemo(
-    () => papers.filter((p) => p.rating != null && p.rating > 0).length,
-    [papers],
-  );
-
-  const useVirtualScroll = filteredPapers.length > 50;
-
-  // Compute tags that exist on currently visible papers (before tag filtering)
+  // Compute tags that exist on currently visible papers
   const visibleTagNames = useMemo(() => {
-    // Use the tab-filtered papers (before tag filter is applied) to determine
-    // which tags should be shown. This way the tag bar only shows tags
-    // that belong to papers on the current tab.
-    const tabPapers =
-      activeTab === 'inbox'
-        ? papers.filter((p) => p.read_status === 'unread' || p.read_status === 'reading')
-        : activeTab === 'archive'
-          ? papers.filter((p) => p.read_status === 'read' || p.read_status === 'reviewed')
-          : papers.filter((p) => p.rating != null && p.rating > 0);
     const tagSet = new Set<string>();
-    for (const paper of tabPapers) {
+    for (const paper of papers) {
       for (const tag of paper.tags ?? []) {
         tagSet.add(tag);
       }
     }
     return tagSet;
-  }, [papers, activeTab]);
+  }, [papers]);
 
-  // Filter the global tags list to only show tags on current tab's papers
+  // Filter the global tags list to only show tags on current papers
   const displayTags = useMemo(
     () => tags.filter((tag) => visibleTagNames.has(tag.name)),
     [tags, visibleTagNames],
@@ -398,7 +367,8 @@ export default function LibraryPanel() {
 
   const hasActiveFilter = selectedTags.length > 0 || !!filters.read_status || !!filters.year;
 
-  const isGlobalEmpty = !loading && papers.length === 0 && !searchQuery && !hasActiveFilter;
+  // Global empty state only on inbox — archive/starred tabs are implicitly filtered
+  const isGlobalEmpty = !loading && papers.length === 0 && !searchQuery && !hasActiveFilter && activeTab === 'inbox';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -408,9 +378,9 @@ export default function LibraryPanel() {
           value={activeTab}
           onChange={(v) => setActiveTab(v as 'inbox' | 'archive' | 'starred')}
           options={[
-            { label: `${t('library.inbox')} (${inboxCount})`, value: 'inbox' },
-            { label: `${t('library.archive')} (${archiveCount})`, value: 'archive' },
-            { label: `${t('library.starred')} (${starredCount})`, value: 'starred' },
+            { label: t('library.inbox'), value: 'inbox' },
+            { label: t('library.archive'), value: 'archive' },
+            { label: t('library.starred'), value: 'starred' },
           ]}
           block
           size="small"
@@ -445,7 +415,7 @@ export default function LibraryPanel() {
         />
       </div>
 
-      {/* Tag filter — only show tags that belong to papers on the current tab */}
+      {/* Tag filter — only show tags that belong to current papers */}
       {displayTags.length > 0 && (
         <div style={{ padding: '0 16px 8px', display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
           {selectedTags.length > 0 && (
@@ -486,6 +456,12 @@ export default function LibraryPanel() {
 
       {/* Paper list */}
       <div ref={listContainerRef} style={{ flex: 1, overflow: useVirtualScroll ? 'hidden' : 'auto' }}>
+        {loading && papers.length === 0 && (
+          <div style={{ padding: 40, textAlign: 'center' }}>
+            <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
+          </div>
+        )}
+
         {isGlobalEmpty ? (
           <div style={{ padding: 24, textAlign: 'center', paddingTop: 60 }}>
             <BookOutlined style={{ fontSize: 48, color: tokens.text.muted, opacity: 0.4 }} />
@@ -495,7 +471,7 @@ export default function LibraryPanel() {
               </Text>
             </div>
           </div>
-        ) : filteredPapers.length === 0 && !loading ? (
+        ) : papers.length === 0 && !loading ? (
           <div style={{ padding: 24, textAlign: 'center', paddingTop: 40 }}>
             <BookOutlined style={{ fontSize: 36, color: tokens.text.muted, opacity: 0.3 }} />
             <div style={{ marginTop: 12 }}>
@@ -522,15 +498,27 @@ export default function LibraryPanel() {
         ) : useVirtualScroll ? (
           <VirtualList
             rowComponent={VirtualRow}
-            rowCount={filteredPapers.length}
-            rowHeight={80}
-            rowProps={{ papers: filteredPapers, tokens, onEditTags: setEditTagsPaper }}
+            rowCount={papers.length}
+            rowHeight={112}
+            rowProps={{ papers, tokens, onEditTags: setEditTagsPaper }}
             style={{ height: listHeight }}
           />
         ) : (
-          filteredPapers.map((paper) => (
-            <PaperListItem key={paper.id} paper={paper} tokens={tokens} onEditTags={setEditTagsPaper} />
-          ))
+          <>
+            {papers.map((paper) => (
+              <PaperListItem key={paper.id} paper={paper} tokens={tokens} onEditTags={setEditTagsPaper} />
+            ))}
+            {hasMore && !loading && (
+              <div style={{ padding: '12px 16px', textAlign: 'center' }}>
+                <Button size="small" type="dashed" onClick={loadMorePapers} loading={loadingMore} style={{ width: '100%' }}>
+                  {loadingMore ? '' : t('library.loadMore')}
+                </Button>
+                <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
+                  {t('library.showingCount', { count: papers.length, total })}
+                </Text>
+              </div>
+            )}
+          </>
         )}
       </div>
 

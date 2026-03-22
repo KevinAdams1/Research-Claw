@@ -250,10 +250,10 @@ describe('Tasks store integration', () => {
 
     await useTasksStore.getState().loadTasks();
 
-    expect(mockGatewayClient.request).toHaveBeenCalledWith(
-      'rc.task.list',
-      expect.objectContaining({ sort: 'deadline', include_completed: false, limit: 200 }),
-    );
+    expect(mockGatewayClient.request).toHaveBeenCalledWith('rc.task.list', {
+      sort: 'deadline',
+      include_completed: false,
+    });
   });
 
   it('loadTasks with human perspective sends task_type=human', async () => {
