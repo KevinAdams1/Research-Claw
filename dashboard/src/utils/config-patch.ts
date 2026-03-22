@@ -372,25 +372,42 @@ export function buildSaveConfig(
   result.models = { providers };
 
   // --- Web search ---
+  // OC reads API keys from provider-specific sub-objects, NOT the top-level apiKey:
+  //   brave  → tools.web.search.apiKey (top-level, exception)
+  //   grok   → tools.web.search.grok.apiKey
+  //   kimi   → tools.web.search.kimi.apiKey
+  //   perplexity → tools.web.search.perplexity.apiKey
+  //   gemini → tools.web.search.gemini.apiKey
   if (input.webSearchEnabled !== undefined) {
     const existingTools = result.tools as Record<string, unknown> | undefined;
     if (input.webSearchEnabled && input.webSearchProvider) {
-      const searchEntry: Record<string, unknown> = {
-        provider: input.webSearchProvider,
-      };
-      if (input.webSearchApiKey) {
-        searchEntry.apiKey = input.webSearchApiKey;
-      } else {
-        // Preserve existing key via sentinel
+      const prov = input.webSearchProvider;
+      const searchEntry: Record<string, unknown> = { provider: prov };
+
+      // Resolve the API key (new input or preserved existing)
+      const resolveKey = (): string | undefined => {
+        if (input.webSearchApiKey) return input.webSearchApiKey;
         const existingWeb = existingTools?.web as Record<string, unknown> | undefined;
         const existingSearch = existingWeb?.search as Record<string, unknown> | undefined;
-        const existingKey = existingSearch?.apiKey;
-        if (typeof existingKey === 'string' && existingKey.length > 0) {
-          searchEntry.apiKey = existingKey;
-        } else if (input.webSearchApiKeyConfigured) {
-          searchEntry.apiKey = REDACTED_SENTINEL;
-        }
+        // Try provider-specific path first, then top-level
+        const scopedExisting = (existingSearch?.[prov] as Record<string, unknown> | undefined)?.apiKey;
+        if (typeof scopedExisting === 'string' && scopedExisting.length > 0) return scopedExisting;
+        const topExisting = existingSearch?.apiKey;
+        if (typeof topExisting === 'string' && topExisting.length > 0) return topExisting;
+        if (input.webSearchApiKeyConfigured) return REDACTED_SENTINEL;
+        return undefined;
+      };
+      const key = resolveKey();
+
+      // Place key in the correct location per OC v2026.3.13 web-search.ts
+      if (prov === 'brave') {
+        // Brave reads from top-level search.apiKey
+        if (key) searchEntry.apiKey = key;
+      } else {
+        // grok/kimi/perplexity/gemini read from search.<provider>.apiKey
+        if (key) searchEntry[prov] = { apiKey: key };
       }
+
       result.tools = {
         ...existingTools,
         web: { ...(existingTools?.web as Record<string, unknown> | undefined), search: searchEntry },
@@ -511,7 +528,12 @@ export function extractConfigFields(
   const webConfig = toolsConfig?.web as Record<string, unknown> | undefined;
   const searchConfig = webConfig?.search as Record<string, unknown> | undefined;
   const webSearchEnabled = !!searchConfig?.provider;
-  const webSearchApiKeyRaw = searchConfig?.apiKey;
+  // Read key from provider-specific path or top-level (brave uses top-level)
+  const wsProvider = (searchConfig?.provider as string) ?? '';
+  const wsScopedKey = wsProvider && wsProvider !== 'brave'
+    ? (searchConfig?.[wsProvider] as Record<string, unknown> | undefined)?.apiKey
+    : undefined;
+  const webSearchApiKeyRaw = wsScopedKey ?? searchConfig?.apiKey;
 
   return {
     provider: textProviderKey,
