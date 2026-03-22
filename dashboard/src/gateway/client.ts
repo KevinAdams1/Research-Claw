@@ -343,7 +343,7 @@ export class GatewayClient {
 
     const signedAt = Date.now();
     const clientId = 'openclaw-control-ui';
-    const clientMode = 'ui';
+    const clientMode = 'webchat';
     const role = 'operator';
     const scopes = ['operator.admin', 'operator.approvals', 'operator.pairing'];
     const explicitToken = this.opts.token?.trim() || undefined;
@@ -477,10 +477,13 @@ export class GatewayClient {
 
           // Determine if we should retry with a cached device token
           // (aligned with OC gateway.ts catch handler logic)
+          const recoveryAdvice = err.details && typeof err.details === 'object'
+            ? err.details as { canRetryWithDeviceToken?: boolean; recommendedNextStep?: string }
+            : {};
           const canRetryWithDeviceToken =
             errDetailCode === 'AUTH_TOKEN_MISMATCH' ||
-            (err.details && typeof err.details === 'object' &&
-              (err.details as { canRetryWithDeviceToken?: boolean }).canRetryWithDeviceToken === true);
+            recoveryAdvice.canRetryWithDeviceToken === true ||
+            recoveryAdvice.recommendedNextStep === 'retry_with_device_token';
           const shouldRetry =
             !this.deviceTokenRetryBudgetUsed &&
             !authDeviceToken &&
@@ -518,10 +521,15 @@ export class GatewayClient {
             this.reconnector.cancel();
             this.intentionalClose = true;
           }
-
-          // Use application-defined close code (aligned with OC: CONNECT_FAILED_CLOSE_CODE = 4008)
-          this.ws?.close(CONNECT_FAILED_CLOSE_CODE, 'connect failed');
+        } else {
+          // Non-GatewayRequestError: clear pendingConnectError so onclose
+          // doesn't carry stale error info (aligned with OC gateway.ts:372-374).
+          this.pendingConnectError = undefined;
         }
+
+        // Always close the socket on connect failure, regardless of error type.
+        // OC does this unconditionally (gateway.ts:382).
+        this.ws?.close(CONNECT_FAILED_CLOSE_CODE, 'connect failed');
       },
       timer,
     });

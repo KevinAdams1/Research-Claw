@@ -440,7 +440,7 @@ describe('GatewayClient', () => {
       expect(sentFrame.params.client.displayName).toBe('test-client');
       expect(sentFrame.params.client.version).toBe('1.2.3');
       expect(sentFrame.params.client.platform).toBe('darwin');
-      expect(sentFrame.params.client.mode).toBe('ui');
+      expect(sentFrame.params.client.mode).toBe('webchat');
     });
   });
 

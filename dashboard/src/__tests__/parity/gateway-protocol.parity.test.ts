@@ -790,11 +790,11 @@ describe('Gateway protocol parity with OpenClaw', () => {
       client.disconnect(); // Clean up
     });
 
-    it('fires onClose callback with code and reason', async () => {
+    it('fires onClose callback with CloseInfo object', async () => {
       // OpenClaw reference: ui/src/ui/gateway.ts:186
       //   this.opts.onClose?.({ code: ev.code, reason, error: connectError });
-      // Our client: client.ts:113
-      //   this.opts.onClose?.(ev.code, ev.reason);
+      // Our client (aligned): client.ts
+      //   this.opts.onClose?.({ code: ev.code, reason: ev.reason ?? '', error: connectError });
       const onClose = vi.fn();
       const client = createClient({ onClose });
       await completeHandshake(client, mockWsInstance);
