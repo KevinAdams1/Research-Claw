@@ -300,6 +300,15 @@
     "cancel": "Cancel",
     "restartConfirmTitle": "Restart Gateway?",
     "restartConfirmContent": "Saving will close the gateway and restart it. If the restart fails, please restart manually.",
+    "aboutMemory": "Memory",
+    "aboutBrowser": "Browser",
+    "aboutEnabled": "Active",
+    "aboutDisabled": "Disabled",
+    "webSearch": "Web Search",
+    "webSearchHint": "Requires a search provider API key",
+    "webSearchProvider": "Search Provider",
+    "webSearchApiKey": "API Key",
+    "webSearchPriorityHint": "Web search is L3 priority — the agent prefers academic API tools (arXiv, OpenAlex, etc.) first.",
     "aboutGithub": "View on GitHub"
   },
   "setup": {
@@ -353,7 +362,7 @@
     "tokensOut": "Out",
     "heartbeat": "Heartbeat",
     "version": "v{{version}}",
-    "versionFallback": "v0.5.7",
+    "versionFallback": "v0.5.8",
     "modelDefault": "(default)",
     "modelNA": "N/A"
   },

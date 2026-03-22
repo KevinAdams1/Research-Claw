@@ -24,6 +24,16 @@
       }
     }
   },
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "research-claw",
+    "profiles": {
+      "research-claw": {
+        "cdpPort": 18800,
+        "color": "#EF4444"
+      }
+    }
+  },
   "gateway": {
     "port": 28789,
     "mode": "local",
@@ -107,7 +117,9 @@
       "get_arxiv_paper",
       "search_pubmed",
       "get_article",
-      "find_oa_version"
+      "find_oa_version",
+      "memory_search",
+      "memory_get"
     ],
     "sessions": {
       "visibility": "all"
@@ -121,9 +133,12 @@
   },
   "channels": {
     "telegram": {
-      "commands": {
-        "native": false
-      }
+      "botToken": "<YOUR_TELEGRAM_BOT_TOKEN>",
+      "commands": { "native": false }
+    },
+    "discord": {
+      "botToken": "<YOUR_DISCORD_BOT_TOKEN>",
+      "commands": { "native": false }
     }
   },
   "cron": {

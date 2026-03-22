@@ -295,10 +295,12 @@ export default function SetupWizard() {
       }));
 
   const visionPreset = getPreset(visionProvider);
-  const visionModelOptions = visionPreset.models.map((m) => ({
-    value: m.id,
-    label: `${m.id} — ${m.name}`,
-  }));
+  const visionModelOptions = visionPreset.models
+    .filter((m) => m.input?.includes('image'))
+    .map((m) => ({
+      value: m.id,
+      label: `${m.id} — ${m.name}`,
+    }));
 
   // Whether vision uses a different provider (show separate baseUrl/apiKey)
   const visionSeparateProvider = visionProvider !== provider;
@@ -376,10 +378,10 @@ export default function SetupWizard() {
               onChange={handleProviderChange}
               style={{ width: '100%' }}
               filterOption={providerFilterOption}
-              options={PROVIDER_PRESETS.map((p) => ({
-                value: p.id,
-                label: p.id === 'custom' ? t('setup.providerCustom') : p.label,
-              }))}
+              options={PROVIDER_PRESETS.map((p) => {
+                const lbl = p.id === 'custom' ? t('setup.providerCustom') : p.label;
+                return { value: p.id, label: lbl, title: lbl as string };
+              })}
             />
           </div>
 

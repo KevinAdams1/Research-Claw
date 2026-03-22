@@ -40,6 +40,11 @@ export interface ConfigPatchInput {
   apiKeyConfigured?: boolean;
   /** Same hint for the vision provider */
   visionApiKeyConfigured?: boolean;
+  /** Web search provider (optional, needs API key) */
+  webSearchEnabled?: boolean;
+  webSearchProvider?: string;
+  webSearchApiKey?: string;
+  webSearchApiKeyConfigured?: boolean;
 }
 
 export interface ExtractedConfig {
@@ -60,6 +65,11 @@ export interface ExtractedConfig {
   visionApiKeyConfigured: boolean;
   visionApi: string;
   proxyUrl: string;
+  /** Web search provider config */
+  webSearchEnabled: boolean;
+  webSearchProvider: string;
+  webSearchApiKey: string;
+  webSearchApiKeyConfigured: boolean;
 }
 
 function cleanUrl(url: string): string {
@@ -163,7 +173,16 @@ const RC_CONFIG_DEFAULTS: Record<string, unknown> = {
       compaction: { mode: 'safeguard' },
       thinkingDefault: 'medium',
       subagents: { announceTimeoutMs: 480000 },
+      memorySearch: {
+        enabled: true,
+        sources: ['memory'],
+      },
     },
+  },
+  browser: {
+    enabled: true,
+    defaultProfile: 'research-claw',
+    profiles: { 'research-claw': { cdpPort: 18800, color: '#EF4444' } },
   },
   gateway: {
     port: 28789,
@@ -209,6 +228,9 @@ const RC_CONFIG_DEFAULTS: Record<string, unknown> = {
       'monitor_create', 'monitor_list', 'monitor_report', 'monitor_get_context', 'monitor_note',
       'library_import_ris', 'library_zotero_detect', 'library_zotero_import',
       'library_endnote_detect', 'library_endnote_import',
+      'library_zotero_local_detect', 'library_zotero_local_import',
+      'library_zotero_web_detect', 'library_zotero_web_import', 'library_zotero_web_search',
+      'library_zotero_web_create', 'library_zotero_web_update', 'library_zotero_web_delete',
       'search_arxiv', 'get_arxiv_paper',
       'search_openalex', 'get_work', 'get_author_openalex',
       'search_crossref', 'resolve_doi',
@@ -227,6 +249,7 @@ const RC_CONFIG_DEFAULTS: Record<string, unknown> = {
       'search_zenodo', 'get_zenodo_record',
       'search_ror',
       'search_osf_preprints',
+      'memory_search', 'memory_get',
     ],
     sessions: { visibility: 'all' },
   },
@@ -348,6 +371,62 @@ export function buildSaveConfig(
   result.agents = { ...existingAgents, defaults };
   result.models = { providers };
 
+  // --- Web search ---
+  // OC reads API keys from provider-specific sub-objects, NOT the top-level apiKey:
+  //   brave  → tools.web.search.apiKey (top-level, exception)
+  //   grok   → tools.web.search.grok.apiKey
+  //   kimi   → tools.web.search.kimi.apiKey
+  //   perplexity → tools.web.search.perplexity.apiKey
+  //   gemini → tools.web.search.gemini.apiKey
+  if (input.webSearchEnabled !== undefined) {
+    const existingTools = result.tools as Record<string, unknown> | undefined;
+    if (input.webSearchEnabled && input.webSearchProvider) {
+      const prov = input.webSearchProvider;
+      const existingWeb = existingTools?.web as Record<string, unknown> | undefined;
+      const existingSearch = existingWeb?.search as Record<string, unknown> | undefined;
+
+      // Merge with existing search config to preserve user's manual fields
+      // (maxResults, cacheTtlMinutes, provider sub-object extra fields, etc.)
+      const searchEntry: Record<string, unknown> = {
+        ...existingSearch,
+        provider: prov,
+      };
+
+      // Resolve the API key (new input or preserved existing)
+      const resolveKey = (): string | undefined => {
+        if (input.webSearchApiKey) return input.webSearchApiKey;
+        const scopedExisting = (existingSearch?.[prov] as Record<string, unknown> | undefined)?.apiKey;
+        if (typeof scopedExisting === 'string' && scopedExisting.length > 0) return scopedExisting;
+        const topExisting = existingSearch?.apiKey;
+        if (typeof topExisting === 'string' && topExisting.length > 0) return topExisting;
+        if (input.webSearchApiKeyConfigured) return REDACTED_SENTINEL;
+        return undefined;
+      };
+      const key = resolveKey();
+
+      // Place key in the correct location per OC v2026.3.13 web-search.ts
+      if (prov === 'brave') {
+        // Brave reads from top-level search.apiKey
+        if (key) searchEntry.apiKey = key;
+      } else {
+        // grok/kimi/perplexity/gemini read from search.<provider>.apiKey
+        const existingSub = (existingSearch?.[prov] as Record<string, unknown> | undefined) ?? {};
+        searchEntry[prov] = key ? { ...existingSub, apiKey: key } : existingSub;
+      }
+
+      result.tools = {
+        ...existingTools,
+        web: { ...existingWeb, search: searchEntry },
+      };
+    } else {
+      // Disable: remove web.search but keep other web config (web.fetch)
+      if (existingTools?.web) {
+        const { search: _removed, ...restWeb } = existingTools.web as Record<string, unknown>;
+        result.tools = { ...existingTools, web: Object.keys(restWeb).length ? restWeb : undefined };
+      }
+    }
+  }
+
   if (input.proxyUrl !== undefined) {
     result.env = {
       ...(base.env as Record<string, string> | undefined),
@@ -382,6 +461,10 @@ export function extractConfigFields(
     visionApiKeyConfigured: false,
     visionApi: 'openai-completions',
     proxyUrl: '',
+    webSearchEnabled: false,
+    webSearchProvider: '',
+    webSearchApiKey: '',
+    webSearchApiKeyConfigured: false,
   };
   if (!config) return empty;
 
@@ -446,6 +529,18 @@ export function extractConfigFields(
     return raw;
   })();
 
+  // --- Web search ---
+  const toolsConfig = config.tools as Record<string, unknown> | undefined;
+  const webConfig = toolsConfig?.web as Record<string, unknown> | undefined;
+  const searchConfig = webConfig?.search as Record<string, unknown> | undefined;
+  const webSearchEnabled = !!searchConfig?.provider;
+  // Read key from provider-specific path or top-level (brave uses top-level)
+  const wsProvider = (searchConfig?.provider as string) ?? '';
+  const wsScopedKey = wsProvider && wsProvider !== 'brave'
+    ? (searchConfig?.[wsProvider] as Record<string, unknown> | undefined)?.apiKey
+    : undefined;
+  const webSearchApiKeyRaw = wsScopedKey ?? searchConfig?.apiKey;
+
   return {
     provider: textProviderKey,
     baseUrl: displayBaseUrl,
@@ -463,6 +558,10 @@ export function extractConfigFields(
     visionApiKeyConfigured: typeof visionApiKeyRaw === 'string' && visionApiKeyRaw.length > 0,
     visionApi: (visionProviderDef?.api as string) ?? (textProviderDef?.api as string) ?? 'openai-completions',
     proxyUrl,
+    webSearchEnabled,
+    webSearchProvider: (searchConfig?.provider as string) ?? '',
+    webSearchApiKey: deRedact(webSearchApiKeyRaw),
+    webSearchApiKeyConfigured: typeof webSearchApiKeyRaw === 'string' && webSearchApiKeyRaw.length > 0,
   };
 }
 

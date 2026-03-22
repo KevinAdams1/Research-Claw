@@ -70,7 +70,7 @@ function AboutSection() {
 
   const handleCopyDiagnostics = async () => {
     const diagnostics = [
-      `Research-Claw v0.5.7`,
+      `Research-Claw v0.5.8`,
       `Powered by OpenClaw ${serverVersion ?? 'unknown'}`,
       `Gateway: ws://127.0.0.1:28789`,
       `Platform: ${navigator.platform}`,
@@ -87,10 +87,21 @@ function AboutSection() {
     }
   };
 
+  const gatewayConfig = useConfigStore((s) => s.gatewayConfig);
+  const gcObj = gatewayConfig as Record<string, unknown> | null;
+  const browserCfg = gcObj?.browser as Record<string, unknown> | undefined;
+  const browserStatus = browserCfg?.enabled ? t('settings.aboutEnabled') : t('settings.aboutDisabled');
+  const memoryCfg = (gcObj?.agents as Record<string, unknown> | undefined)
+    ?.defaults as Record<string, unknown> | undefined;
+  const memoryEnabled = (memoryCfg?.memorySearch as Record<string, unknown> | undefined)?.enabled;
+  const memoryStatus = memoryEnabled === false ? t('settings.aboutDisabled') : t('settings.aboutEnabled');
+
   const infoRows = [
     { label: t('settings.aboutOpenClaw', { version: serverVersion ?? 'N/A' }), value: '' },
     { label: t('settings.aboutGateway'), value: 'ws://127.0.0.1:28789' },
     { label: t('settings.aboutPlugins'), value: 'research-claw-core' },
+    { label: t('settings.aboutMemory'), value: memoryStatus },
+    { label: t('settings.aboutBrowser'), value: browserStatus },
   ];
 
   const bootstrapFiles = ['SOUL.md', 'AGENTS.md', 'HEARTBEAT.md', 'BOOTSTRAP.md', 'IDENTITY.md', 'USER.md', 'TOOLS.md', 'MEMORY.md'];
@@ -115,7 +126,7 @@ function AboutSection() {
               letterSpacing: 1,
             }}
           >
-            Research-Claw v0.5.7
+            Research-Claw v0.5.8
           </span>
         </a>
       </div>
@@ -208,6 +219,13 @@ export default function SettingsPanel() {
   // --- Network ---
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [proxyUrl, setProxyUrl] = useState('http://127.0.0.1:7890');
+
+  // --- Web search ---
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [webSearchProvider, setWebSearchProvider] = useState('');
+  const [webSearchApiKey, setWebSearchApiKey] = useState('');
+  const [webSearchApiKeyConfigured, setWebSearchApiKeyConfigured] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
 
@@ -269,10 +287,12 @@ export default function SettingsPanel() {
   }));
 
   const visionPreset = getPreset(visionProvider);
-  const visionModelOptions = visionPreset.models.map((m) => ({
-    value: m.id,
-    label: `${m.id} — ${m.name}`,
-  }));
+  const visionModelOptions = visionPreset.models
+    .filter((m) => m.input?.includes('image'))
+    .map((m) => ({
+      value: m.id,
+      label: `${m.id} — ${m.name}`,
+    }));
 
   // Whether vision uses a different provider (show separate baseUrl/apiKey)
   const visionSeparateProvider = visionProvider !== provider;
@@ -320,6 +340,12 @@ export default function SettingsPanel() {
     } else {
       setProxyEnabled(false);
     }
+
+    setWebSearchEnabled(fields.webSearchEnabled);
+    setWebSearchProvider(fields.webSearchProvider);
+    setWebSearchApiKey(fields.webSearchApiKey);
+    setWebSearchApiKeyConfigured(fields.webSearchApiKeyConfigured);
+
     setRestarting(false);
   }, [gatewayConfig]);
 
@@ -399,6 +425,10 @@ export default function SettingsPanel() {
               proxyUrl: proxyEnabled ? proxyUrl.trim() : '',
               apiKeyConfigured,
               visionApiKeyConfigured,
+              webSearchEnabled,
+              webSearchProvider: webSearchEnabled ? webSearchProvider : undefined,
+              webSearchApiKey: webSearchEnabled ? (webSearchApiKey.trim() || undefined) : undefined,
+              webSearchApiKeyConfigured,
             },
           );
 
@@ -417,7 +447,7 @@ export default function SettingsPanel() {
         }
       },
     });
-  }, [baseUrl, api, apiKey, provider, textModel, visionEnabled, visionProvider, visionModel, visionBaseUrl, visionApi, visionApiKey, visionSeparateProvider, proxyEnabled, proxyUrl, t, modal, message]);
+  }, [baseUrl, api, apiKey, provider, textModel, visionEnabled, visionProvider, visionModel, visionBaseUrl, visionApi, visionApiKey, visionSeparateProvider, proxyEnabled, proxyUrl, webSearchEnabled, webSearchProvider, webSearchApiKey, webSearchApiKeyConfigured, t, modal, message]);
 
   const handleSavePrompt = useCallback(() => {
     message.success(t('settings.saved'));
@@ -469,10 +499,10 @@ export default function SettingsPanel() {
           size="small"
           style={{ width: 220 }}
           filterOption={providerFilterOption}
-          options={PROVIDER_PRESETS.map((p) => ({
-            value: p.id,
-            label: p.id === 'custom' ? t('setup.providerCustom') : p.label,
-          }))}
+          options={PROVIDER_PRESETS.map((p) => {
+            const lbl = p.id === 'custom' ? t('setup.providerCustom') : p.label;
+            return { value: p.id, label: lbl, title: lbl as string };
+          })}
         />
       </SettingRow>
 
@@ -619,6 +649,58 @@ export default function SettingsPanel() {
               </SettingRow>
             </>
           )}
+        </>
+      )}
+
+      {/* ── Web Search (optional) ── */}
+      <Divider style={{ margin: '4px 0 8px' }} />
+
+      <SettingRow label={t('settings.webSearch')} description={t('settings.webSearchHint')}>
+        <Segmented
+          value={webSearchEnabled ? 'on' : 'off'}
+          onChange={(v) => setWebSearchEnabled(v === 'on')}
+          options={[
+            { label: 'OFF', value: 'off' },
+            { label: 'ON', value: 'on' },
+          ]}
+          size="small"
+        />
+      </SettingRow>
+
+      {webSearchEnabled && (
+        <>
+          <SettingRow label={t('settings.webSearchProvider')}>
+            <Select
+              value={webSearchProvider || undefined}
+              onChange={setWebSearchProvider}
+              size="small"
+              style={{ width: 220 }}
+              placeholder={t('settings.webSearchProvider')}
+              options={[
+                { value: 'brave', label: 'Brave Search' },
+                { value: 'gemini', label: 'Gemini (Google Search)' },
+                { value: 'grok', label: 'Grok (xAI)' },
+                { value: 'kimi', label: 'Kimi (Moonshot)' },
+                { value: 'perplexity', label: 'Perplexity' },
+              ]}
+            />
+          </SettingRow>
+
+          <SettingRow label={t('settings.webSearchApiKey')}>
+            <Input
+              value={webSearchApiKey}
+              onChange={(e) => setWebSearchApiKey(e.target.value)}
+              size="small"
+              style={{ width: 220 }}
+              placeholder={webSearchApiKeyConfigured ? t('setup.apiKeyExisting') : t('setup.apiKeyPlaceholder')}
+            />
+          </SettingRow>
+
+          <div style={{ padding: '0 0 4px' }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {t('settings.webSearchPriorityHint')}
+            </Text>
+          </div>
         </>
       )}
 

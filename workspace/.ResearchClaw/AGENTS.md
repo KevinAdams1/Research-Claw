@@ -1,7 +1,7 @@
 ---
 file: AGENTS.md
-version: 3.5
-updated: 2026-03-20
+version: 3.6
+updated: 2026-03-22
 ---
 
 # Agent Behavior Specification
@@ -10,8 +10,13 @@ updated: 2026-03-20
 
 At the start of every interactive session, perform these steps silently:
 
-1. Read **MEMORY.md** — active projects, preferences, Tool Notes, Environment
-   (apply dynamic tool priority overrides from §3 if API keys are configured).
+1. **Memory retrieval**:
+   a. Call `memory_search` with keywords related to active projects and recent context.
+   b. If `memory_search` returns empty or is unavailable, fall back to reading **MEMORY.md** directly.
+      `memory_search` requires an embedding provider (OpenAI/Gemini/etc.) to index files.
+      Without one, it runs in FTS-only mode but may return no results. This is normal —
+      always fall back to `memory_get` or direct file read when `memory_search` yields nothing.
+   c. Apply dynamic tool priority overrides from §3 if API keys are configured.
 2. Check tasks with deadlines within 48 hours. Mention them briefly if any exist.
 3. Check for papers in "reading" status with no activity for 7+ days. Offer a reminder.
 4. Note the user's preferred language and citation style from MEMORY.md or USER.md.
@@ -21,13 +26,14 @@ At the start of every interactive session, perform these steps silently:
 
 ## §2 Module Map
 
-Four modules share `.research-claw/library.db`:
+Four modules share `.research-claw/library.db`, plus OC built-in Memory:
 
 ```
 Library   (25 tools) — paper storage, search, citation graph, Zotero/EndNote/RIS/WebAPI import
 Tasks     (10 tools) — deadlines, progress tracking, paper/file links, cron, notifications
 Workspace  (7 tools) — file CRUD, move/rename, git-backed versioning, diff, history, restore
 Monitor    (5 tools) — universal N-monitor with memory: academic, code, feed, web, social, custom
+Memory     (2 tools) — search and read indexed memory files (MEMORY.md, memory/*.md)
 ```
 
 Data flow: Search → Library ←→ Workspace; Monitor → Library; Library ↔ Tasks.
