@@ -8,6 +8,38 @@
 
 cd "$(dirname "$0")/.."
 
+# --- PID lock: prevent multiple run.sh instances from fighting ---
+PIDFILE="/tmp/research-claw-gateway.pid"
+if [ -f "$PIDFILE" ]; then
+  OLD_PID=$(cat "$PIDFILE" 2>/dev/null)
+  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+    echo "[run] Another run.sh is already running (PID $OLD_PID). Stopping it first..."
+    kill "$OLD_PID" 2>/dev/null || true
+    sleep 2
+    kill -9 "$OLD_PID" 2>/dev/null || true
+  fi
+fi
+echo $$ > "$PIDFILE"
+cleanup_pid() { rm -f "$PIDFILE"; }
+trap cleanup_pid EXIT
+
+# --- Banner ---
+if [ -t 1 ]; then
+  R='\033[38;2;239;68;68m' B='\033[1m' D='\033[2m' N='\033[0m'
+else
+  R='' B='' D='' N=''
+fi
+printf "\n${R}"
+cat <<'ART'
+    ____                              _        ____ _
+   |  _ \ ___  ___  ___  __ _ _ __ ___| |__    / ___| | __ ___      __
+   | |_) / _ \/ __|/ _ \/ _` | '__/ __| '_ \  | |   | |/ _` \ \ /\ / /
+   |  _ <  __/\__ \  __/ (_| | | | (__| | | | | |___| | (_| |\ V  V /
+   |_| \_\___||___/\___|\__,_|_|  \___|_| |_|  \____|_|\__,_| \_/\_/
+ART
+printf "${N}\n  ${B}科研龙虾 — AI-Powered Local Research Assistant${N}\n"
+printf "  ${D}https://wentor.ai${N}\n\n"
+
 # --- Ensure project config exists ---
 # RC project config contains plugin paths, tool whitelist, dashboard root, port 28789.
 # Global ~/.openclaw/openclaw.json is vanilla OpenClaw and MUST NOT override these.
@@ -52,6 +84,12 @@ if (cfg.agents?.defaults?.workspace && !path.isAbsolute(cfg.agents.defaults.work
 }
 if (changed) { const o=JSON.stringify(cfg,null,2)+'\n',t=f+'.tmp.'+process.pid; fs.writeFileSync(t,o); fs.renameSync(t,f); console.log('[run] Config paths resolved to absolute'); }
 "
+
+# --- Ensure config has all OC 2026.3.13+ required fields ---
+# Shared with install.sh and docker-entrypoint.sh via ensure-config.cjs.
+# Covers: plugins.allow, discovery.mdns/wideArea off, stale cleanup.
+GLOBAL_CFG="$HOME/.openclaw/openclaw.json"
+node "$(dirname "$0")/ensure-config.cjs" "$OPENCLAW_CONFIG_PATH" ${GLOBAL_CFG:+"$GLOBAL_CFG"} 2>/dev/null || true
 
 # --- Detect the correct Node for the gateway ---
 # Priority: conda openclaw env (has matching ABI for better-sqlite3) → system node

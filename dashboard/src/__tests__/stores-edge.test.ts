@@ -32,7 +32,10 @@ describe('Library store filter combinations', () => {
       papers: [],
       tags: [],
       loading: false,
+      loadingMore: false,
       total: 0,
+      offset: 0,
+      hasMore: false,
       searchQuery: '',
       activeTab: 'inbox',
       filters: {},
@@ -50,12 +53,12 @@ describe('Library store filter combinations', () => {
       sort: 'year',
     });
 
-    expect(mockGatewayClient.request).toHaveBeenCalledWith('rc.lit.list', {
+    expect(mockGatewayClient.request).toHaveBeenCalledWith('rc.lit.list', expect.objectContaining({
       read_status: 'read',
       tags: ['ml'],
       year: 2024,
       sort: 'year',
-    });
+    }));
   });
 
   it('undefined tags is NOT sent to gateway', async () => {
@@ -190,6 +193,9 @@ describe('Tasks store error handling and edge cases', () => {
       tasks: [],
       loading: false,
       total: 0,
+      offset: 0,
+      hasMore: false,
+      loadingMore: false,
       perspective: 'all',
       showCompleted: false,
       sortBy: 'deadline',

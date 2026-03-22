@@ -156,6 +156,8 @@
       "humanPrompt": "基于当前进展和已有信息，请给出任务「{{title}}」的完成建议。包括：推荐的下一步操作、可能需要的资源、以及如何高效完成此任务的指导。",
       "mixedPrompt": "请汇报任务「{{title}}」的当前状态。我负责的部分进展如何？你负责的部分完成度如何？下一步我们各自需要做什么？"
     },
+    "loadMore": "加载更多",
+    "showingCount": "已显示 {{count}} / {{total}} 项",
     "gantt": {
       "title": "甘特图",
       "open": "甘特图",
@@ -351,7 +353,7 @@
     "tokensOut": "输出",
     "heartbeat": "心跳",
     "version": "v{{version}}",
-    "versionFallback": "v0.5.6",
+    "versionFallback": "v0.5.7",
     "modelDefault": "（默认）",
     "modelNA": "N/A"
   },

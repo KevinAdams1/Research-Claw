@@ -1,20 +1,67 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AutoComplete, Button, Input, Select, Typography, Space, Alert, Card, Divider, Segmented } from 'antd';
 import {
   ApiOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
   GlobalOutlined,
   KeyOutlined,
   LoadingOutlined,
   RocketOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import OAuthModal from '../OAuthModal';
 import { useTranslation } from 'react-i18next';
 import { useGatewayStore } from '../../stores/gateway';
 import { useConfigStore } from '../../stores/config';
-import { buildSaveConfig, extractConfigFields } from '../../utils/config-patch';
+import { buildSaveConfig, extractConfigFields, isLocalProvider } from '../../utils/config-patch';
 import { PROVIDER_PRESETS, detectPresetFromProvider, getPreset, type ProviderPreset } from '../../utils/provider-presets';
 
 const { Title, Text } = Typography;
+
+// ── Ollama model discovery ──
+
+interface OllamaTagModel {
+  name: string;
+  size?: number;
+  details?: { family?: string; parameter_size?: string };
+}
+
+interface OllamaTagsResponse {
+  models?: OllamaTagModel[];
+}
+
+/**
+ * Resolve the Ollama native API base from a configured baseUrl.
+ * Users may configure with or without `/v1` suffix; native API lives at root.
+ */
+function resolveOllamaApiBase(configuredBaseUrl: string): string {
+  const trimmed = configuredBaseUrl.replace(/\/+$/, '');
+  return trimmed.replace(/\/v1$/i, '');
+}
+
+/**
+ * Fetch the list of installed models from an Ollama instance.
+ * Returns `{ reachable, models }`.
+ */
+async function fetchOllamaModels(
+  baseUrl: string,
+): Promise<{ reachable: boolean; models: OllamaTagModel[] }> {
+  try {
+    const apiBase = resolveOllamaApiBase(baseUrl);
+    const response = await fetch(`${apiBase}/api/tags`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) {
+      return { reachable: true, models: [] };
+    }
+    const data = (await response.json()) as OllamaTagsResponse;
+    const models = (data.models ?? []).filter((m) => m.name);
+    return { reachable: true, models };
+  } catch {
+    return { reachable: false, models: [] };
+  }
+}
 
 /** Shared filter for provider Select: searches both label and id */
 const providerFilterOption = (input: string, option?: { label?: unknown; value?: unknown }) => {
@@ -52,12 +99,43 @@ export default function SetupWizard() {
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [proxyUrl, setProxyUrl] = useState('http://127.0.0.1:7890');
 
+  // --- Ollama model discovery ---
+  const [ollamaModels, setOllamaModels] = useState<OllamaTagModel[]>([]);
+  const [ollamaDetecting, setOllamaDetecting] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'ok' | 'no_models' | 'unreachable'>('idle');
+
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [error, setError] = useState('');
 
   const prefilled = useRef(false);
   const hasExistingConfig = useRef(false);
+
+  // Ollama model detection
+  const detectOllamaModels = useCallback(async (url?: string) => {
+    const detectUrl = url || baseUrl || 'http://127.0.0.1:11434';
+    setOllamaDetecting(true);
+    setOllamaStatus('idle');
+    try {
+      const result = await fetchOllamaModels(detectUrl);
+      if (!result.reachable) {
+        setOllamaStatus('unreachable');
+        setOllamaModels([]);
+      } else if (result.models.length === 0) {
+        setOllamaStatus('no_models');
+        setOllamaModels([]);
+      } else {
+        setOllamaStatus('ok');
+        setOllamaModels(result.models);
+        // Auto-select first model if none selected yet
+        if (!textModel && result.models.length > 0) {
+          setTextModel(result.models[0].name);
+        }
+      }
+    } finally {
+      setOllamaDetecting(false);
+    }
+  }, [baseUrl, textModel]);
 
   // Apply text provider preset
   const handleProviderChange = (id: string) => {
@@ -71,6 +149,21 @@ export default function SetupWizard() {
     // `openai-codex` uses OAuth profiles; do not prompt for API key here.
     if (id === 'openai-codex') {
       setApiKey('');
+    }
+    // Local providers don't need API key; clear it and reset Ollama state
+    if (isLocalProvider(id)) {
+      setApiKey('');
+      // Clear textModel so auto-detection can populate it from discovered models
+      setTextModel('');
+      // Reset Ollama detection state when switching provider
+      setOllamaModels([]);
+      setOllamaStatus('idle');
+      // Auto-detect Ollama models when selecting the provider
+      if (id === 'ollama') {
+        const url = preset.baseUrl || 'http://127.0.0.1:11434';
+        // Slight delay so baseUrl state is set
+        setTimeout(() => detectOllamaModels(url), 100);
+      }
     }
   };
 
@@ -131,9 +224,10 @@ export default function SetupWizard() {
   }, [restarting, connState]);
 
   const isOpenAICodexOAuth = provider === 'openai-codex';
+  const isOllamaLocal = isLocalProvider(provider);
   const [oauthModalOpen, setOauthModalOpen] = useState(false);
   const canStart =
-    (isOpenAICodexOAuth || apiKey.trim().length > 0 || hasExistingConfig.current) &&
+    (isOpenAICodexOAuth || isOllamaLocal || apiKey.trim().length > 0 || hasExistingConfig.current) &&
     baseUrl.trim().length > 0 &&
     textModel.trim().length > 0;
 
@@ -188,10 +282,17 @@ export default function SetupWizard() {
 
   // Current preset's model suggestions for AutoComplete
   const currentPreset = getPreset(provider);
-  const modelOptions = currentPreset.models.map((m) => ({
-    value: m.id,
-    label: `${m.id} — ${m.name}`,
-  }));
+  const modelOptions = provider === 'ollama' && ollamaModels.length > 0
+    ? ollamaModels.map((m) => ({
+        value: m.name,
+        label: m.details?.parameter_size
+          ? `${m.name} (${m.details.parameter_size})`
+          : m.name,
+      }))
+    : currentPreset.models.map((m) => ({
+        value: m.id,
+        label: `${m.id} — ${m.name}`,
+      }));
 
   const visionPreset = getPreset(visionProvider);
   const visionModelOptions = visionPreset.models.map((m) => ({
@@ -290,8 +391,13 @@ export default function SetupWizard() {
             <Input
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder={t('setup.baseUrlPlaceholder')}
+              placeholder={isOllamaLocal ? 'http://127.0.0.1:11434' : t('setup.baseUrlPlaceholder')}
             />
+            {provider === 'ollama' && (
+              <Text type="secondary" style={{ fontSize: 11, marginTop: 2, display: 'block' }}>
+                {t('setup.ollamaBaseUrlHint')}
+              </Text>
+            )}
           </div>
 
           {/* ── API Protocol (shown for Custom only) ── */}
@@ -313,38 +419,87 @@ export default function SetupWizard() {
             </div>
           )}
 
-          <div>
-            <Text strong style={{ display: 'block', marginBottom: 4 }}>
-              {t('setup.apiKey')}
-            </Text>
-            <Input
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              disabled={isOpenAICodexOAuth}
-              placeholder={
-                isOpenAICodexOAuth
-                  ? t('setup.openaiCodexOauthNoApiKey')
-                  : (hasExistingConfig.current && !apiKey ? t('setup.apiKeyExisting') : t('setup.apiKeyPlaceholder'))
-              }
-              prefix={<ApiOutlined />}
-            />
-            {isOpenAICodexOAuth && (
-              <div style={{ marginTop: 6 }}>
-                <Button
-                  size="small"
-                  icon={<KeyOutlined />}
-                  onClick={() => setOauthModalOpen(true)}
-                >
-                  {t('oauth.configureOAuth')}
-                </Button>
-                <OAuthModal
-                  open={oauthModalOpen}
-                  provider={provider}
-                  onClose={() => setOauthModalOpen(false)}
-                />
-              </div>
-            )}
-          </div>
+          {/* ── API Key (hidden for local providers) ── */}
+          {!isOllamaLocal && (
+            <div>
+              <Text strong style={{ display: 'block', marginBottom: 4 }}>
+                {t('setup.apiKey')}
+              </Text>
+              <Input
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                disabled={isOpenAICodexOAuth}
+                placeholder={
+                  isOpenAICodexOAuth
+                    ? t('setup.openaiCodexOauthNoApiKey')
+                    : (hasExistingConfig.current && !apiKey ? t('setup.apiKeyExisting') : t('setup.apiKeyPlaceholder'))
+                }
+                prefix={<ApiOutlined />}
+              />
+              {isOpenAICodexOAuth && (
+                <div style={{ marginTop: 6 }}>
+                  <Button
+                    size="small"
+                    icon={<KeyOutlined />}
+                    onClick={() => setOauthModalOpen(true)}
+                  >
+                    {t('oauth.configureOAuth')}
+                  </Button>
+                  <OAuthModal
+                    open={oauthModalOpen}
+                    provider={provider}
+                    onClose={() => setOauthModalOpen(false)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Ollama: no API key notice + model detection ── */}
+          {isOllamaLocal && (
+            <div>
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                <CheckCircleOutlined style={{ color: 'var(--accent-primary)', marginRight: 4 }} />
+                {t('setup.ollamaNoApiKey')}
+              </Text>
+              {provider === 'ollama' && (
+                <>
+                  <Button
+                    size="small"
+                    icon={ollamaDetecting ? <SyncOutlined spin /> : <SyncOutlined />}
+                    onClick={() => detectOllamaModels()}
+                    disabled={ollamaDetecting}
+                    style={{ marginBottom: 6 }}
+                  >
+                    {ollamaDetecting ? t('setup.ollamaDetecting') : t('setup.ollamaDetectModels')}
+                  </Button>
+                  {ollamaStatus === 'ok' && (
+                    <Text style={{ fontSize: 12, marginLeft: 8, color: 'var(--accent-primary)' }}>
+                      <CheckCircleOutlined style={{ marginRight: 4 }} />
+                      {t('setup.ollamaDetected', { count: ollamaModels.length })}
+                    </Text>
+                  )}
+                  {ollamaStatus === 'unreachable' && (
+                    <Alert
+                      type="warning"
+                      message={t('setup.ollamaDetectFailed')}
+                      showIcon
+                      icon={<CloseCircleOutlined />}
+                      style={{ marginTop: 6, fontSize: 12 }}
+                    />
+                  )}
+                  {ollamaStatus === 'no_models' && (
+                    <Alert
+                      type="info"
+                      message={t('setup.ollamaNoModels')}
+                      showIcon
+                      style={{ marginTop: 6, fontSize: 12 }}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <div>
             <Text strong style={{ display: 'block', marginBottom: 4 }}>
@@ -354,7 +509,7 @@ export default function SetupWizard() {
               value={textModel}
               onChange={setTextModel}
               options={modelOptions}
-              placeholder={t('setup.modelNamePlaceholder')}
+              placeholder={provider === 'ollama' ? 'e.g. llama3.2, qwen2.5, deepseek-r1' : t('setup.modelNamePlaceholder')}
               style={{ width: '100%' }}
               filterOption={(input, option) =>
                 (option?.value ?? '').toLowerCase().includes(input.toLowerCase())

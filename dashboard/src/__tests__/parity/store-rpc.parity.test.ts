@@ -76,7 +76,10 @@ describe('Library store RPC parity (rc.lit.*)', () => {
       papers: [],
       tags: [],
       loading: false,
+      loadingMore: false,
       total: 0,
+      offset: 0,
+      hasMore: false,
       searchQuery: '',
       activeTab: 'inbox',
       filters: {},
@@ -161,7 +164,7 @@ describe('Library store RPC parity (rc.lit.*)', () => {
 
       expect(mockGatewayClient.request).toHaveBeenCalledWith(
         'rc.lit.search',
-        { query: 'attention' },
+        expect.objectContaining({ query: 'attention', limit: 30, offset: 0 }),
       );
       expect(useLibraryStore.getState().papers).toHaveLength(1);
       expect(useLibraryStore.getState().total).toBe(1);
@@ -228,7 +231,7 @@ describe('Library store RPC parity (rc.lit.*)', () => {
 
       expect(mockGatewayClient.request).toHaveBeenCalledWith(
         'rc.lit.search',
-        { query: 'transformer efficiency' },
+        expect.objectContaining({ query: 'transformer efficiency', limit: 30, offset: 0 }),
       );
     });
 
@@ -381,6 +384,9 @@ describe('Tasks store RPC parity (rc.task.*)', () => {
       tasks: [],
       loading: false,
       total: 0,
+      offset: 0,
+      hasMore: false,
+      loadingMore: false,
       perspective: 'all',
       showCompleted: false,
       sortBy: 'deadline',
@@ -451,7 +457,7 @@ describe('Tasks store RPC parity (rc.task.*)', () => {
     });
 
     it('sends correct params based on store state', async () => {
-      // Source: tasks/rpc.ts:169-189 — params: sort, include_completed, task_type, etc.
+      // Source: tasks/rpc.ts:169-189 — params: sort, include_completed, task_type, limit, offset, etc.
       mockGatewayClient.request.mockResolvedValueOnce(RC_TASK_LIST_RESPONSE);
 
       useTasksStore.setState({ perspective: 'human', showCompleted: true, sortBy: 'priority' });
@@ -463,6 +469,8 @@ describe('Tasks store RPC parity (rc.task.*)', () => {
           sort: 'priority',
           include_completed: true,
           task_type: 'human',
+          limit: 50,
+          offset: 0,
         },
       );
     });
@@ -722,7 +730,7 @@ describe('Sessions store RPC parity (sessions.*)', () => {
 
       expect(mockGatewayClient.request).toHaveBeenCalledWith(
         'sessions.list',
-        { includeDerivedTitles: true },
+        { includeDerivedTitles: true, limit: 1000 },
       );
     });
 
@@ -818,7 +826,7 @@ describe('Sessions store RPC parity (sessions.*)', () => {
 
       expect(mockGatewayClient.request).toHaveBeenCalledWith(
         'sessions.delete',
-        { key: 'agent:main:project-a1b2c3d4' },
+        { key: 'agent:main:project-a1b2c3d4', deleteTranscript: true },
       );
       expect(useSessionsStore.getState().sessions).toHaveLength(2);
       expect(useSessionsStore.getState().sessions.find((s) => s.key === 'agent:main:project-a1b2c3d4')).toBeUndefined();

@@ -272,15 +272,16 @@ export const useCronStore = create<CronState>()((set, get) => ({
   },
 }));
 
-// DISABLED: Old cron preset reconciliation is replaced by the monitor system.
-// The subscribe below was creating duplicate gateway cron jobs that conflicted
-// with rc_monitors. Kept commented for reference during migration period.
-//
-// if (typeof useGatewayStore.subscribe === 'function') {
-//   useGatewayStore.subscribe((state) => {
-//     if (state.state !== 'connected') {
-//       _reconciled = false;
-//       useCronStore.setState({ presetsLoaded: false });
-//     }
-//   });
-// }
+/**
+ * Reset the reconciliation flag so the next loadPresets() re-registers
+ * enabled cron presets with the gateway.  Called from the onHello callback
+ * in gateway.ts — this is the precise "connection established" moment.
+ *
+ * NOTE: The old zustand.subscribe approach was disabled because it fired
+ * on every state transition (including transient reconnecting states) and
+ * created duplicate gateway cron jobs that conflicted with rc_monitors.
+ * Calling resetReconciled() explicitly from onHello avoids that issue.
+ */
+export function resetCronReconciled(): void {
+  _reconciled = false;
+}

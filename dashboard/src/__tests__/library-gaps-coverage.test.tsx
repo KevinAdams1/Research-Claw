@@ -152,7 +152,10 @@ function resetStores() {
     papers: [],
     tags: [],
     loading: false,
+    loadingMore: false,
     total: 0,
+    offset: 0,
+    hasMore: false,
     searchQuery: '',
     activeTab: 'inbox',
     filters: {},
@@ -689,27 +692,27 @@ describe('Component: saved tab shows only starred papers', () => {
 // =========================================================================
 // 9. Component: pending tab filtering
 // =========================================================================
-describe('Component: pending tab shows unread and reading papers', () => {
+describe('Component: inbox tab renders server-returned papers directly', () => {
   beforeEach(resetStores);
 
-  it('pending tab shows unread and reading, hides read and reviewed', async () => {
-    // Source: LibraryPanel.tsx:327-329
-    const papers = [
+  it('inbox tab renders all papers from server (server does the filtering)', async () => {
+    // With server-side pagination, the store sends read_status: ['unread','reading']
+    // to rc.lit.list. The server returns only matching papers. The component
+    // renders them directly — no client-side tab filtering.
+    const inboxPapers = [
       makePaper({ id: 'p1', title: 'Unread Paper', read_status: 'unread' }),
       makePaper({ id: 'p2', title: 'Reading Paper', read_status: 'reading' }),
-      makePaper({ id: 'p3', title: 'Read Paper', read_status: 'read' }),
-      makePaper({ id: 'p4', title: 'Reviewed Paper', read_status: 'reviewed' }),
     ];
 
     useLibraryStore.setState({
-      papers,
+      papers: inboxPapers,
       tags: [],
-      total: 4,
+      total: 2,
       activeTab: 'inbox',
     });
 
     setupMethodRouter({
-      'rc.lit.list': { items: papers, total: 4 },
+      'rc.lit.list': { items: inboxPapers, total: 2 },
       'rc.lit.tags': [],
     });
 
@@ -719,34 +722,32 @@ describe('Component: pending tab shows unread and reading papers', () => {
 
     expect(screen.getByText('Unread Paper')).toBeInTheDocument();
     expect(screen.getByText('Reading Paper')).toBeInTheDocument();
-    expect(screen.queryByText('Read Paper')).not.toBeInTheDocument();
-    expect(screen.queryByText('Reviewed Paper')).not.toBeInTheDocument();
   });
 });
 
 // =========================================================================
 // 10. Component: pending and saved counts in tab labels
 // =========================================================================
-describe('Component: tab count labels', () => {
+describe('Component: tab labels do not show counts', () => {
   beforeEach(resetStores);
 
-  it('displays correct pending and saved counts', async () => {
-    // Source: LibraryPanel.tsx:334-342 — pendingCount + savedCount
+  it('tab labels are plain text without count suffixes', async () => {
+    // With server-side pagination, the component no longer computes client-side
+    // counts. Tab labels are just the plain i18n key without "(N)" suffixes.
     const papers = [
       makePaper({ id: 'p1', read_status: 'unread', rating: null }),
       makePaper({ id: 'p2', read_status: 'reading', rating: 5 }),
-      makePaper({ id: 'p3', read_status: 'read', rating: 4 }),
     ];
 
     useLibraryStore.setState({
       papers,
       tags: [],
-      total: 3,
+      total: 2,
       activeTab: 'inbox',
     });
 
     setupMethodRouter({
-      'rc.lit.list': { items: papers, total: 3 },
+      'rc.lit.list': { items: papers, total: 2 },
       'rc.lit.tags': [],
     });
 
@@ -754,10 +755,13 @@ describe('Component: tab count labels', () => {
       render(<LibraryPanel />);
     });
 
-    // Pending = unread + reading = 2
-    // Saved = rating > 0 = 2 (p2 rating=5, p3 rating=4)
-    expect(screen.getByText('library.inbox (2)')).toBeInTheDocument();
-    expect(screen.getByText('library.starred (2)')).toBeInTheDocument();
+    // Tab labels are plain i18n keys, no count suffixes
+    expect(screen.getByText('library.inbox')).toBeInTheDocument();
+    expect(screen.getByText('library.starred')).toBeInTheDocument();
+    expect(screen.getByText('library.archive')).toBeInTheDocument();
+    // Old count-based labels should NOT exist
+    expect(screen.queryByText(/library\.inbox \(\d+\)/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/library\.starred \(\d+\)/)).not.toBeInTheDocument();
   });
 });
 
@@ -885,7 +889,7 @@ describe('Store: loadPapers dispatches to correct RPC based on searchQuery', () 
 
     expect(mockGatewayClient.request).toHaveBeenCalledWith(
       'rc.lit.search',
-      { query: 'attention' },
+      { query: 'attention', limit: 30, offset: 0 },
     );
   });
 
@@ -912,10 +916,10 @@ describe('Store: loadPapers dispatches to correct RPC based on searchQuery', () 
 
     await useLibraryStore.getState().loadPapers();
 
-    // Should call rc.lit.search with only the query, not filter params
+    // Should call rc.lit.search with only the query + pagination, not filter params
     expect(mockGatewayClient.request).toHaveBeenCalledWith(
       'rc.lit.search',
-      { query: 'bert' },
+      { query: 'bert', limit: 30, offset: 0 },
     );
   });
 });

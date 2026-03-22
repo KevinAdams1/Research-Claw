@@ -30,7 +30,10 @@ describe('Library store integration', () => {
       papers: [],
       tags: [],
       loading: false,
+      loadingMore: false,
       total: 0,
+      offset: 0,
+      hasMore: false,
       searchQuery: '',
       activeTab: 'inbox',
       filters: {},
@@ -57,7 +60,10 @@ describe('Library store integration', () => {
 
     await useLibraryStore.getState().loadPapers();
 
-    expect(mockGatewayClient.request).toHaveBeenCalledWith('rc.lit.list', {});
+    expect(mockGatewayClient.request).toHaveBeenCalledWith(
+      'rc.lit.list',
+      expect.objectContaining({ limit: 30, offset: 0 }),
+    );
     expect(useLibraryStore.getState().papers).toHaveLength(1);
     expect(useLibraryStore.getState().total).toBe(1);
     expect(useLibraryStore.getState().loading).toBe(false);
@@ -108,7 +114,7 @@ describe('Library store integration', () => {
 
     expect(mockGatewayClient.request).toHaveBeenCalledWith(
       'rc.lit.search',
-      { query: 'attention' },
+      expect.objectContaining({ query: 'attention', limit: 30, offset: 0 }),
     );
   });
 
@@ -207,9 +213,10 @@ describe('Library store integration', () => {
     await useLibraryStore.getState().searchPapers('transformers');
 
     expect(useLibraryStore.getState().searchQuery).toBe('transformers');
-    expect(mockGatewayClient.request).toHaveBeenCalledWith('rc.lit.search', {
-      query: 'transformers',
-    });
+    expect(mockGatewayClient.request).toHaveBeenCalledWith(
+      'rc.lit.search',
+      expect.objectContaining({ query: 'transformers', limit: 30, offset: 0 }),
+    );
     expect(useLibraryStore.getState().papers).toHaveLength(1);
   });
 });
@@ -223,6 +230,9 @@ describe('Tasks store integration', () => {
       tasks: [],
       loading: false,
       total: 0,
+      offset: 0,
+      hasMore: false,
+      loadingMore: false,
       perspective: 'all',
       showCompleted: false,
       sortBy: 'deadline',
@@ -238,6 +248,8 @@ describe('Tasks store integration', () => {
     expect(mockGatewayClient.request).toHaveBeenCalledWith('rc.task.list', {
       sort: 'deadline',
       include_completed: false,
+      limit: 50,
+      offset: 0,
     });
   });
 

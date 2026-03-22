@@ -204,7 +204,7 @@ function extractBacktickNames(text: string): string[] {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('Bootstrap file consistency (AGENTS.md v3.4 & TOOLS.md v3.3)', () => {
+describe('Bootstrap file consistency (AGENTS.md v3.5 & TOOLS.md v3.3)', () => {
   // ── Precondition ──────────────────────────────────────────────────────
 
   it('bootstrap files exist and are non-empty', () => {
@@ -451,15 +451,15 @@ describe('Bootstrap file consistency (AGENTS.md v3.4 & TOOLS.md v3.3)', () => {
       expect(agentsMd).toContain('### Local Library Bridge (Zotero / EndNote)');
     });
 
-    it('describes Zotero fallback chain (SQLite → Local API → Web API → Format export)', () => {
+    it('describes Zotero fallback chain (SQLite → Local API → Web API → format export)', () => {
       const bridgeSection = agentsMd.slice(
         agentsMd.indexOf('### Local Library Bridge'),
         agentsMd.indexOf('### Dynamic Tool Priority'),
       );
-      expect(bridgeSection).toContain('zotero.sqlite');
-      expect(bridgeSection).toContain('localhost:23119');
-      expect(bridgeSection).toContain('api.zotero.org');
-      expect(bridgeSection).toContain('library_export_bibtex');
+      expect(bridgeSection).toContain('SQLite');
+      expect(bridgeSection).toContain('Local API');
+      expect(bridgeSection).toContain('Web API');
+      expect(bridgeSection).toContain('format export');
     });
 
     it('describes EndNote fallback chain', () => {
@@ -468,7 +468,7 @@ describe('Bootstrap file consistency (AGENTS.md v3.4 & TOOLS.md v3.3)', () => {
         agentsMd.indexOf('### Dynamic Tool Priority'),
       );
       expect(bridgeSection).toContain('EndNote');
-      expect(bridgeSection).toContain('.enl');
+      expect(bridgeSection).toContain('format export');
     });
 
     it('describes Docker environment guidance', () => {
@@ -477,8 +477,7 @@ describe('Bootstrap file consistency (AGENTS.md v3.4 & TOOLS.md v3.3)', () => {
         agentsMd.indexOf('### Dynamic Tool Priority'),
       );
       expect(bridgeSection).toContain('Docker');
-      expect(bridgeSection).toContain('library_import_bibtex');
-      expect(bridgeSection).toContain('library_import_ris');
+      expect(bridgeSection).toContain('BibTeX/RIS');
     });
 
     it('describes reverse path (RC → Zotero) with approval_card', () => {
@@ -486,17 +485,17 @@ describe('Bootstrap file consistency (AGENTS.md v3.4 & TOOLS.md v3.3)', () => {
         agentsMd.indexOf('### Local Library Bridge'),
         agentsMd.indexOf('### Dynamic Tool Priority'),
       );
-      expect(bridgeSection).toContain('library_zotero_web_create');
+      expect(bridgeSection).toContain('Web API');
       expect(bridgeSection).toContain('approval_card');
     });
 
-    it('mentions other reference managers fallback (Mendeley, etc.)', () => {
+    it('mentions full details delegation to research-sop', () => {
       const bridgeSection = agentsMd.slice(
         agentsMd.indexOf('### Local Library Bridge'),
         agentsMd.indexOf('### Dynamic Tool Priority'),
       );
-      expect(bridgeSection).toContain('Mendeley');
-      expect(bridgeSection).toContain('library_batch_add');
+      expect(bridgeSection).toContain('research-sop');
+      expect(bridgeSection).toContain('other managers');
     });
 
     it('mentions first detection recording in MEMORY.md', () => {
@@ -820,8 +819,8 @@ describe('Bootstrap file consistency (AGENTS.md v3.4 & TOOLS.md v3.3)', () => {
   // ── Version headers ───────────────────────────────────────────────────
 
   describe('Version metadata', () => {
-    it('AGENTS.md is version 3.4', () => {
-      expect(agentsMd).toMatch(/version:\s*3\.4/);
+    it('AGENTS.md is version 3.5', () => {
+      expect(agentsMd).toMatch(/version:\s*3\.5/);
     });
 
     it('TOOLS.md is version 3.3', () => {

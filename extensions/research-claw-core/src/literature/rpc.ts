@@ -120,7 +120,11 @@ export function registerLiteratureRpc(registerMethod: RegisterMethod, service: L
   registerMethod('rc.lit.list', async (params: Record<string, unknown>) => {
     try {
       const filter: PaperFilter = {};
-      if (params.read_status !== undefined) filter.read_status = String(params.read_status);
+      if (params.read_status !== undefined) {
+        filter.read_status = Array.isArray(params.read_status)
+          ? params.read_status.map(String)
+          : String(params.read_status);
+      }
       if (params.year !== undefined) filter.year = Number(params.year);
       if (params.source !== undefined) filter.source = String(params.source);
       // Support both singular 'tag' and plural 'tags' parameters

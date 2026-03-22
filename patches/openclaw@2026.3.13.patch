@@ -1,15 +1,16 @@
-diff --git a/dist/agent-scope-BDXYqF89.js b/dist/agent-scope-BDXYqF89.js
-index 0fc7dac477445b94f6f6407ff6098ef58bbf9c28..5fc2e80e0341e1085da79fa847f1873d9fd213e3 100644
---- a/dist/agent-scope-BDXYqF89.js
-+++ b/dist/agent-scope-BDXYqF89.js
-@@ -376,36 +376,40 @@ async function resolveMemoryBootstrapEntries(resolvedDir) {
+diff --git a/dist/agent-scope-CZIF93u7.js b/dist/agent-scope-CZIF93u7.js
+index eb20cdf4b712099af7fcddc8bea9562a8a872fbb..ee2d4fe7f9f13ed4a41e5fe74fb97fd9db249937 100644
+--- a/dist/agent-scope-CZIF93u7.js
++++ b/dist/agent-scope-CZIF93u7.js
+@@ -362,36 +362,41 @@ async function resolveMemoryBootstrapEntry(resolvedDir) {
  	}
- 	return deduped;
+ 	return null;
  }
 +function resolveBootstrapFilePath(resolvedDir, name) {
-+	const rcPath = path.join(resolvedDir, '.ResearchClaw', name);
++	const rcPath = path.join(resolvedDir, ".ResearchClaw", name);
 +	try { fs.accessSync(rcPath, fs.constants.F_OK); return rcPath; } catch { return path.join(resolvedDir, name); }
 +}
++
  async function loadWorkspaceBootstrapFiles(dir) {
  	const resolvedDir = resolveUserPath(dir);
  	const entries = [
@@ -49,19 +50,20 @@ index 0fc7dac477445b94f6f6407ff6098ef58bbf9c28..5fc2e80e0341e1085da79fa847f1873d
 +			filePath: resolveBootstrapFilePath(resolvedDir, DEFAULT_BOOTSTRAP_FILENAME)
  		}
  	];
- 	entries.push(...await resolveMemoryBootstrapEntries(resolvedDir));
-diff --git a/dist/agent-scope-CZF6h_5g.js b/dist/agent-scope-CZF6h_5g.js
-index 2c4ce2f12c107bcf8b631f33e2930821a2db3365..3b00dbda4f1a201754ce19586b2c5f88e1298c41 100644
---- a/dist/agent-scope-CZF6h_5g.js
-+++ b/dist/agent-scope-CZF6h_5g.js
-@@ -375,36 +375,40 @@ async function resolveMemoryBootstrapEntries(resolvedDir) {
+ 	const memoryEntry = await resolveMemoryBootstrapEntry(resolvedDir);
+diff --git a/dist/agent-scope-DvYJ0Ktc.js b/dist/agent-scope-DvYJ0Ktc.js
+index 877bba82d7287f692638fd95d064d22ace99c9d1..4b3a96654e79f612abca79848423bb5aab2e26d2 100644
+--- a/dist/agent-scope-DvYJ0Ktc.js
++++ b/dist/agent-scope-DvYJ0Ktc.js
+@@ -361,36 +361,41 @@ async function resolveMemoryBootstrapEntry(resolvedDir) {
  	}
- 	return deduped;
+ 	return null;
  }
 +function resolveBootstrapFilePath(resolvedDir, name) {
-+	const rcPath = path.join(resolvedDir, '.ResearchClaw', name);
++	const rcPath = path.join(resolvedDir, ".ResearchClaw", name);
 +	try { fs.accessSync(rcPath, fs.constants.F_OK); return rcPath; } catch { return path.join(resolvedDir, name); }
 +}
++
  async function loadWorkspaceBootstrapFiles(dir) {
  	const resolvedDir = resolveUserPath(dir);
  	const entries = [
@@ -101,14 +103,14 @@ index 2c4ce2f12c107bcf8b631f33e2930821a2db3365..3b00dbda4f1a201754ce19586b2c5f88
 +			filePath: resolveBootstrapFilePath(resolvedDir, DEFAULT_BOOTSTRAP_FILENAME)
  		}
  	];
- 	entries.push(...await resolveMemoryBootstrapEntries(resolvedDir));
+ 	const memoryEntry = await resolveMemoryBootstrapEntry(resolvedDir);
 diff --git a/dist/cli/daemon-cli.js b/dist/cli/daemon-cli.js
-index d8b27557529110039cfce25ff2238eef30de19b9..e87cbf62767b3a4d5ea7a5caacf09a8604503142 100644
+index 336686b8b31f6e417786c44e73b34facd8829b90..86058e0c863ae2403b9525bbf770af10f9822103 100644
 --- a/dist/cli/daemon-cli.js
 +++ b/dist/cli/daemon-cli.js
-@@ -3,7 +3,7 @@ import * as daemonCli from "../daemon-cli-C4fOQroR.js";
+@@ -3,7 +3,7 @@ import * as daemonCli from "../daemon-cli-BZYU0J1V.js";
  export const registerDaemonCli = daemonCli.t.registerDaemonCli;
- export const runDaemonInstall = daemonCli.l;
+ export const runDaemonInstall = daemonCli.s;
  export const runDaemonRestart = daemonCli.r;
 -export const runDaemonStart = async () => { throw new Error("Legacy daemon CLI export \"runDaemonStart\" is unavailable in this build. Please upgrade OpenClaw."); };
 -export const runDaemonStatus = async () => { throw new Error("Legacy daemon CLI export \"runDaemonStatus\" is unavailable in this build. Please upgrade OpenClaw."); };
@@ -119,19 +121,19 @@ index d8b27557529110039cfce25ff2238eef30de19b9..e87cbf62767b3a4d5ea7a5caacf09a86
 +export const runDaemonStop = async () => { throw new Error("Legacy daemon CLI export \"runDaemonStop\" is unavailable in this build. Please upgrade Research-Claw."); };
 +export const runDaemonUninstall = async () => { throw new Error("Legacy daemon CLI export \"runDaemonUninstall\" is unavailable in this build. Please upgrade Research-Claw."); };
 diff --git a/dist/entry.js b/dist/entry.js
-index c7ae98a77a73b672ecb378df756bb867a6965f68..e2b8fc72a8853cf411ee8cbb738950ed4ddd9634 100755
+index a097f58e8fadc4a58eec5ad7cd21792cf1a9b504..736c81c77bd161020f57ca25960a03243a952ab6 100755
 --- a/dist/entry.js
 +++ b/dist/entry.js
-@@ -303,7 +303,7 @@ if (!isMainModule({
+@@ -317,7 +317,7 @@ if (!isMainModule({
  	currentFile: fileURLToPath(import.meta.url),
  	wrapperEntryPairs: [...ENTRY_WRAPPER_PAIRS]
  })) {} else {
 -	process$1.title = "openclaw";
 +	process$1.title = "research-claw";
+ 	ensureOpenClawExecMarkerOnProcess();
  	installProcessWarningFilter();
  	normalizeEnv();
- 	if (!isTruthyEnvValue(process$1.env.NODE_DISABLE_COMPILE_CACHE)) try {
-@@ -344,7 +344,7 @@ if (!isMainModule({
+@@ -359,7 +359,7 @@ if (!isMainModule({
  			process$1.exit(code ?? 1);
  		});
  		child.once("error", (error) => {
@@ -140,9 +142,9 @@ index c7ae98a77a73b672ecb378df756bb867a6965f68..e2b8fc72a8853cf411ee8cbb738950ed
  			process$1.exit(1);
  		});
  		return true;
-@@ -353,10 +353,10 @@ if (!isMainModule({
+@@ -368,10 +368,10 @@ if (!isMainModule({
  		if (!isRootVersionInvocation(argv)) return false;
- 		Promise.all([import("./version-Bxx5bg6l.js").then((n) => n.r), import("./git-commit-Z4N0ntjy.js").then((n) => n.t)]).then(([{ VERSION }, { resolveCommitHash }]) => {
+ 		Promise.all([import("./version-DcA9ITyc.js").then((n) => n.r), import("./git-commit-B0vIx0co.js").then((n) => n.t)]).then(([{ VERSION }, { resolveCommitHash }]) => {
  			const commit = resolveCommitHash({ moduleUrl: import.meta.url });
 -			console.log(commit ? `OpenClaw ${VERSION} (${commit})` : `OpenClaw ${VERSION}`);
 +			console.log(commit ? `Research-Claw ${VERSION} (${commit})` : `Research-Claw ${VERSION}`);
@@ -153,8 +155,8 @@ index c7ae98a77a73b672ecb378df756bb867a6965f68..e2b8fc72a8853cf411ee8cbb738950ed
  			process$1.exitCode = 1;
  		});
  		return true;
-@@ -366,7 +366,7 @@ if (!isMainModule({
- 		import("./program-BY--_6zJ.js").then(({ buildProgram }) => {
+@@ -381,7 +381,7 @@ if (!isMainModule({
+ 		import("./program-DdPIyEwa.js").then(({ buildProgram }) => {
  			buildProgram().outputHelp();
  		}).catch((error) => {
 -			console.error("[openclaw] Failed to display help:", error instanceof Error ? error.stack ?? error.message : error);
@@ -162,7 +164,7 @@ index c7ae98a77a73b672ecb378df756bb867a6965f68..e2b8fc72a8853cf411ee8cbb738950ed
  			process$1.exitCode = 1;
  		});
  		return true;
-@@ -375,7 +375,7 @@ if (!isMainModule({
+@@ -390,7 +390,7 @@ if (!isMainModule({
  	if (!ensureExperimentalWarningSuppressed()) {
  		const parsed = parseCliProfileArgs(process$1.argv);
  		if (!parsed.ok) {
@@ -171,10 +173,10 @@ index c7ae98a77a73b672ecb378df756bb867a6965f68..e2b8fc72a8853cf411ee8cbb738950ed
  			process$1.exit(2);
  		}
  		if (parsed.profile) {
-@@ -383,7 +383,7 @@ if (!isMainModule({
+@@ -398,7 +398,7 @@ if (!isMainModule({
  			process$1.argv = parsed.argv;
  		}
- 		if (!tryHandleRootVersionFastPath(process$1.argv) && !tryHandleRootHelpFastPath(process$1.argv)) import("./run-main-BcgwOk2p.js").then(({ runCli }) => runCli(process$1.argv)).catch((error) => {
+ 		if (!tryHandleRootVersionFastPath(process$1.argv) && !tryHandleRootHelpFastPath(process$1.argv)) import("./run-main-Cu0soMcD.js").then(({ runCli }) => runCli(process$1.argv)).catch((error) => {
 -			console.error("[openclaw] Failed to start CLI:", error instanceof Error ? error.stack ?? error.message : error);
 +			console.error("[research-claw] Failed to start CLI:", error instanceof Error ? error.stack ?? error.message : error);
  			process$1.exitCode = 1;

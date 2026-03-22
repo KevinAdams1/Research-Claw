@@ -482,7 +482,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   // ── Tier 4: Self-hosted / local ──
   {
     id: 'ollama',
-    label: 'Ollama (Local)',
+    label: 'Ollama (本地模型)',
     baseUrl: 'http://127.0.0.1:11434',
     api: 'ollama',
     models: [],

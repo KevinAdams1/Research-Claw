@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { GatewayClient } from '../gateway/client';
 import { useConfigStore } from './config';
-import type { ConnectionState, HelloOk, EventFrame } from '../gateway/types';
+import type { ConnectionState, HelloOk, EventFrame, SessionDefaults } from '../gateway/types';
 
 interface GatewayState {
   client: GatewayClient | null;
@@ -9,6 +9,8 @@ interface GatewayState {
   serverVersion: string | null;
   assistantName: string;
   connId: string | null;
+  /** Session defaults from hello snapshot (agentId, mainKey, etc.) */
+  sessionDefaults: SessionDefaults | null;
   /** Last connection error details for UI display */
   connectError: { code: string; message: string } | null;
 
@@ -23,6 +25,7 @@ export const useGatewayStore = create<GatewayState>()((set, get) => ({
   serverVersion: null,
   assistantName: 'Research-Claw',
   connId: null,
+  sessionDefaults: null,
   connectError: null,
 
   connect: (url: string, token?: string) => {
@@ -35,7 +38,7 @@ export const useGatewayStore = create<GatewayState>()((set, get) => ({
       url,
       token,
       clientName: 'research-claw-dashboard',
-      clientVersion: '0.5.6',
+      clientVersion: '0.5.7',
       platform: 'browser',
       onStateChange: (state: ConnectionState) => {
         set({ state, ...(state === 'connected' ? { connectError: null } : {}) });
@@ -67,9 +70,44 @@ export const useGatewayStore = create<GatewayState>()((set, get) => ({
         useConfigStore.setState({ _configRetryCount: 0 });
         // Auto-fetch config on every (re)connection
         useConfigStore.getState().loadGatewayConfig();
+        // Subscribe to session changes (aligned with OC UI: sessions.subscribe).
+        // NOTE: sessions.subscribe is not in OC v2026.3.13 npm dist yet (unreleased).
+        // The call will silently fail. When OC publishes a version with this method,
+        // session list will auto-sync across clients. Until then, we rely on
+        // post-chat-final session reload.
+        client.request('sessions.subscribe', {}).catch(() => {
+          // Expected: method not yet available in current OC version
+        });
+        // Reset cron reconciliation flag so enabled presets re-register
+        // with the gateway after a restart. Uses dynamic import to avoid
+        // circular dependency (same pattern as chat store above).
+        void import('./cron').then(({ resetCronReconciled, useCronStore }) => {
+          resetCronReconciled();
+          useCronStore.getState().loadPresets();
+        });
+        // Reset tool stream on reconnect (aligned with OC: resetToolStream on hello).
+        // Prevents stale tool events from a previous connection lingering in the UI.
+        void import('./tool-stream').then(({ useToolStreamStore }) => {
+          useToolStreamStore.getState().clearAll();
+        });
+        // Load sessions immediately on (re)connect so the session list is fresh.
+        // OC does this in its post-hello hydration sequence.
+        void import('./sessions').then(({ useSessionsStore }) => {
+          useSessionsStore.getState().loadSessions();
+        });
       },
-      onEvent: (_event: EventFrame) => {
-        // Global event handler — individual subscribers handle specifics
+      onEvent: (event: EventFrame) => {
+        // Handle session change events (aligned with OC UI sessions.subscribe)
+        if (event.event === 'sessions.changed') {
+          void import('./sessions').then(({ useSessionsStore }) => {
+            useSessionsStore.getState().loadSessions();
+          });
+        }
+        // Handle shutdown event (gateway restart notification)
+        if (event.event === 'shutdown') {
+          const payload = event.payload as { reason?: string } | undefined;
+          console.info(`[Gateway] Shutdown event: ${payload?.reason ?? 'unknown reason'}`);
+        }
       },
       onGap: (expected: number, actual: number) => {
         console.warn(`[Gateway] Event sequence gap: expected ${expected}, got ${actual} — scheduling history sync`);
@@ -97,13 +135,14 @@ export const useGatewayStore = create<GatewayState>()((set, get) => ({
     if (client) {
       client.disconnect();
     }
-    set({ client: null, state: 'disconnected', serverVersion: null, connId: null, connectError: null });
+    set({ client: null, state: 'disconnected', serverVersion: null, connId: null, sessionDefaults: null, connectError: null });
   },
 
   setServerInfo: (hello: HelloOk) => {
     set({
       serverVersion: hello.server?.version ?? null,
       connId: hello.server?.connId ?? null,
+      sessionDefaults: hello.snapshot?.sessionDefaults ?? null,
     });
   },
 }));

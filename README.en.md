@@ -8,7 +8,7 @@
 
 You define the question. Research-Claw runs the lab. 24/7 on your machine. Every output, yours alone.
 
-[![Version](https://img.shields.io/badge/version-v0.5.6-EF4444?style=flat-square&logo=github)](https://github.com/wentorai/Research-Claw/releases)
+[![Version](https://img.shields.io/badge/version-v0.5.7-EF4444?style=flat-square&logo=github)](https://github.com/wentorai/Research-Claw/releases)
 [![License](https://img.shields.io/badge/license-BSL_1.1-3B82F6?style=flat-square)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-macOS_%7C_Windows-lightgrey?style=flat-square)](#)
@@ -20,7 +20,7 @@ You define the question. Research-Claw runs the lab. 24/7 on your machine. Every
 
 ---
 
-> Windows → [Docker One-Click Deploy](#docker-one-click-deploy-windows-recommended) (recommended) or [WSL2 manual install](docs/WINDOWS_INSTALL.md)
+> Windows → [Docker One-Click Deploy](#docker-one-click-macos--linux--windows) (recommended) or [WSL2 manual install](WINDOWS_INSTALL.md)
 
 ---
 
@@ -133,10 +133,10 @@ We built a purpose-designed Dashboard for academic workflows — the most comple
 | **Library** | Full-text search · Tags · Annotations · Citation graph · Reading stats |
 | **Tasks** | Agent / Human task layers · 4-level priority · 48h deadline alerts |
 | **Workspace** | File ops with version history, every change Git-tracked |
-| **Radar** | Keyword / author / journal tracking · Automation tasks · IM push |
+| **Monitor** | Keyword / author / journal tracking · Automation tasks · IM push |
 | **Settings** | Setup Wizard · All config in the browser, no file editing needed |
 
-Tech: React 18 + Vite 6 + Ant Design 5 + Zustand 5 · Bilingual EN/ZH-CN (245 i18n keys) · 1029 unit tests · TypeScript zero errors · Responsive desktop / tablet / overlay layout.
+Tech: React 18 + Vite 6 + Ant Design 5 + Zustand 5 · Bilingual EN/ZH-CN (469 i18n keys) · 1084 unit tests · TypeScript zero errors · Responsive desktop / tablet / overlay layout.
 
 ---
 
@@ -175,13 +175,13 @@ Research-Claw comes with **438 academic skills** built-in (auto-configured durin
 │       ├─ AGENTS.md                    Ant Design 5 + Zustand 5      │
 │       ├─ TOOLS.md                     21 card types · 6 panels      │
 │       ├─ HEARTBEAT.md                 WebSocket RPC v3 client       │
-│       └─ (8 bootstrap files)          245 i18n keys (EN + ZH-CN)    │
+│       └─ (8 bootstrap files)          469 i18n keys (EN + ZH-CN)    │
 │                                             │                       │
 │   L1  extensions/                           │ ws://127.0.0.1:28789  │
 │       └─ research-claw-core                 │                       │
-│          ├─ 28 tools                        │                       │
-│          ├─ 52 WS RPC interfaces            │                       │
-│          └─ 13 SQLite tables + FTS5         ▼                       │
+│          ├─ 38 tools                        │                       │
+│          ├─ 79 WS RPC interfaces            │                       │
+│          └─ 16 SQLite tables + FTS5         ▼                       │
 │       ╔═══════════════════════════════════════════════════╗         │
 │       ║           OpenClaw  (npm dependency)              ║         │
 │       ║         Gateway · WS RPC v3 · Port 28789          ║         │
@@ -256,7 +256,7 @@ All platforms require an LLM API key (Anthropic Claude / OpenAI recommended).
 curl -fsSL https://wentor.ai/install.sh | bash
 ```
 
-**Docker one-click (macOS / Linux / Windows):**
+#### Docker one-click (macOS / Linux / Windows)
 
 Install [Docker Desktop](https://docs.docker.com/desktop/) first, make sure it shows Running, then:
 
@@ -369,6 +369,30 @@ research-claw/
 
 ## Uninstall
 
+### Existing OpenClaw Users: Restoring Original OpenClaw
+
+If you notice any of these issues after installing Research-Claw, the install script's global settings are affecting your existing OpenClaw:
+
+- `openclaw` command launches Research-Claw instead of original OpenClaw
+- Port is locked to 28789, preventing original OpenClaw from starting
+- `openclaw config` reads/writes Research-Claw's config instead of `~/.openclaw/openclaw.json`
+
+**Fix** (two steps — no need to uninstall Research-Claw):
+
+```bash
+# 1. Remove the CLI wrapper (the install script created a launcher at ~/.local/bin/ pointing to Research-Claw)
+rm -f ~/.local/bin/openclaw
+
+# 2. Remove the environment variable override from your shell config
+#    Check which files were modified:
+grep -n "OPENCLAW_CONFIG_PATH\|# Research-Claw\|\.local/bin.*Research-Claw" ~/.zshrc ~/.bashrc ~/.bash_profile 2>/dev/null
+#    Find the lines with "Research-Claw" comments and delete them.
+```
+
+After cleanup, **open a new terminal** — the `openclaw` command will resolve to your original installation. Research-Claw is unaffected — launch it via `cd ~/research-claw && pnpm serve`; `run.sh` sets the correct config path internally. Both can coexist.
+
+> **Why does this conflict happen?** The install script creates a wrapper at `~/.local/bin/openclaw` and writes `OPENCLAW_CONFIG_PATH` to your shell profile, so that `openclaw` commands in any terminal point to Research-Claw's config (port 28789, etc.). This is convenient for Research-Claw-only users but overrides an existing OpenClaw installation.
+
 ### macOS / Linux (Source Install)
 
 ```bash
@@ -384,8 +408,10 @@ rm -rf ~/.research-claw
 # 4. (Optional) Remove OpenClaw global config
 rm -rf ~/.openclaw
 
-# 5. (Optional) Remove CLI wrapper
+# 5. Remove CLI wrapper and shell environment variables
 rm -f ~/.local/bin/openclaw
+# Edit ~/.zshrc or ~/.bashrc, remove the lines containing OPENCLAW_CONFIG_PATH
+# and "Research-Claw" comments (usually 2-3 lines), then open a new terminal
 
 # 6. (Optional) Clean pnpm global cache
 pnpm store prune
@@ -407,6 +433,8 @@ docker volume rm rc-config rc-data rc-workspace rc-state
 On Windows, run the same commands in PowerShell.
 
 > **Warning**: Step 3 permanently deletes all data (paper library, tasks, workspace files, session history). Skip this step if you want to keep your data.
+>
+> Docker installs do not modify host shell config or CLI wrappers — no additional cleanup needed.
 
 ### WSL2 (Windows Manual Install)
 
@@ -414,7 +442,10 @@ On Windows, run the same commands in PowerShell.
 # 1. Stop and remove inside WSL2 (same as Linux steps)
 wsl -e bash -c "pkill -f 'openclaw.*gateway' 2>/dev/null; rm -rf ~/research-claw ~/.research-claw ~/.openclaw ~/.local/bin/openclaw"
 
-# 2. (Optional) If WSL2 was only used for Research-Claw, unregister the distro entirely
+# 2. Clean up shell environment variables (in WSL2 Ubuntu terminal)
+wsl -e bash -c "sed -i '/OPENCLAW_CONFIG_PATH/d;/Research-Claw/d' ~/.bashrc 2>/dev/null"
+
+# 3. (Optional) If WSL2 was only used for Research-Claw, unregister the distro entirely
 wsl --unregister Ubuntu
 ```
 

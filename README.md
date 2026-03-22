@@ -8,7 +8,7 @@
 
 你做导师，科研龙虾做团队。24/7 本地运行，一切产出专属于你。
 
-[![Version](https://img.shields.io/badge/version-v0.5.6-EF4444?style=flat-square&logo=github)](https://github.com/wentorai/Research-Claw/releases)
+[![Version](https://img.shields.io/badge/version-v0.5.7-EF4444?style=flat-square&logo=github)](https://github.com/wentorai/Research-Claw/releases)
 [![License](https://img.shields.io/badge/license-BSL_1.1-3B82F6?style=flat-square)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D22-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/platform-macOS_%7C_Windows-lightgrey?style=flat-square)](#)
@@ -20,7 +20,7 @@
 
 ---
 
-> Windows 用户 → [Docker 一键部署](#docker-一键部署windows-推荐)（推荐）或 [WSL2 手动安装](docs/WINDOWS_INSTALL.md)
+> Windows 用户 → [Docker 一键部署](#docker-一键安装macos--linux--windows-通用)（推荐）或 [WSL2 手动安装](WINDOWS_INSTALL.md)
 
 ---
 
@@ -133,10 +133,10 @@ curl -fsSL https://wentor.ai/install.sh | bash
 | **文献库** | 全文检索 · 标签 · 批注 · 引用图谱 · 阅读统计 |
 | **任务** | Agent / Human 任务分层 · 四级优先级 · 48h 截止日期预警 |
 | **工作区** | 文件操作与版本历史，Git 追踪每一次变更 |
-| **雷达** | 追踪关键词 / 学者 / 期刊 · 自动化任务配置 · IM 推送 |
+| **监控** | 追踪关键词 / 学者 / 期刊 · 自动化任务配置 · IM 推送 |
 | **设置** | Setup Wizard · 所有配置在浏览器完成，无需编辑文件 |
 
-技术规格：React 18 + Vite 6 + Ant Design 5 + Zustand 5，中英双语（245 i18n keys），1029 单元测试，TypeScript 零报错，响应式支持桌面 / 平板 / 浮窗三种模式。
+技术规格：React 18 + Vite 6 + Ant Design 5 + Zustand 5，中英双语（469 i18n keys），1084 单元测试，TypeScript 零报错，响应式支持桌面 / 平板 / 浮窗三种模式。
 
 ---
 
@@ -175,13 +175,13 @@ curl -fsSL https://wentor.ai/install.sh | bash
 │       ├─ AGENTS.md                    Ant Design 5 + Zustand 5      │
 │       ├─ TOOLS.md                     21 卡片类型 · 6 面板            │
 │       ├─ HEARTBEAT.md                 WebSocket RPC v3 客户端        │
-│       └─ (8 bootstrap files)          245 i18n keys (EN + ZH-CN)    │
+│       └─ (8 bootstrap files)          469 i18n keys (EN + ZH-CN)    │
 │                                             │                       │
 │   L1  extensions/                           │ ws://127.0.0.1:28789  │
 │       └─ research-claw-core                 │                       │
-│          ├─ 28 tools                        │                       │
-│          ├─ 52 WS RPC interfaces            │                       │
-│          └─ 13 SQLite tables + FTS5         ▼                       │
+│          ├─ 38 tools                        │                       │
+│          ├─ 79 WS RPC interfaces            │                       │
+│          └─ 16 SQLite tables + FTS5         ▼                       │
 │       ╔═══════════════════════════════════════════════════╗         │
 │       ║           OpenClaw  (npm dependency)              ║         │
 │       ║         Gateway · WS RPC v3 · Port 28789          ║         │
@@ -256,7 +256,7 @@ curl -fsSL https://wentor.ai/install.sh | bash
 curl -fsSL https://wentor.ai/install.sh | bash
 ```
 
-**Docker 一键安装（macOS / Linux / Windows 通用）：**
+#### Docker 一键安装（macOS / Linux / Windows 通用）
 
 先安装 [Docker Desktop](https://docs.docker.com/desktop/)，确保启动后托盘显示 Running，然后：
 
@@ -369,6 +369,30 @@ research-claw/
 
 ## 卸载
 
+### 已有 OpenClaw 用户：恢复原始 OpenClaw
+
+如果你在安装科研龙虾后遇到以下问题，说明安装脚本修改的全局设置影响了你原有的 OpenClaw：
+
+- `openclaw` 命令启动的是科研龙虾，而非原始 OpenClaw
+- 端口被固定为 28789，原始 OpenClaw 无法正常启动
+- `openclaw config` 读写的是科研龙虾的配置，而非 `~/.openclaw/openclaw.json`
+
+**修复方法**（两步即可，无需卸载科研龙虾）：
+
+```bash
+# 1. 删除 CLI wrapper（安装脚本在 ~/.local/bin/ 创建了指向科研龙虾的启动脚本）
+rm -f ~/.local/bin/openclaw
+
+# 2. 清除 shell 配置中的环境变量覆盖
+#    查看哪些文件被修改过：
+grep -n "OPENCLAW_CONFIG_PATH\|# Research-Claw\|\.local/bin.*Research-Claw" ~/.zshrc ~/.bashrc ~/.bash_profile 2>/dev/null
+#    找到带 "Research-Claw" 注释的行，删除即可。
+```
+
+清理后**重开终端**，`openclaw` 命令即恢复为原始版本。科研龙虾不受影响——通过 `cd ~/research-claw && pnpm serve` 启动即可，`run.sh` 会在进程内自行设置正确的配置路径，两者可以并存。
+
+> **为什么会冲突？** 安装脚本在 `~/.local/bin/openclaw` 创建了一个 wrapper 脚本，并将 `OPENCLAW_CONFIG_PATH` 写入 shell profile，使所有终端中的 `openclaw` 命令都指向科研龙虾的配置（端口 28789 等）。这是为了让纯科研龙虾用户可以在任意目录使用 `openclaw` CLI，但对已有 OpenClaw 安装的用户会造成覆盖。
+
 ### macOS / Linux（源码安装）
 
 ```bash
@@ -384,8 +408,10 @@ rm -rf ~/.research-claw
 # 4.（可选）删除 OpenClaw 全局配置
 rm -rf ~/.openclaw
 
-# 5.（可选）删除 CLI wrapper
+# 5. 删除 CLI wrapper 和 shell 环境变量
 rm -f ~/.local/bin/openclaw
+# 编辑 ~/.zshrc 或 ~/.bashrc，删除包含 OPENCLAW_CONFIG_PATH 和
+# "Research-Claw" 注释的行（通常 2-3 行），然后重开终端
 
 # 6.（可选）清除 pnpm 全局缓存
 pnpm store prune
@@ -407,6 +433,8 @@ docker volume rm rc-config rc-data rc-workspace rc-state
 Windows PowerShell 命令相同，在 PowerShell 中逐行执行即可。
 
 > **注意**：执行第 3 步将永久删除所有数据（论文库、任务、工作区文件、会话历史）。如需保留数据，跳过此步。
+>
+> Docker 安装不会修改宿主机的 shell 配置或 CLI wrapper，无需额外清理。
 
 ### WSL2（Windows 手动安装）
 
@@ -414,7 +442,10 @@ Windows PowerShell 命令相同，在 PowerShell 中逐行执行即可。
 # 1. 在 WSL2 中停止并删除（同 Linux 步骤）
 wsl -e bash -c "pkill -f 'openclaw.*gateway' 2>/dev/null; rm -rf ~/research-claw ~/.research-claw ~/.openclaw ~/.local/bin/openclaw"
 
-# 2.（可选）如果 WSL2 仅用于科研龙虾，可以完全卸载 WSL 发行版
+# 2. 清理 shell 环境变量（在 WSL2 Ubuntu 终端中）
+wsl -e bash -c "sed -i '/OPENCLAW_CONFIG_PATH/d;/Research-Claw/d' ~/.bashrc 2>/dev/null"
+
+# 3.（可选）如果 WSL2 仅用于科研龙虾，可以完全卸载 WSL 发行版
 wsl --unregister Ubuntu
 ```
 

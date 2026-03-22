@@ -626,7 +626,8 @@ const LibrarySearchParams = Type.Object({
 ```
 
 > **Note:** The actual implementation uses flat `query`, `limit`, `offset` params
-> with no `filters` wrapper object. Default limit is 50, max 500.
+> with no `filters` wrapper object. Default limit is 30 (dashboard PAGE_SIZE), max 500.
+> Supports `read_status` array filter for tab-based filtering (SQL `IN` clause).
 
 **Returns**: `{ items: Paper[], total: number, query: string }`.
 
@@ -928,11 +929,16 @@ List papers with pagination, filtering, and sorting.
 ```typescript
 Type.Object({
   offset: Type.Optional(Type.Integer({ minimum: 0, default: 0 })),
-  limit: Type.Optional(Type.Integer({ minimum: 1, default: 50 })),
+  limit: Type.Optional(Type.Integer({ minimum: 1, default: 30 })),
   sort: Type.Optional(PaperSort),
   filter: Type.Optional(PaperFilter),
+  read_status: Type.Optional(Type.Array(Type.String())),  // e.g. ['unread', 'reading'] — SQL IN clause
 })
 ```
+
+> **Dashboard tab mapping**: Inbox sends `read_status: ['unread', 'reading']`,
+> Archive sends `read_status: ['read', 'reviewed']`, Starred sorts by `-rating`.
+> Dashboard uses `PAGE_SIZE=30` with "Load More" for server-side pagination.
 
 **Returns**:
 ```typescript
@@ -1918,8 +1924,8 @@ Each RPC method is registered on the gateway:
 api.registerRpcMethod({
   method: 'rc.lit.list',
   handler: async (params) => {
-    const { offset = 0, limit = 20, sort, filter } = params;
-    return literatureService.listPapers({ offset, limit, sort, filter });
+    const { offset = 0, limit = 30, sort, filter, read_status } = params;
+    return literatureService.listPapers({ offset, limit, sort, filter, read_status });
   },
 });
 ```

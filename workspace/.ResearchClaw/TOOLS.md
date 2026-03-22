@@ -119,12 +119,12 @@ When the user asks for "latest/最新" papers, you **MUST** pass date-based sort
 | `search_arxiv` | `sort_by` | `'submittedDate'` | — |
 | `search_crossref` | `sort` | `'published'` | `from_year`, `until_year` |
 | `search_openalex` | `sort_by` | `'publication_date'` | `from_year`, `to_year` |
-| `search_pubmed` | — | — | `min_date`, `max_date` |
+| `search_pubmed` | `sort` | `'pub_date'` | `min_date`, `max_date` |
 | `search_biorxiv` | — | (date-ordered by default) | `interval: 'YYYY-MM-DD/YYYY-MM-DD'` |
-| `search_europe_pmc` | query prefix | `'SORT_DATE:y'` in query | — |
-| `search_inspire` | query param | `'mostrecent'` | — |
-| `search_zenodo` | query param | `'mostrecent'` | — |
-| `search_hal` | — | sorted by `producedDate` | — |
+| `search_europe_pmc` | `sort` | `'DATE_DESC'` | — |
+| `search_inspire` | `sort` | `'mostrecent'` | — |
+| `search_zenodo` | `sort` | `'mostrecent'` | — |
+| `search_hal` | `sort` | `'producedDate_s desc'` | — |
 
 Default sort is `relevance` for most tools. **Never rely on the default when the user
 wants recent papers.**

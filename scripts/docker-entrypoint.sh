@@ -5,7 +5,7 @@
 CONFIG_DIR=/app/config
 CONFIG_FILE=$CONFIG_DIR/openclaw.json
 CONFIG_VERSION_FILE=$CONFIG_DIR/.config-version
-IMAGE_VERSION="0.5.6"
+IMAGE_VERSION="0.5.7"
 PORT=${PORT:-28789}
 
 # --- One-time migration: v0.5.3 fixed volume mount from /root → /app ---
@@ -125,7 +125,10 @@ fi
 #     explicit allowedOrigins for non-loopback; Host-header fallback is safe
 #     because Docker Desktop only exposes the mapped port to localhost)
 #   - dangerouslyDisableDeviceAuth: true (no device pairing in Docker)
-# Also clean stale entries that cause warnings on every boot.
+# Shared config cleanup: plugins.allow, discovery.mdns, stale entries, auth token
+node /app/scripts/ensure-config.cjs "$CONFIG_FILE" 2>/dev/null || true
+
+# Docker-specific config patches (not in ensure-config.cjs — Docker only)
 node -e "
   const fs = require('fs');
   const f = '$CONFIG_FILE';
@@ -146,8 +149,6 @@ node -e "
   }
 
   // Force gateway auth token to match OPENCLAW_GATEWAY_TOKEN env var.
-  // Without this, stale gateway.auth.token in persisted config overrides env var
-  // → token_mismatch on every connection (P0 bug for v0.5.0→v0.5.6 upgraders).
   const expectedToken = process.env.OPENCLAW_GATEWAY_TOKEN || 'research-claw';
   if (!c.gateway.auth) c.gateway.auth = {};
   if (c.gateway.auth.token !== expectedToken) {
@@ -157,26 +158,6 @@ node -e "
   if (c.gateway.auth.mode && c.gateway.auth.mode !== 'token') {
     c.gateway.auth.mode = 'token';
     changed = true;
-  }
-
-  // Clean stale plugin entries (wentor-connect is a placeholder, never functional)
-  if (c.plugins?.entries?.['wentor-connect']) {
-    delete c.plugins.entries['wentor-connect'];
-    changed = true;
-  }
-  // v0.5.2+: auto-discover replaces plugins.allow whitelist
-  if (c.plugins?.allow) {
-    delete c.plugins.allow;
-    changed = true;
-  }
-
-  // Clean stale tool names from alsoAllow
-  const STALE_TOOLS = ['search_papers', 'get_paper', 'get_citations',
-    'radar_configure', 'radar_get_config', 'radar_scan'];
-  if (c.tools?.alsoAllow) {
-    const before = c.tools.alsoAllow.length;
-    c.tools.alsoAllow = c.tools.alsoAllow.filter(t => !STALE_TOOLS.includes(t));
-    if (c.tools.alsoAllow.length !== before) changed = true;
   }
 
   if (changed) { const o=JSON.stringify(c,null,2)+'\n',t=f+'.tmp.'+process.pid; fs.writeFileSync(t,o); fs.renameSync(t,f); }
@@ -243,6 +224,23 @@ if [ -z "$OPENCLAW_GATEWAY_TOKEN" ]; then
   OPENCLAW_GATEWAY_TOKEN="research-claw"
   export OPENCLAW_GATEWAY_TOKEN
 fi
+
+# --- Banner ---
+if [ -t 1 ]; then
+  R='\033[38;2;239;68;68m' B='\033[1m' D='\033[2m' N='\033[0m'
+else
+  R='' B='' D='' N=''
+fi
+printf "\n${R}"
+cat <<'ART'
+    ____                              _        ____ _
+   |  _ \ ___  ___  ___  __ _ _ __ ___| |__    / ___| | __ ___      __
+   | |_) / _ \/ __|/ _ \/ _` | '__/ __| '_ \  | |   | |/ _` \ \ /\ / /
+   |  _ <  __/\__ \  __/ (_| | | | (__| | | | | |___| | (_| |\ V  V /
+   |_| \_\___||___/\___|\__,_|_|  \___|_| |_|  \____|_|\__,_| \_/\_/
+ART
+printf "${N}\n  ${B}科研龙虾 — AI-Powered Local Research Assistant${N}\n"
+printf "  ${D}https://wentor.ai${N}\n\n"
 
 echo "[research-claw] Starting gateway on port $PORT..."
 echo "[research-claw] Open dashboard: http://127.0.0.1:$PORT/?token=$OPENCLAW_GATEWAY_TOKEN"

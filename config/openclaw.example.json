@@ -2,6 +2,10 @@
   "env": {
     "vars": {}
   },
+  "discovery": {
+    "mdns": { "mode": "off" },
+    "wideArea": { "enabled": false }
+  },
   "ui": {
     "assistant": {
       "name": "Research-Claw"
@@ -48,6 +52,7 @@
   },
   "plugins": {
     "enabled": true,
+    "allow": ["research-claw-core", "research-plugins"],
     "load": {
       "paths": [
         "./extensions/research-claw-core"
