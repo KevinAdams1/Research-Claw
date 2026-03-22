@@ -275,11 +275,20 @@ export default function SettingsPanel() {
     }
   };
 
+  // Image generation providers (distinct from text LLM providers)
+  const IMAGE_GEN_PROVIDERS = [
+    { id: 'openai', label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-image-1' },
+    { id: 'google', label: 'Google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', defaultModel: 'gemini-3.1-flash-image-preview' },
+    { id: 'fal', label: 'fal', baseUrl: 'https://fal.run', defaultModel: 'fal-ai/flux/dev' },
+  ];
+
   const handleImageGenProviderChange = (id: string) => {
     setImageGenProvider(id);
-    const preset = getPreset(id);
-    if (preset.baseUrl) setImageGenBaseUrl(preset.baseUrl);
-    if (preset.models.length > 0) setImageGenModel(preset.models[0].id);
+    const igp = IMAGE_GEN_PROVIDERS.find((p) => p.id === id);
+    if (igp) {
+      setImageGenBaseUrl(igp.baseUrl);
+      setImageGenModel(igp.defaultModel);
+    }
   };
 
   const imageGenSeparateProvider = imageGenProvider && imageGenProvider !== provider &&
@@ -717,35 +726,25 @@ export default function SettingsPanel() {
         <>
           <SettingRow label={t('settings.imageGenProvider')}>
             <Select
-              showSearch
               value={imageGenProvider || undefined}
               onChange={handleImageGenProviderChange}
               size="small"
               style={{ width: 220 }}
-              filterOption={providerFilterOption}
               placeholder={t('settings.imageGenProvider')}
-              options={PROVIDER_PRESETS.map((p) => {
-                const lbl = p.id === 'custom' ? t('setup.providerCustom') : p.label;
-                return { value: p.id, label: lbl, title: lbl as string };
-              })}
+              options={IMAGE_GEN_PROVIDERS.map((p) => ({
+                value: p.id,
+                label: p.label,
+              }))}
             />
           </SettingRow>
 
           <SettingRow label={t('settings.imageGenModel')}>
-            <AutoComplete
+            <Input
               value={imageGenModel}
-              onChange={setImageGenModel}
-              options={getPreset(imageGenProvider || provider).models.map((m) => ({
-                value: m.id,
-                label: `${m.id} — ${m.name}`,
-              }))}
-              allowClear
+              onChange={(e) => setImageGenModel(e.target.value)}
               size="small"
               style={{ width: 220 }}
-              placeholder="gpt-image-1"
-              filterOption={(input, option) =>
-                (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
-              }
+              placeholder={IMAGE_GEN_PROVIDERS.find((p) => p.id === imageGenProvider)?.defaultModel ?? 'gpt-image-1'}
             />
           </SettingRow>
 
@@ -805,8 +804,6 @@ export default function SettingsPanel() {
                 { value: 'grok', label: 'Grok (xAI)' },
                 { value: 'kimi', label: 'Kimi (Moonshot)' },
                 { value: 'perplexity', label: 'Perplexity' },
-                { value: 'firecrawl', label: 'Firecrawl' },
-                { value: 'tavily', label: 'Tavily' },
               ]}
             />
           </SettingRow>
