@@ -39,6 +39,7 @@ export default function ApprovalCard(props: ApprovalCardProps) {
     const isApproved = decision !== 'deny';
     const newStatus: ApprovalStatus = isApproved ? 'allowed' : 'denied';
 
+    let rpcOk = false;
     if (props.approval_id && client) {
       // OC native exec.approval system — call the RPC (agent is blocking on Promise).
       try {
@@ -46,15 +47,20 @@ export default function ApprovalCard(props: ApprovalCardProps) {
           id: props.approval_id,
           decision,
         });
+        rpcOk = true;
       } catch {
-        // Error handled by gateway layer
+        // RPC failed — approval_id may be LLM-hallucinated, fall through to chat path.
       }
-    } else {
+    }
+
+    if (!rpcOk) {
       // RC custom approval card — no blocking Promise exists.
       // Send a chat message so the agent receives the user's decision.
-      const message = isApproved
-        ? `✅ 已批准: ${props.action}`
-        : `❌ 已拒绝: ${props.action}`;
+      const message = decision === 'deny'
+        ? `❌ 已拒绝: ${props.action}`
+        : decision === 'allow-always'
+          ? `✅ 已批准 (始终允许): ${props.action}`
+          : `✅ 已批准: ${props.action}`;
       chatSend(message).catch(() => {});
     }
 
