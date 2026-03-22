@@ -23,6 +23,23 @@ echo $$ > "$PIDFILE"
 cleanup_pid() { rm -f "$PIDFILE"; }
 trap cleanup_pid EXIT
 
+# --- Banner ---
+if [ -t 1 ]; then
+  R='\033[38;2;239;68;68m' B='\033[1m' D='\033[2m' N='\033[0m'
+else
+  R='' B='' D='' N=''
+fi
+printf "\n${R}"
+cat <<'ART'
+    ____                              _        ____ _
+   |  _ \ ___  ___  ___  __ _ _ __ ___| |__    / ___| | __ ___      __
+   | |_) / _ \/ __|/ _ \/ _` | '__/ __| '_ \  | |   | |/ _` \ \ /\ / /
+   |  _ <  __/\__ \  __/ (_| | | | (__| | | | | |___| | (_| |\ V  V /
+   |_| \_\___||___/\___|\__,_|_|  \___|_| |_|  \____|_|\__,_| \_/\_/
+ART
+printf "${N}\n  ${B}科研龙虾 — AI-Powered Local Research Assistant${N}\n"
+printf "  ${D}https://wentor.ai${N}\n\n"
+
 # --- Ensure project config exists ---
 # RC project config contains plugin paths, tool whitelist, dashboard root, port 28789.
 # Global ~/.openclaw/openclaw.json is vanilla OpenClaw and MUST NOT override these.
