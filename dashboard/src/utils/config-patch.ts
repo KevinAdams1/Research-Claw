@@ -174,7 +174,7 @@ const RC_CONFIG_DEFAULTS: Record<string, unknown> = {
   browser: {
     enabled: true,
     defaultProfile: 'research-claw',
-    profiles: { 'research-claw': { cdpPort: 18800 } },
+    profiles: { 'research-claw': { cdpPort: 18800, color: '#EF4444' } },
   },
   gateway: {
     port: 28789,

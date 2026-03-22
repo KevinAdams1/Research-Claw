@@ -29,7 +29,8 @@
     "defaultProfile": "research-claw",
     "profiles": {
       "research-claw": {
-        "cdpPort": 18800
+        "cdpPort": 18800,
+        "color": "#EF4444"
       }
     }
   },
