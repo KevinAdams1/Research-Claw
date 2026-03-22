@@ -629,9 +629,9 @@ describe('Gateway protocol parity with OpenClaw', () => {
       //   if (this.lastSeq !== null && seq > this.lastSeq + 1) {
       //     this.opts.onGap?.({ expected: this.lastSeq + 1, received: seq });
       //   }
-      // Our client: client.ts:321-323
+      // Our client: client.ts (aligned with OC)
       //   if (this.lastSeq > 0 && frame.seq > this.lastSeq + 1) {
-      //     this.opts.onGap?.(this.lastSeq + 1, frame.seq);
+      //     this.opts.onGap?.({ expected: this.lastSeq + 1, received: frame.seq });
       //   }
       const onGap = vi.fn();
       const client = createClient({ onGap });
@@ -645,7 +645,7 @@ describe('Gateway protocol parity with OpenClaw', () => {
       // Receive seq 5 — gap (3 and 4 missing)
       mockWsInstance.simulateMessage(TICK_EVENT_SEQ_5_GAP);
       expect(onGap).toHaveBeenCalledTimes(1);
-      expect(onGap).toHaveBeenCalledWith(3, 5);
+      expect(onGap).toHaveBeenCalledWith({ expected: 3, received: 5 });
 
       client.disconnect();
     });
@@ -713,7 +713,7 @@ describe('Gateway protocol parity with OpenClaw', () => {
       // seq 1, then gap to 5
       mockWsInstance.simulateMessage(TICK_EVENT_SEQ_1);
       mockWsInstance.simulateMessage(TICK_EVENT_SEQ_5_GAP);
-      expect(onGap).toHaveBeenCalledWith(2, 5);
+      expect(onGap).toHaveBeenCalledWith({ expected: 2, received: 5 });
 
       onGap.mockClear();
 
@@ -802,7 +802,7 @@ describe('Gateway protocol parity with OpenClaw', () => {
       mockWsInstance.simulateClose(4008, 'connect failed');
 
       expect(onClose).toHaveBeenCalledTimes(1);
-      expect(onClose).toHaveBeenCalledWith(4008, 'connect failed');
+      expect(onClose).toHaveBeenCalledWith({ code: 4008, reason: 'connect failed', error: undefined });
 
       client.disconnect();
     });

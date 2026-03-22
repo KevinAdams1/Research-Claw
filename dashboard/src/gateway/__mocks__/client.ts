@@ -1,5 +1,7 @@
 import type { ConnectionState, HelloOk, EventFrame, GatewayErrorInfo } from '../types';
-import type { GatewayClientOptions } from '../client';
+import type { GatewayClientOptions, CloseInfo, GapInfo } from '../client';
+
+export type { CloseInfo, GapInfo };
 
 /**
  * Mock GatewayClient for unit testing without a real WebSocket.
@@ -86,7 +88,7 @@ export class GatewayClient {
   disconnect(): void {
     this.state = 'disconnected';
     this.opts.onStateChange?.('disconnected');
-    this.opts.onClose?.(1000, 'client disconnect');
+    this.opts.onClose?.({ code: 1000, reason: 'client disconnect' });
   }
 
   async request<T = unknown>(method: string, params?: unknown): Promise<T> {

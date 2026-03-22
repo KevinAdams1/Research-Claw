@@ -9,6 +9,11 @@ import type {
 import { MIN_PROTOCOL, MAX_PROTOCOL } from './types';
 import { ReconnectScheduler } from './reconnect';
 import { getDeviceIdentity, buildV3Payload } from './device-identity';
+import {
+  loadDeviceAuthToken,
+  storeDeviceAuthToken,
+  clearDeviceAuthToken,
+} from './device-auth';
 
 export class GatewayRequestError extends Error {
   code: string;
@@ -22,6 +27,19 @@ export class GatewayRequestError extends Error {
   }
 }
 
+/** Close info passed to onClose callback (aligned with OC app-gateway.ts). */
+export interface CloseInfo {
+  code: number;
+  reason: string;
+  error?: GatewayErrorInfo;
+}
+
+/** Gap info passed to onGap callback (aligned with OC GatewayBrowserClientOptions). */
+export interface GapInfo {
+  expected: number;
+  received: number;
+}
+
 export interface GatewayClientOptions {
   url: string;
   token?: string;
@@ -30,9 +48,9 @@ export interface GatewayClientOptions {
   platform?: string;
   onHello?: (hello: HelloOk) => void;
   onEvent?: (event: EventFrame) => void;
-  onClose?: (code: number, reason: string) => void;
+  onClose?: (info: CloseInfo) => void;
   onStateChange?: (state: ConnectionState) => void;
-  onGap?: (expected: number, actual: number) => void;
+  onGap?: (info: GapInfo) => void;
   onConnectError?: (code: string, message: string) => void;
 }
 
@@ -43,6 +61,11 @@ interface PendingRequest {
 }
 
 const REQUEST_TIMEOUT_MS = 30_000;
+
+// Application-defined close code for connect failures.
+// Browser rejects 1008 "Policy Violation"; 4008 is in the app-defined range (4000-4999).
+// Aligned with OC gateway.ts CONNECT_FAILED_CLOSE_CODE.
+const CONNECT_FAILED_CLOSE_CODE = 4008;
 
 // Top-level error codes that are definitely non-recoverable (legacy check)
 const NON_RECOVERABLE_CODES = new Set([
@@ -57,6 +80,11 @@ const NON_RECOVERABLE_CODES = new Set([
 // Structured detail codes from OC v2026.3.12+ (error.details.code).
 // Auth errors that won't resolve without user action — don't auto-reconnect.
 // Aligned with OC's isNonRecoverableAuthError() in gateway.ts.
+//
+// NOTE: AUTH_TOKEN_MISMATCH is intentionally NOT included here because the
+// client supports a bounded one-time retry with a cached device token
+// when the endpoint is trusted. Reconnect suppression for mismatch is handled
+// via deviceTokenRetryBudgetUsed (after retry budget is exhausted).
 const NON_RECOVERABLE_DETAIL_CODES = new Set([
   'AUTH_TOKEN_MISSING',
   'AUTH_BOOTSTRAP_TOKEN_INVALID',
@@ -69,19 +97,49 @@ const NON_RECOVERABLE_DETAIL_CODES = new Set([
   'DEVICE_IDENTITY_REQUIRED',
 ]);
 
+/** Extract structured detail code from gateway error. */
+function resolveDetailCode(err: { details?: unknown }): string | undefined {
+  if (!err.details || typeof err.details !== 'object' || Array.isArray(err.details)) return undefined;
+  return (err.details as { code?: string }).code;
+}
+
 /** Check both legacy top-level code and structured details.code */
 function isNonRecoverableError(err: GatewayRequestError): boolean {
-  // Legacy: check top-level code
   if (NON_RECOVERABLE_CODES.has(err.code)) return true;
-  // OC v2026.3.12+: check details.code
-  const detailCode =
-    err.details && typeof err.details === 'object' && !Array.isArray(err.details)
-      ? (err.details as { code?: string }).code
-      : undefined;
+  const detailCode = resolveDetailCode(err);
   if (detailCode && NON_RECOVERABLE_DETAIL_CODES.has(detailCode)) return true;
-  // Fallback: token-related INVALID_REQUEST
   if (err.code === 'INVALID_REQUEST' && err.message.includes('token')) return true;
   return false;
+}
+
+/** Check if the gateway URL is a trusted loopback endpoint (safe for device token retry). */
+function isTrustedRetryEndpoint(url: string): boolean {
+  try {
+    const gatewayUrl = new URL(url, window.location.href);
+    const host = gatewayUrl.hostname.trim().toLowerCase();
+    if (host === 'localhost' || host === '::1' || host === '[::1]' || host.startsWith('127.')) {
+      return true;
+    }
+    const pageUrl = new URL(window.location.href);
+    return gatewayUrl.host === pageUrl.host;
+  } catch {
+    return false;
+  }
+}
+
+/** Generate a UUID with fallback for insecure contexts. */
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback: crypto.getRandomValues is available in all modern browsers
+  // including insecure contexts, unlike crypto.randomUUID.
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export class GatewayClient {
@@ -93,6 +151,13 @@ export class GatewayClient {
   private opts: GatewayClientOptions;
   private reconnector = new ReconnectScheduler();
   private intentionalClose = false;
+  // Pending connect error: captured during handshake reject, consumed in onclose.
+  // Aligned with OC gateway.ts pendingConnectError pattern.
+  private pendingConnectError: GatewayErrorInfo | undefined;
+  // Device token retry: bounded one-time retry with cached device token on mismatch.
+  // Aligned with OC gateway.ts deviceTokenRetryBudgetUsed pattern.
+  private pendingDeviceTokenRetry = false;
+  private deviceTokenRetryBudgetUsed = false;
 
   constructor(opts: GatewayClientOptions) {
     this.opts = opts;
@@ -145,8 +210,9 @@ export class GatewayClient {
 
     ws.onclose = (ev: CloseEvent) => {
       console.warn(`[GatewayClient] WebSocket closed: code=${ev.code} reason="${ev.reason}" state=${this.state}`);
-      const wasConnected = this.state === 'connected';
-      this.opts.onClose?.(ev.code, ev.reason);
+      const connectError = this.pendingConnectError;
+      this.pendingConnectError = undefined;
+      this.ws = null;
 
       // Reject all pending requests
       for (const [id, entry] of this.pending) {
@@ -155,15 +221,35 @@ export class GatewayClient {
         this.pending.delete(id);
       }
 
+      // Pass error info to onClose so the store can distinguish error types
+      this.opts.onClose?.({ code: ev.code, reason: ev.reason ?? '', error: connectError });
+
       if (this.intentionalClose || ev.code === 1000 || ev.code === 1001) {
         this.setState('disconnected');
         return;
       }
 
+      // Suppress reconnect when AUTH_TOKEN_MISMATCH retry budget is exhausted
+      // (aligned with OC gateway.ts close handler logic).
+      const connectErrorCode = resolveDetailCode(connectError ?? {});
+      if (
+        connectErrorCode === 'AUTH_TOKEN_MISMATCH' &&
+        this.deviceTokenRetryBudgetUsed &&
+        !this.pendingDeviceTokenRetry
+      ) {
+        this.setState('disconnected');
+        return;
+      }
+
+      // Don't reconnect on non-recoverable auth errors
+      if (connectError && isNonRecoverableError(
+        new GatewayRequestError(connectError),
+      )) {
+        this.setState('disconnected');
+        return;
+      }
+
       // Always schedule reconnect on abnormal close (including first connect failure).
-      // OC UI reconnects unconditionally; the old RC logic only reconnected after
-      // a successful connection, leaving users stuck on "disconnected" when the
-      // Dashboard loads before the gateway is ready (cold-start race).
       this.setState('reconnecting');
       this.reconnector.schedule(() => this.connect());
     };
@@ -176,6 +262,9 @@ export class GatewayClient {
   disconnect(): void {
     this.intentionalClose = true;
     this.reconnector.cancel();
+    this.pendingConnectError = undefined;
+    this.pendingDeviceTokenRetry = false;
+    this.deviceTokenRetryBudgetUsed = false;
     this.ws?.close(1000, 'client disconnect');
     this.ws = null;
     this.setState('disconnected');
@@ -188,11 +277,9 @@ export class GatewayClient {
     }
     console.log(`[GatewayClient] → ${method}`, params ?? '');
 
-    const id = crypto.randomUUID();
-    const frame: RequestFrame = { type: 'req', id, method };
-    if (params !== undefined) {
-      frame.params = params;
-    }
+    const id = generateUUID();
+    // Always include params field (aligned with OC — gateway always sends `params`).
+    const frame: RequestFrame = { type: 'req', id, method, params: params ?? {} };
 
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -259,8 +346,27 @@ export class GatewayClient {
     const clientMode = 'ui';
     const role = 'operator';
     const scopes = ['operator.admin', 'operator.approvals', 'operator.pairing'];
-    const token = this.opts.token ?? '';
+    const explicitToken = this.opts.token?.trim() || undefined;
     const platform = this.opts.platform ?? 'browser';
+
+    // --- Device token selection (aligned with OC selectConnectAuth) ---
+    // Priority: explicit token > stored device token > no auth
+    let authToken = explicitToken;
+    let authDeviceToken: string | undefined;
+    const storedToken = identity
+      ? loadDeviceAuthToken({ deviceId: identity.deviceId, role })?.token
+      : undefined;
+
+    if (this.pendingDeviceTokenRetry && explicitToken && storedToken && isTrustedRetryEndpoint(this.opts.url)) {
+      // Retry with device token after mismatch (bounded, one-time)
+      authDeviceToken = storedToken;
+      this.pendingDeviceTokenRetry = false;
+    } else if (!explicitToken && storedToken) {
+      // No explicit token — use stored device token as auth
+      authToken = storedToken;
+    }
+
+    const tokenForAuth = authToken ?? '';
 
     // Build device auth fields only when identity is available
     let deviceField: Record<string, unknown> | undefined;
@@ -272,7 +378,7 @@ export class GatewayClient {
         role,
         scopes,
         signedAt,
-        token,
+        token: tokenForAuth,
         nonce,
         platform,
         deviceFamily: '',
@@ -301,7 +407,15 @@ export class GatewayClient {
 
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-    const id = crypto.randomUUID();
+    // Build auth field
+    const auth = tokenForAuth || authDeviceToken
+      ? {
+          token: tokenForAuth || undefined,
+          deviceToken: authDeviceToken,
+        }
+      : undefined;
+
+    const id = generateUUID();
     const connectFrame: RequestFrame = {
       type: 'req',
       id,
@@ -319,8 +433,11 @@ export class GatewayClient {
         caps: ['tool-events'],
         role,
         scopes,
-        ...(token ? { auth: { token } } : {}),
+        ...(auth ? { auth } : {}),
         ...(deviceField ? { device: deviceField } : {}),
+        // Send userAgent and locale (aligned with OC connect params)
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+        locale: typeof navigator !== 'undefined' ? navigator.language : undefined,
       },
     };
 
@@ -336,18 +453,74 @@ export class GatewayClient {
         this.setState('connected');
         this.reconnector.reset();
         this.lastSeq = 0;
+        // Reset retry state on successful connect
+        this.pendingDeviceTokenRetry = false;
+        this.deviceTokenRetryBudgetUsed = false;
+
+        // Store device token from hello response for future reconnects
+        // (aligned with OC gateway.ts hello handler: storeDeviceAuthToken)
+        if (hello?.auth?.deviceToken && identity) {
+          storeDeviceAuthToken({
+            deviceId: identity.deviceId,
+            role: hello.auth.role ?? role,
+            token: hello.auth.deviceToken,
+            scopes: hello.auth.scopes ?? [],
+          });
+        }
+
         this.opts.onHello?.(hello);
       },
       reject: (err) => {
         console.error('[GatewayClient] Connect handshake rejected:', err instanceof GatewayRequestError ? `${err.code}: ${err.message}` : err);
         if (err instanceof GatewayRequestError) {
-          this.opts.onConnectError?.(err.code, err.message);
-          if (isNonRecoverableError(err)) {
-            this.reconnector.cancel();
-            this.intentionalClose = true; // Prevent onclose from scheduling reconnect
-            this.ws?.close();
-            this.setState('disconnected');
+          const errDetailCode = resolveDetailCode(err);
+
+          // Determine if we should retry with a cached device token
+          // (aligned with OC gateway.ts catch handler logic)
+          const canRetryWithDeviceToken =
+            errDetailCode === 'AUTH_TOKEN_MISMATCH' ||
+            (err.details && typeof err.details === 'object' &&
+              (err.details as { canRetryWithDeviceToken?: boolean }).canRetryWithDeviceToken === true);
+          const shouldRetry =
+            !this.deviceTokenRetryBudgetUsed &&
+            !authDeviceToken &&
+            Boolean(explicitToken) &&
+            Boolean(identity) &&
+            Boolean(storedToken) &&
+            canRetryWithDeviceToken &&
+            isTrustedRetryEndpoint(this.opts.url);
+
+          if (shouldRetry) {
+            this.pendingDeviceTokenRetry = true;
+            this.deviceTokenRetryBudgetUsed = true;
           }
+
+          // Store error for onclose handler to pass to onClose callback
+          this.pendingConnectError = {
+            code: err.code,
+            message: err.message,
+            details: err.details,
+          };
+
+          // Clear stale device token on mismatch
+          if (
+            identity &&
+            storedToken &&
+            explicitToken &&
+            errDetailCode === 'AUTH_DEVICE_TOKEN_MISMATCH'
+          ) {
+            clearDeviceAuthToken({ deviceId: identity.deviceId, role });
+          }
+
+          this.opts.onConnectError?.(err.code, err.message);
+
+          if (isNonRecoverableError(err) && !shouldRetry) {
+            this.reconnector.cancel();
+            this.intentionalClose = true;
+          }
+
+          // Use application-defined close code (aligned with OC: CONNECT_FAILED_CLOSE_CODE = 4008)
+          this.ws?.close(CONNECT_FAILED_CLOSE_CODE, 'connect failed');
         }
       },
       timer,
@@ -377,7 +550,8 @@ export class GatewayClient {
   private handleEvent(frame: EventFrame): void {
     if (frame.seq !== undefined) {
       if (this.lastSeq > 0 && frame.seq > this.lastSeq + 1) {
-        this.opts.onGap?.(this.lastSeq + 1, frame.seq);
+        // Object form aligned with OC GatewayBrowserClientOptions.onGap
+        this.opts.onGap?.({ expected: this.lastSeq + 1, received: frame.seq });
       }
       this.lastSeq = frame.seq;
     }

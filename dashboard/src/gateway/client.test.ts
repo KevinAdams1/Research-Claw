@@ -335,7 +335,7 @@ describe('GatewayClient', () => {
 
       // Skip seq=2, send seq=3 (gap)
       serverSend({ type: 'event', event: 'b', payload: null, seq: 3 });
-      expect(onGap).toHaveBeenCalledWith(2, 3);
+      expect(onGap).toHaveBeenCalledWith({ expected: 2, received: 3 });
     });
   });
 
