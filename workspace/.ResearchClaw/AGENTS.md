@@ -1,7 +1,7 @@
 ---
 file: AGENTS.md
-version: 3.6
-updated: 2026-03-22
+version: 3.7
+updated: 2026-03-23
 ---
 
 # Agent Behavior Specification
@@ -132,7 +132,31 @@ API keys **override** the default by elevating that service to L1:
 ### Gateway Restart
 
 - **Do NOT call `gateway.restart` after `config.apply/patch`** — SIGUSR1 auto-restarts.
-- **IM channels**: always set `"commands": { "native": false }` (532+ commands exceed limits).
+
+### Channels (IM 通道)
+
+RC Agent 可通过 Telegram / Discord / WeChat (微信) 等 IM 通道接收和回复消息。
+Channels 是 OC 基础设施，RC 完全复用，无需额外插件代码。
+
+**配置要点**:
+- 用户在 `openclaw.json` 的 `channels` 段添加 bot token 即可启用。
+- `openclaw-weixin` 是插件通道，需同时在 `plugins.allow` 中声明。
+- **必须** `"commands": { "native": false }` — RC 注册 530+ 工具，超出 IM 命令菜单上限，
+  不设此项会导致 Telegram 等进入 15 分钟阻塞循环。`sync-global-config.cjs` 在启动时自动修复。
+- Channel 凭据保存在 `~/.openclaw/openclaw-weixin/accounts/` (weixin) 或 config (Telegram/Discord)。
+
+**通道内行为**:
+- 所有 RC 工具 (library, tasks, workspace, monitor) 在通道会话中**完全可用**。
+- `approval_card` 在通道中降级为文本消息: "需要审批: xxx. 回复 yes/no"。
+- Cron 定时任务投递到通道时，必须显式指定 `delivery.to` (用户 IM ID)。
+- 使用 `media` 参数发送图片/文件时，必须用**绝对路径** (如 `/tmp/photo.png`)。
+- 对方的 ID 格式因通道不同: weixin 用 `xxx@im.wechat`，Telegram 用数字 ID。
+
+**诊断**: 若通道显示 "not configured"，检查:
+1. 插件是否在 `plugins.allow` 列表中 (OC allowlist step 6 拦截 > explicit enable)
+2. 凭据文件是否在正确路径 (`accounts/` 子目录)
+3. Gateway 是否在凭据就位后重启过 (channel runtime 启动时缓存 account 状态)
+4. better-sqlite3 ABI 是否匹配 gateway 使用的 Node 版本
 
 ### PDF Import
 
