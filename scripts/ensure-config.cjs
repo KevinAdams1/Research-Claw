@@ -114,6 +114,37 @@ function ensureConfig(filePath) {
     }
   }
 
+  // 9. Restore critical RC fields if missing (safety net for config.apply stripping)
+  if (!c.gateway) c.gateway = {};
+  if (!c.gateway.controlUi) {
+    c.gateway.controlUi = {
+      root: './dashboard/dist',
+      allowedOrigins: [
+        'http://127.0.0.1:28789', 'http://localhost:28789',
+        'http://127.0.0.1:5175', 'http://localhost:5175',
+      ],
+      dangerouslyDisableDeviceAuth: true,
+    };
+    changed = true;
+  }
+  if (!c.gateway.auth || !c.gateway.auth.mode) {
+    c.gateway.auth = { mode: 'none' };
+    changed = true;
+  }
+  if (!c.gateway.port) { c.gateway.port = 28789; changed = true; }
+  if (!c.gateway.mode) { c.gateway.mode = 'local'; changed = true; }
+  if (!c.gateway.bind) { c.gateway.bind = 'loopback'; changed = true; }
+  if (!c.ui) { c.ui = { assistant: { name: 'Research-Claw' } }; changed = true; }
+  if (!c.skills) { c.skills = { load: { extraDirs: ['./skills'] } }; changed = true; }
+  if (!c.cron) { c.cron = { enabled: true }; changed = true; }
+  if (!c.plugins.entries) {
+    c.plugins.entries = {
+      'research-claw-core': { enabled: true, config: { dbPath: '.research-claw/library.db', autoTrackGit: true, defaultCitationStyle: 'apa', heartbeatDeadlineWarningHours: 48 } },
+      'openclaw-weixin': { enabled: true },
+    };
+    changed = true;
+  }
+
   // Write atomically (temp + rename) to prevent corruption on disk-full
   if (changed) {
     const out = JSON.stringify(c, null, 2) + '\n';

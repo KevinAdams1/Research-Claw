@@ -263,11 +263,21 @@ export function buildSaveConfig(
   currentConfig: Record<string, unknown> | null,
   input: ConfigPatchInput,
 ): Record<string, unknown> {
-  // When currentConfig is null (config.get returned valid:false), use RC defaults
-  // to prevent plugins/skills/tools/gateway fields from being erased.
+  // Ensure RC-critical top-level fields survive config.apply round-trips.
+  // Dashboard's config.apply only touches models/agents — but structuredClone(currentConfig)
+  // may be missing gateway/skills/tools/plugins/browser/cron/ui if a previous round-trip
+  // already stripped them. Merge RC_CONFIG_DEFAULTS for any missing top-level keys.
+  const rcDefaults = structuredClone(RC_CONFIG_DEFAULTS);
   const base = currentConfig
     ? structuredClone(currentConfig)
-    : structuredClone(RC_CONFIG_DEFAULTS);
+    : rcDefaults;
+  if (currentConfig) {
+    for (const [key, val] of Object.entries(rcDefaults)) {
+      if (!(key in base)) {
+        base[key] = val;
+      }
+    }
+  }
 
   const providerKey = input.provider;
   const baseUrl = cleanUrl(input.baseUrl);
