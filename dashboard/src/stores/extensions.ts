@@ -240,9 +240,9 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
           config?: Record<string, unknown>;
           resolved?: Record<string, unknown>;
         }>('config.get', {});
-        const configObj = (configSnapshot.resolved && Object.keys(configSnapshot.resolved).length > 0
-          ? configSnapshot.resolved
-          : configSnapshot.config ?? {}) as Record<string, unknown>;
+        // Use `config` (has runtime defaults) over `resolved` (lacks models.providers etc.)
+        // See b4a9c0e for the same fix in config.ts.
+        const configObj = (configSnapshot.config ?? configSnapshot.resolved ?? {}) as Record<string, unknown>;
         const channelsCfg = configObj.channels as Record<string, unknown> | undefined;
         if (channelsCfg) {
           const activeIds = new Set(entries.map((e) => e.id));
@@ -454,9 +454,9 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
         resolved?: Record<string, unknown>;
       }>('config.get', {});
 
-      const configObj = (result.resolved && Object.keys(result.resolved).length > 0
-        ? result.resolved
-        : result.config ?? {}) as Record<string, unknown>;
+      // Use `config` (has runtime defaults) over `resolved` (lacks models.providers etc.)
+      // See b4a9c0e for the same fix in config.ts.
+      const configObj = (result.config ?? result.resolved ?? {}) as Record<string, unknown>;
 
       const pluginsSection = configObj.plugins as {
         load?: { paths?: string[] };
