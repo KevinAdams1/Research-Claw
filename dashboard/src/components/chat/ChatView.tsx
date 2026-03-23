@@ -165,7 +165,7 @@ export default function ChatView() {
             fontSize: 12,
             fontFamily: "'Fira Code', 'JetBrains Mono', Consolas, monospace",
             textAlign: 'center',
-            color: connState === 'reconnecting' ? '#FBBF24' : '#F87171',
+            color: connState === 'reconnecting' ? 'var(--warning, #FBBF24)' : 'var(--error, #F87171)',
             background: connState === 'reconnecting'
               ? 'rgba(251, 191, 36, 0.08)'
               : 'rgba(248, 113, 113, 0.08)',

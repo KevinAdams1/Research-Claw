@@ -3,6 +3,7 @@ import type { ChatMessage, ChatStreamEvent, ChatAttachment } from '../gateway/ty
 import { useGatewayStore } from './gateway';
 import { useLibraryStore } from './library';
 import { useTasksStore } from './tasks';
+import { useToolStreamStore } from './tool-stream';
 import { useSessionsStore } from './sessions';
 import { useCronStore } from './cron';
 import { useMonitorStore } from './monitor';
@@ -60,13 +61,8 @@ function startStaleStreamWatchdog(get: () => ChatState) {
     if (!lastActivity) return;
     const gap = Date.now() - lastActivity;
     if (gap > STALE_STREAM_TIMEOUT_MS) {
-      // Don't recover if tools are actively executing (tool calls can take minutes)
-      try {
-        // Dynamic import avoids circular dependency (tool-stream ↔ chat).
-        // useToolStreamStore is already initialized by the time the watchdog fires.
-        const { useToolStreamStore } = require('./tool-stream');
-        if (useToolStreamStore.getState().pendingTools.length > 0) return;
-      } catch { /* proceed with recovery if import fails */ }
+      // Skip recovery if tools are actively executing (tool calls can take minutes)
+      if (useToolStreamStore.getState().pendingTools.length > 0) return;
 
       stopStaleStreamWatchdog();
       console.log(`[Chat] Stale streaming detected (${Math.round(gap / 1000)}s since last activity) — recovering via loadHistory`);
