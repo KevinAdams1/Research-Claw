@@ -86,15 +86,18 @@ export function createWeixinLoginTool() {
         };
       }
 
-      // Generate inline data URL so the dashboard can render it as <img>
-      const qrDataUrl = renderQrDataUrl(result.qrcodeUrl || result.qrcode);
+      // Generate inline data URL from raw QR data (not the web page URL)
+      const qrDataUrl = renderQrDataUrl(result.qrcode);
 
+      // Use markdown image syntax — same pattern as WhatsApp's whatsapp_login tool.
+      // Tell the agent NOT to repeat the data URL and to call wait immediately.
       const text = [
-        result.message,
+        "二维码已生成，请用微信扫描：",
         "",
-        `![weixin-qr](${qrDataUrl})`,
+        `![微信二维码](${qrDataUrl})`,
         "",
-        "IMPORTANT: Now call weixin_login with action='wait' to await the scan result.",
+        "DO NOT repeat the image data URL above. Just tell the user to scan the QR code,",
+        "then IMMEDIATELY call weixin_login with action='wait' to await the scan result.",
       ].join("\n");
       return {
         content: [{ type: "text" as const, text }],
