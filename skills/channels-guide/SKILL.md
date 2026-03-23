@@ -36,19 +36,24 @@ QQ, Slack, WhatsApp. Channels are OC infrastructure — RC reuses them fully.
 
 **Prerequisite**: `openclaw-weixin` plugin installed and in `plugins.allow`.
 
-1. Call `web.login.start {}` RPC.
-2. Returns `{ qrDataUrl: "https://..." }` — HTTP URL, not base64.
-3. Display: `![qr](qrDataUrl value)`.
-4. Prompt user to scan with WeChat.
-5. Call `web.login.wait { timeoutMs: 60000 }` to await confirmation.
-6. On success, plugin auto-saves credentials; gateway auto-starts channel.
-7. WeChat cannot send proactive messages — replies only (contextToken mechanism).
+Use the `weixin_login` agent tool (two-step flow):
+
+1. Call `weixin_login { action: "start" }`.
+   - Returns QR code URL in markdown: `![weixin-qr](https://...)`.
+   - Display the image to the user and prompt them to scan with WeChat.
+2. Call `weixin_login { action: "wait", timeoutMs: 120000 }`.
+   - Blocks until the user scans or timeout.
+   - On success, plugin auto-saves credentials; gateway auto-starts channel.
+3. WeChat cannot send proactive messages — replies only (contextToken mechanism).
 
 ### WhatsApp — QR Scan
 
-1. Call `web.login.start {}` → returns `{ qrDataUrl: "data:image/png;base64,..." }`.
-2. Display: `![qr](data:image/png;base64,...)`.
-3. Call `web.login.wait { timeoutMs: 60000 }` to await connection.
+Use the `whatsapp_login` agent tool (two-step flow):
+
+1. Call `whatsapp_login { action: "start" }`.
+   - Returns QR code as base64 data URL in markdown: `![qr](data:image/png;base64,...)`.
+2. Call `whatsapp_login { action: "wait", timeoutMs: 120000 }`.
+   - Blocks until the user scans or timeout.
 
 ## In-Channel Behavior
 

@@ -202,7 +202,7 @@ const RC_CONFIG_DEFAULTS: Record<string, unknown> = {
   plugins: {
     enabled: true,
     allow: ['research-claw-core', 'research-plugins', 'openclaw-weixin'],
-    load: { paths: ['./extensions/research-claw-core'] },
+    load: { paths: ['./extensions/research-claw-core', './extensions/openclaw-weixin'] },
     entries: {
       'research-claw-core': {
         enabled: true,

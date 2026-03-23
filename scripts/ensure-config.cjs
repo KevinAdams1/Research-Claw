@@ -103,6 +103,17 @@ function ensureConfig(filePath) {
     if (c.plugins.load.paths.length !== before) changed = true;
   }
 
+  // 8. plugins.load.paths — ensure openclaw-weixin is discoverable
+  if (!c.plugins.load) c.plugins.load = {};
+  if (!Array.isArray(c.plugins.load.paths)) c.plugins.load.paths = [];
+  const REQUIRED_LOAD_PATHS = ['./extensions/research-claw-core', './extensions/openclaw-weixin'];
+  for (const p of REQUIRED_LOAD_PATHS) {
+    if (!c.plugins.load.paths.includes(p)) {
+      c.plugins.load.paths.push(p);
+      changed = true;
+    }
+  }
+
   // Write atomically (temp + rename) to prevent corruption on disk-full
   if (changed) {
     const out = JSON.stringify(c, null, 2) + '\n';

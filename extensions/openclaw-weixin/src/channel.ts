@@ -23,6 +23,7 @@ import {
   waitForWeixinLogin,
 } from "./auth/login-qr.js";
 import type { WeixinQrStartResult, WeixinQrWaitResult } from "./auth/login-qr.js";
+import { createWeixinLoginTool } from "./agent-tools/weixin-login.js";
 import { monitorWeixinProvider } from "./monitor/monitor.js";
 import { sendWeixinMediaFile } from "./messaging/send-media.js";
 import { sendMessageWeixin } from "./messaging/send.js";
@@ -112,6 +113,7 @@ export const weixinPlugin: ChannelPlugin<ResolvedWeixinAccount> = {
     ],
   },
   gatewayMethods: ["web.login.start", "web.login.wait"],
+  agentTools: () => [createWeixinLoginTool()],
   reload: { configPrefixes: ["channels.openclaw-weixin"] },
   config: {
     listAccountIds: (cfg) => listWeixinAccountIds(cfg),
