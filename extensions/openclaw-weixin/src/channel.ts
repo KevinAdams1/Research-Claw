@@ -339,12 +339,14 @@ export const weixinPlugin: ChannelPlugin<ResolvedWeixinAccount> = {
         timeoutMs,
         verbose,
       });
-      // Generate PNG data URL from raw QR data so dashboard can render inline <img>.
+      // Generate PNG data URL from qrcodeUrl (the HTTPS URL WeChat can scan).
+      // CLI login uses qrcodeUrl for terminal QR — dashboard must encode the same data.
+      // NOTE: result.qrcode is the raw hex value — NOT scannable by WeChat.
       let qrDataUrl: string | undefined;
-      if (result.qrcode) {
+      if (result.qrcodeUrl) {
         try {
           const { renderQrDataUrl } = await import("./util/qr-image.js");
-          qrDataUrl = renderQrDataUrl(result.qrcode);
+          qrDataUrl = renderQrDataUrl(result.qrcodeUrl);
         } catch (err) {
           logger.error(`loginWithQrStart: renderQrDataUrl failed: ${String(err)}`);
         }

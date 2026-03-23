@@ -68,7 +68,7 @@ export function createWeixinLoginTool() {
         timeoutMs: typedArgs.timeoutMs,
       });
 
-      if (!result.qrcode) {
+      if (!result.qrcodeUrl) {
         return {
           content: [{ type: "text" as const, text: result.message }],
           details: { qr: false },
@@ -77,7 +77,8 @@ export function createWeixinLoginTool() {
 
       let qrDataUrl: string;
       try {
-        qrDataUrl = renderQrDataUrl(result.qrcode);
+        // Encode qrcodeUrl (HTTPS URL), NOT qrcode (raw hex) — WeChat scans URLs
+        qrDataUrl = renderQrDataUrl(result.qrcodeUrl);
       } catch {
         return {
           content: [{ type: "text" as const, text: `二维码生成失败，请在浏览器中打开此链接扫码：\n\n${result.qrcodeUrl}` }],
