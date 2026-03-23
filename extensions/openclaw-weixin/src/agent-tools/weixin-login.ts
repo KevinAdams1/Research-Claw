@@ -41,6 +41,8 @@ export function createWeixinLoginTool() {
       "Connect WeChat: action='start' generates an inline QR code image, action='wait' blocks until user scans. You MUST call start first, display the returned QR image to the user, then IMMEDIATELY call wait.",
     parameters: PARAMETERS_SCHEMA,
     execute: async (_toolCallId: string, args: unknown) => {
+      const log = (msg: string) => console.log(`[weixin_login] ${msg}`);
+
       const typedArgs = args as {
         action?: string;
         timeoutMs?: number;
@@ -48,6 +50,7 @@ export function createWeixinLoginTool() {
         accountId?: string;
       };
       const action = typedArgs.action ?? "start";
+      log(`execute called: action=${action} accountId=${typedArgs.accountId ?? "(none)"} force=${typedArgs.force ?? false}`);
 
       if (action === "wait") {
         const sessionKey =
@@ -55,12 +58,14 @@ export function createWeixinLoginTool() {
         const savedBaseUrl = typedArgs.accountId
           ? loadWeixinAccount(typedArgs.accountId)?.baseUrl?.trim()
           : "";
+        log(`wait: sessionKey=${sessionKey} baseUrl=${savedBaseUrl || DEFAULT_BASE_URL}`);
         const result = await waitForWeixinLogin({
           sessionKey,
           apiBaseUrl: savedBaseUrl || DEFAULT_BASE_URL,
           timeoutMs: typedArgs.timeoutMs ?? 120_000,
           botType: DEFAULT_ILINK_BOT_TYPE,
         });
+        log(`wait result: connected=${result.connected} message=${result.message}`);
         return {
           content: [{ type: "text" as const, text: result.message }],
           details: { connected: result.connected },
@@ -71,6 +76,7 @@ export function createWeixinLoginTool() {
       const savedBaseUrl = typedArgs.accountId
         ? loadWeixinAccount(typedArgs.accountId)?.baseUrl?.trim()
         : "";
+      log(`start: baseUrl=${savedBaseUrl || DEFAULT_BASE_URL}`);
       const result = await startWeixinLoginWithQr({
         accountId: typedArgs.accountId,
         apiBaseUrl: savedBaseUrl || DEFAULT_BASE_URL,
@@ -78,8 +84,10 @@ export function createWeixinLoginTool() {
         force: typedArgs.force,
         timeoutMs: typedArgs.timeoutMs,
       });
+      log(`start result: qrcode=${result.qrcode ? `${result.qrcode.length}chars` : "MISSING"} qrcodeUrl=${result.qrcodeUrl ? `${result.qrcodeUrl.length}chars` : "MISSING"} message=${result.message}`);
 
       if (!result.qrcode) {
+        log(`ERROR: no qrcode in result, returning error message`);
         return {
           content: [{ type: "text" as const, text: result.message }],
           details: { qr: false },
@@ -87,10 +95,21 @@ export function createWeixinLoginTool() {
       }
 
       // Generate inline data URL from raw QR data (not the web page URL)
-      const qrDataUrl = renderQrDataUrl(result.qrcode);
+      log(`rendering QR data URL from qrcode (${result.qrcode.length} chars)...`);
+      let qrDataUrl: string;
+      try {
+        qrDataUrl = renderQrDataUrl(result.qrcode);
+        log(`QR data URL generated: ${qrDataUrl.length} chars, starts with: ${qrDataUrl.substring(0, 40)}`);
+      } catch (err) {
+        log(`ERROR rendering QR: ${err}`);
+        // Fallback to web page URL
+        const text = `二维码生成失败，请在浏览器中打开此链接扫码：\n\n${result.qrcodeUrl}`;
+        return {
+          content: [{ type: "text" as const, text }],
+          details: { qr: false, renderError: String(err) },
+        };
+      }
 
-      // Use markdown image syntax — same pattern as WhatsApp's whatsapp_login tool.
-      // Tell the agent NOT to repeat the data URL and to call wait immediately.
       const text = [
         "二维码已生成，请用微信扫描：",
         "",
@@ -99,6 +118,7 @@ export function createWeixinLoginTool() {
         "DO NOT repeat the image data URL above. Just tell the user to scan the QR code,",
         "then IMMEDIATELY call weixin_login with action='wait' to await the scan result.",
       ].join("\n");
+      log(`returning tool result: text length=${text.length}`);
       return {
         content: [{ type: "text" as const, text }],
         details: { qr: true },
