@@ -365,7 +365,12 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
       const pluginEntries = pluginsSection?.entries ?? {};
 
       for (const [name, entry] of Object.entries(pluginEntries)) {
-        const matchingPath = paths.find((p) => p.includes(name)) ?? '';
+        let matchingPath = paths.find((p) => p.includes(name)) ?? '';
+        // Fallback: globally installed plugins aren't in load.paths.
+        // Mark as "global install" so UI doesn't show "—".
+        if (!matchingPath) {
+          matchingPath = `~/.openclaw/extensions/${name}`;
+        }
         entries.push({
           name,
           enabled: entry.enabled !== false,
