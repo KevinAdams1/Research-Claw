@@ -22,21 +22,64 @@ let _gapDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 const GAP_DEBOUNCE_MS = 500;
 
 /**
- * Stale-streaming recovery timer.
- * When streaming=true but no delta arrives within STALE_STREAM_TIMEOUT_MS,
- * the UI is stuck at "思考中...". This timer auto-recovers by calling
- * loadHistory() which fetches the response from the gateway transcript.
- * Covers: Volcengine Coding, Kimi Code, and other thinking models that
- * buffer the entire response before emitting content tokens.
+ * Stale-streaming watchdog.
+ * Periodically checks if no chat delta has arrived within STALE_STREAM_TIMEOUT_MS.
+ * Recovers via loadHistory() when the stream appears dead.
+ *
+ * Improvement over the original setTimeout approach: tracks _lastDeltaAt so it
+ * can detect mid-stream connection deaths (where streamText is non-null but no
+ * more deltas arrive), not just the "no first delta" case.
+ *
+ * The watchdog skips recovery when tools are actively executing, because tool
+ * calls can legitimately take minutes without producing chat deltas.
+ *
+ * Backup: the tick watchdog (client.ts) detects dead connections at the transport
+ * layer and forces reconnect → loadHistory(), so this watchdog mainly covers the
+ * "alive connection but stale model response" scenario.
  */
-let _staleStreamTimer: ReturnType<typeof setTimeout> | null = null;
+let _staleStreamWatchdog: ReturnType<typeof setInterval> | null = null;
 const STALE_STREAM_TIMEOUT_MS = 60_000;
+const STALE_WATCHDOG_CHECK_MS = 15_000;
 
-function clearStaleStreamTimer() {
-  if (_staleStreamTimer) {
-    clearTimeout(_staleStreamTimer);
-    _staleStreamTimer = null;
+function stopStaleStreamWatchdog() {
+  if (_staleStreamWatchdog) {
+    clearInterval(_staleStreamWatchdog);
+    _staleStreamWatchdog = null;
   }
+}
+
+function startStaleStreamWatchdog(get: () => ChatState) {
+  stopStaleStreamWatchdog();
+  _staleStreamWatchdog = setInterval(() => {
+    const s = get();
+    if (!s.streaming) {
+      stopStaleStreamWatchdog();
+      return;
+    }
+    const lastActivity = s._lastDeltaAt ?? s._streamStartedAt;
+    if (!lastActivity) return;
+    const gap = Date.now() - lastActivity;
+    if (gap > STALE_STREAM_TIMEOUT_MS) {
+      // Don't recover if tools are actively executing (tool calls can take minutes)
+      try {
+        // Dynamic import avoids circular dependency (tool-stream ↔ chat).
+        // useToolStreamStore is already initialized by the time the watchdog fires.
+        const { useToolStreamStore } = require('./tool-stream');
+        if (useToolStreamStore.getState().pendingTools.length > 0) return;
+      } catch { /* proceed with recovery if import fails */ }
+
+      stopStaleStreamWatchdog();
+      console.log(`[Chat] Stale streaming detected (${Math.round(gap / 1000)}s since last activity) — recovering via loadHistory`);
+      useChatStore.setState({
+        streaming: false,
+        streamText: null,
+        runId: null,
+        _streamStartedAt: null, _lastDeltaAt: null,
+        _lastDeltaAt: null,
+      });
+      useChatStore.getState().loadHistory();
+    }
+  }, STALE_WATCHDOG_CHECK_MS);
 }
 
 /**
@@ -281,6 +324,9 @@ interface ChatState {
    * false-positive queue-drain detection from quick heartbeat/cron finals.
    */
   _streamStartedAt: number | null;
+  /** Timestamp of last received chat delta. Used by stale-stream watchdog to detect
+   *  mid-stream deaths (connection alive but no more deltas arriving). */
+  _lastDeltaAt: number | null;
 
   send: (text: string, attachments?: ChatAttachment[]) => Promise<void>;
   abort: () => void;
@@ -311,7 +357,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   tokensOut: 0,
   _pendingGapReload: false,
   _pendingUserMsgs: _restoredPendingMsgs,
-  _streamStartedAt: null,
+  _streamStartedAt: null, _lastDeltaAt: null,
+  _lastDeltaAt: null,
 
   onGapDetected: () => {
     if (!get().streaming && !get().sending) {
@@ -471,23 +518,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         deliver: false, // Don't deliver response to external channels (Telegram/Discord etc.)
         ...(finalAttachments?.length ? { attachments: finalAttachments } : {}),
       });
-      set({ sending: false, streaming: true, _streamStartedAt: Date.now() });
+      set({ sending: false, streaming: true, _streamStartedAt: Date.now(), _lastDeltaAt: null });
 
-      // Start stale-streaming recovery timer. If no delta arrives within 60s,
-      // loadHistory() will fetch the response from the gateway transcript.
-      clearStaleStreamTimer();
-      _staleStreamTimer = setTimeout(() => {
-        _staleStreamTimer = null;
-        const s = get();
-        if (s.streaming && !s.streamText) {
-          console.log('[Chat] Stale streaming detected (60s no delta) — recovering via loadHistory');
-          set({ streaming: false, streamText: null, runId: null, _streamStartedAt: null });
-          // Don't clear _pendingUserMessages here — loadHistory() will check and preserve it
-          get().loadHistory();
-        }
-      }, STALE_STREAM_TIMEOUT_MS);
+      // Start stale-streaming watchdog. Checks every 15s if no delta has arrived
+      // within 60s (covers both "no first delta" and "mid-stream death" scenarios).
+      startStaleStreamWatchdog(get);
     } catch (err) {
-      clearStaleStreamTimer();
+      stopStaleStreamWatchdog();
       // Match OC chat.ts:226-230: clear runId + chatStream on failure.
       // Keep _pendingUserMessages so loadHistory() preserves the optimistic message.
       set({
@@ -495,14 +532,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         streaming: false,
         streamText: null,
         runId: null,
-        _streamStartedAt: null,
+        _streamStartedAt: null, _lastDeltaAt: null,
         lastError: err instanceof Error ? err.message : 'Failed to send message',
       });
     }
   },
 
   abort: () => {
-    clearStaleStreamTimer();
+    stopStaleStreamWatchdog();
     const client = useGatewayStore.getState().client;
     const { runId, sessionKey } = get();
 
@@ -519,7 +556,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     // If no runId, this is an orphan streaming state (e.g. after session switch
     // or reconnect). Clean up immediately — no server event will come.
     if (!runId) {
-      set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null });
+      set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null, _lastDeltaAt: null });
       return;
     }
 
@@ -538,10 +575,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             streamText: null,
             runId: null,
             _pendingUserMsgs: [],
-            _streamStartedAt: null,
+            _streamStartedAt: null, _lastDeltaAt: null,
           }));
         } else {
-          set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null });
+          set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null, _lastDeltaAt: null });
         }
       }
     }, 3000);
@@ -669,12 +706,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       }
     }
 
-    // Cancel the stale-streaming recovery timer ONLY for events matching our
-    // current run (or events without a runId, e.g. server-initiated).
-    // Events from OTHER runs (e.g. processing queued messages) must NOT cancel
-    // our timer — otherwise the 60s recovery never fires for rapid-fire sends.
+    // Stop the stale-streaming watchdog on TERMINAL events (final/aborted/error)
+    // matching our current run. Delta events update _lastDeltaAt instead, so the
+    // watchdog can detect mid-stream deaths (connection alive but no more deltas).
     if (!event.runId || !runId || event.runId === runId) {
-      clearStaleStreamTimer();
+      if (event.state !== 'delta') {
+        stopStaleStreamWatchdog();
+      }
     }
 
     switch (event.state) {
@@ -698,6 +736,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           return {
             streaming: true,
             streamText: !current || deltaText.length >= current.length ? deltaText : current,
+            _lastDeltaAt: Date.now(),
           };
         });
         break;
@@ -708,7 +747,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           // MiniMax and some providers send final without a message body.
           // Clear streaming state and reload history to show the result.
           if (event.runId === runId || (get().streaming && !runId)) {
-            set({ streaming: false, streamText: null, runId: null, _pendingGapReload: false, _streamStartedAt: null });
+            set({ streaming: false, streamText: null, runId: null, _pendingGapReload: false, _streamStartedAt: null, _lastDeltaAt: null });
             get().loadHistory();
             setTimeout(() => {
               useLibraryStore.getState().loadPapers();
@@ -743,7 +782,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             streamText: null,
             runId: null,
             _pendingUserMsgs: [],
-            _streamStartedAt: null,
+            _streamStartedAt: null, _lastDeltaAt: null,
           }));
           // After a full conversation turn, refresh panel data
           // (the LLM may have used tools that modified library/tasks/workspace)
@@ -795,7 +834,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             ...(isQueueDrainResponse
               // Don't clear _pendingUserMessages here — more queue-drain responses
               // may follow. Let loadHistory() handle them via the 3-min expiry.
-              ? { streaming: false, streamText: null, runId: null, _streamStartedAt: null }
+              ? { streaming: false, streamText: null, runId: null, _streamStartedAt: null, _lastDeltaAt: null }
               : s.streaming && !s.runId
                 ? { streaming: false, streamText: null }
                 : {}),
@@ -843,10 +882,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             streamText: null,
             runId: null,
             _pendingUserMsgs: [],
-            _streamStartedAt: null,
+            _streamStartedAt: null, _lastDeltaAt: null,
           }));
         } else {
-          set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null });
+          set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null, _lastDeltaAt: null });
         }
         // Deferred gap recovery
         if (get()._pendingGapReload) {
@@ -866,7 +905,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           streamText: null,
           runId: null,
           _pendingUserMsgs: [],
-          _streamStartedAt: null,
+          _streamStartedAt: null, _lastDeltaAt: null,
           lastError: event.errorMessage ?? 'Unknown streaming error',
         });
         // Deferred gap recovery
@@ -883,7 +922,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     // Clear all chat state for session switch.
     // Matches OC resetChatStateForSessionSwitch: clears chatStream, chatStreamStartedAt,
     // chatRunId, chatMessage, resets tool stream + scroll.
-    clearStaleStreamTimer();
+    stopStaleStreamWatchdog();
     set({
       sessionKey: key,
       messages: [],
@@ -896,7 +935,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       tokensOut: 0,
       _pendingGapReload: false,
       _pendingUserMsgs: [],
-      _streamStartedAt: null,
+      _streamStartedAt: null, _lastDeltaAt: null,
     });
   },
 
