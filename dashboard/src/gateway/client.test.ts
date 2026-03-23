@@ -626,4 +626,58 @@ describe('GatewayClient', () => {
       expect(mockWsInstance.close).toHaveBeenCalledWith(4000, 'tick timeout');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // checkTickLiveness() — page visibility resume support
+  // Called on visibilitychange→visible to catch zombie connections that the
+  // throttled tick watchdog interval cannot detect (Chrome backgrounds tabs
+  // and throttles setInterval to ≥1min).
+  // ---------------------------------------------------------------------------
+  describe('checkTickLiveness (visibility resume)', () => {
+    it('returns true and closes when tick is stale', async () => {
+      const client = new GatewayClient({
+        url: 'ws://test:28789',
+        onStateChange: () => {},
+      });
+      await completeHandshake(client, { policy: { tickIntervalMs: 1000 } });
+      mockWsInstance.close.mockClear();
+
+      // Simulate tab background: jump clock forward WITHOUT firing interval timers.
+      // In a real browser, background tab throttles setInterval to ≥1min, so the
+      // tick watchdog interval doesn't fire. On resume, checkTickLiveness() catches it.
+      vi.setSystemTime(new Date(Date.now() + 5000));
+
+      // Direct call — would be triggered by visibilitychange handler
+      const wasStale = client.checkTickLiveness();
+      expect(wasStale).toBe(true);
+      expect(mockWsInstance.close).toHaveBeenCalledWith(4000, 'tick timeout');
+    });
+
+    it('returns false when tick is fresh', async () => {
+      const client = new GatewayClient({
+        url: 'ws://test:28789',
+        onStateChange: () => {},
+      });
+      await completeHandshake(client, { policy: { tickIntervalMs: 1000 } });
+
+      // Send a recent tick
+      serverSend({ type: 'event', event: 'tick', payload: { ts: Date.now() }, seq: 1 });
+      mockWsInstance.close.mockClear();
+
+      const wasStale = client.checkTickLiveness();
+      expect(wasStale).toBe(false);
+      expect(mockWsInstance.close).not.toHaveBeenCalled();
+      client.disconnect();
+    });
+
+    it('returns false when not connected', async () => {
+      const client = new GatewayClient({
+        url: 'ws://test:28789',
+        onStateChange: () => {},
+      });
+      // Don't connect — state is 'disconnected'
+      const wasStale = client.checkTickLiveness();
+      expect(wasStale).toBe(false);
+    });
+  });
 });

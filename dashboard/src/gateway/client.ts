@@ -179,6 +179,26 @@ export class GatewayClient {
     return this.state === 'connected';
   }
 
+  /**
+   * Check tick liveness and close if stale. Call on page visibility resume
+   * to catch zombie connections that the throttled tick watchdog interval
+   * (Chrome backgrounds tabs to 1min+) cannot detect in time.
+   *
+   * Returns true if the connection was closed due to stale tick.
+   */
+  checkTickLiveness(): boolean {
+    if (!this.lastTick || this.state !== 'connected') return false;
+    const gap = Date.now() - this.lastTick;
+    if (gap > this.tickIntervalMs * 2) {
+      console.warn(
+        `[GatewayClient] Visibility resume tick check: ${gap}ms since last tick — forcing reconnect`,
+      );
+      this.ws?.close(4000, 'tick timeout');
+      return true;
+    }
+    return false;
+  }
+
   connect(): void {
     if (this.ws) {
       this.ws.close();
