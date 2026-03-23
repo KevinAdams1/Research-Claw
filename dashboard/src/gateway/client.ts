@@ -301,7 +301,11 @@ export class GatewayClient {
     this.setState('disconnected');
   }
 
-  async request<T = unknown>(method: string, params?: unknown): Promise<T> {
+  async request<T = unknown>(
+    method: string,
+    params?: unknown,
+    opts?: { timeoutMs?: number },
+  ): Promise<T> {
     if (!this.ws || this.state !== 'connected') {
       console.warn(`[GatewayClient] request(${method}) rejected: state=${this.state}, ws=${!!this.ws}`);
       throw new Error('Not connected to gateway');
@@ -311,12 +315,13 @@ export class GatewayClient {
     const id = generateUUID();
     // Always include params field (aligned with OC — gateway always sends `params`).
     const frame: RequestFrame = { type: 'req', id, method, params: params ?? {} };
+    const timeout = opts?.timeoutMs ?? REQUEST_TIMEOUT_MS;
 
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`Request timeout: ${method} (${REQUEST_TIMEOUT_MS}ms)`));
-      }, REQUEST_TIMEOUT_MS);
+        reject(new Error(`Request timeout: ${method} (${timeout}ms)`));
+      }, timeout);
 
       this.pending.set(id, {
         resolve: resolve as (value: unknown) => void,

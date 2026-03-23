@@ -52,6 +52,9 @@ const { Search } = Input;
 
 type SubTab = 'skills' | 'channels' | 'plugins';
 
+/** Channels that support QR code login via web.login.start / web.login.wait */
+const QR_LOGIN_CHANNELS = new Set(['openclaw-weixin', 'whatsapp']);
+
 // ── Virtual list types & constants ───────────────────────────────────────────
 
 type FlatItem =
@@ -650,7 +653,25 @@ function ChannelCard({
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            {(hasError || !isConfigured) && (
+            {QR_LOGIN_CHANNELS.has(channel.id) && isEnabled && (
+              <Button
+                size="small"
+                type="primary"
+                icon={<LinkOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  useExtensionsStore.getState().startQrLogin(
+                    channel.id,
+                    defaultAccount?.accountId !== 'default' ? defaultAccount?.accountId : undefined,
+                  );
+                }}
+              >
+                {isConnected
+                  ? t('extensions.channels.reconnect', 'Reconnect')
+                  : t('extensions.channels.connect', 'Connect')}
+              </Button>
+            )}
+            {(hasError || !isConfigured) && !QR_LOGIN_CHANNELS.has(channel.id) && (
               <Button
                 size="small"
                 icon={<MessageOutlined />}
@@ -944,6 +965,119 @@ function SkillsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
 
 // ── Channels Sub-Tab ────────────────────────────────────────────────────────
 
+// ── QR Login Modal ──────────────────────────────────────────────────────────
+
+function QrLoginModal({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
+  const { t } = useTranslation();
+  const { message: messageApi } = App.useApp();
+  const qrLoginState = useExtensionsStore((s) => s.qrLoginState);
+  const qrLoginDataUrl = useExtensionsStore((s) => s.qrLoginDataUrl);
+  const qrLoginMessage = useExtensionsStore((s) => s.qrLoginMessage);
+  const qrLoginError = useExtensionsStore((s) => s.qrLoginError);
+  const qrLoginChannelId = useExtensionsStore((s) => s.qrLoginChannelId);
+  const cancelQrLogin = useExtensionsStore((s) => s.cancelQrLogin);
+
+  const isOpen = qrLoginState !== 'idle';
+
+  const handleClose = useCallback(() => {
+    cancelQrLogin();
+  }, [cancelQrLogin]);
+
+  const handleRetry = useCallback(() => {
+    const channelId = qrLoginChannelId;
+    if (channelId) {
+      cancelQrLogin();
+      setTimeout(() => {
+        useExtensionsStore.getState().startQrLogin(channelId);
+      }, 100);
+    }
+  }, [qrLoginChannelId, cancelQrLogin]);
+
+  useEffect(() => {
+    if (qrLoginState === 'success') {
+      messageApi.success(qrLoginMessage || t('extensions.channels.qrLoginSuccess', 'Connected!'));
+      const timer = setTimeout(() => cancelQrLogin(), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [qrLoginState, qrLoginMessage, messageApi, t, cancelQrLogin]);
+
+  return (
+    <Modal
+      title={t('extensions.channels.qrLoginTitle', 'Scan QR Code to Connect')}
+      open={isOpen}
+      onCancel={handleClose}
+      footer={null}
+      centered
+      width={360}
+      destroyOnClose
+    >
+      <div style={{ textAlign: 'center', padding: '16px 0' }}>
+        {qrLoginState === 'loading' && (
+          <>
+            <LoadingOutlined style={{ fontSize: 32, color: tokens.accent.blue, display: 'block', marginBottom: 16 }} />
+            <Text style={{ color: tokens.text.muted, fontSize: 13 }}>
+              {t('extensions.channels.qrLoginGenerating', 'Generating QR code...')}
+            </Text>
+          </>
+        )}
+
+        {qrLoginState === 'waiting' && qrLoginDataUrl && (
+          <>
+            <img
+              src={qrLoginDataUrl}
+              alt="QR Code"
+              style={{
+                width: 240,
+                height: 240,
+                borderRadius: 8,
+                border: `1px solid ${tokens.border.default}`,
+                background: '#fff',
+                marginBottom: 16,
+              }}
+            />
+            <div style={{ marginBottom: 8 }}>
+              <Text style={{ color: tokens.text.primary, fontSize: 13 }}>
+                {qrLoginMessage || t('extensions.channels.qrLoginScanPrompt', 'Scan the QR code with your app')}
+              </Text>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <LoadingOutlined style={{ fontSize: 14, color: tokens.accent.blue }} />
+              <Text style={{ color: tokens.text.muted, fontSize: 12 }}>
+                {t('extensions.channels.qrLoginWaiting', 'Waiting for scan...')}
+              </Text>
+            </div>
+          </>
+        )}
+
+        {qrLoginState === 'success' && (
+          <>
+            <CheckCircleOutlined style={{ fontSize: 48, color: tokens.accent.green, display: 'block', marginBottom: 16 }} />
+            <Text style={{ color: tokens.accent.green, fontSize: 14, fontWeight: 600 }}>
+              {qrLoginMessage || t('extensions.channels.qrLoginSuccess', 'Connected!')}
+            </Text>
+          </>
+        )}
+
+        {qrLoginState === 'error' && (
+          <>
+            <ExclamationCircleOutlined style={{ fontSize: 48, color: tokens.accent.red, display: 'block', marginBottom: 16 }} />
+            <div style={{ marginBottom: 12 }}>
+              <Text style={{ color: tokens.accent.red, fontSize: 13 }}>
+                {qrLoginError || t('extensions.channels.qrLoginFailed', 'Login failed')}
+              </Text>
+            </div>
+            <Button size="small" onClick={handleRetry}>
+              {t('extensions.channels.qrLoginRetry', 'Retry')}
+            </Button>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Channels Sub-Tab ────────────────────────────────────────────────────────
+
 function ChannelsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
   const { t } = useTranslation();
   const channels = useExtensionsStore((s) => s.channels);
@@ -1016,6 +1150,9 @@ function ChannelsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) 
           {t('extensions.channels.addChannel', 'Add Channel')}
         </Button>
       </div>
+
+      {/* QR Login Modal — rendered once, state-driven */}
+      <QrLoginModal tokens={tokens} />
     </div>
   );
 }

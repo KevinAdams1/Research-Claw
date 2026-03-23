@@ -110,6 +110,15 @@ interface ExtensionsState {
   enableChannel: (channelId: string, enabled: boolean) => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
 
+  // QR Login
+  qrLoginChannelId: string | null;
+  qrLoginState: 'idle' | 'loading' | 'waiting' | 'success' | 'error';
+  qrLoginDataUrl: string | null;
+  qrLoginMessage: string | null;
+  qrLoginError: string | null;
+  startQrLogin: (channelId: string, accountId?: string) => void;
+  cancelQrLogin: () => void;
+
   // Plugins
   plugins: PluginEntry[];
   pluginsLoaded: boolean;
@@ -131,6 +140,13 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
   channels: [],
   channelsLoading: false,
   channelsLoaded: false,
+
+  // QR Login
+  qrLoginChannelId: null,
+  qrLoginState: 'idle',
+  qrLoginDataUrl: null,
+  qrLoginMessage: null,
+  qrLoginError: null,
 
   // Plugins
   plugins: [],
@@ -337,6 +353,93 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
       console.error('[ExtensionsStore] deleteChannel failed:', err);
       throw err;
     }
+  },
+
+  // ── QR Login ────────────────────────────────────────────────────────────
+
+  startQrLogin: (channelId: string, accountId?: string) => {
+    const client = useGatewayStore.getState().client;
+    if (!client?.isConnected) return;
+    if (get().qrLoginState !== 'idle') return;
+
+    set({
+      qrLoginChannelId: channelId,
+      qrLoginState: 'loading',
+      qrLoginDataUrl: null,
+      qrLoginMessage: null,
+      qrLoginError: null,
+    });
+
+    // Step 1: web.login.start — generate QR code (30s timeout is fine)
+    client.request<{
+      qrDataUrl?: string;
+      message: string;
+    }>('web.login.start', {
+      force: true,
+      ...(accountId ? { accountId } : {}),
+    }).then((startResult) => {
+      if (get().qrLoginState !== 'loading') return;
+
+      if (!startResult.qrDataUrl || !startResult.qrDataUrl.startsWith('data:')) {
+        set({
+          qrLoginState: 'error',
+          qrLoginError: startResult.message || 'Failed to generate QR code',
+        });
+        return;
+      }
+
+      set({
+        qrLoginState: 'waiting',
+        qrLoginDataUrl: startResult.qrDataUrl,
+        qrLoginMessage: startResult.message,
+      });
+
+      // Step 2: web.login.wait — block until user scans (120s server, 150s client)
+      client.request<{
+        connected: boolean;
+        message: string;
+      }>('web.login.wait', {
+        timeoutMs: 120_000,
+        ...(accountId ? { accountId } : {}),
+      }, { timeoutMs: 150_000 }).then((waitResult) => {
+        if (get().qrLoginState !== 'waiting') return;
+
+        if (waitResult.connected) {
+          set({
+            qrLoginState: 'success',
+            qrLoginMessage: waitResult.message || '连接成功！',
+          });
+          setTimeout(() => { get().loadChannels(); }, 3000);
+        } else {
+          set({
+            qrLoginState: 'error',
+            qrLoginError: waitResult.message || 'Login timed out',
+          });
+        }
+      }).catch((err) => {
+        if (get().qrLoginState !== 'waiting') return;
+        set({
+          qrLoginState: 'error',
+          qrLoginError: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }).catch((err) => {
+      if (get().qrLoginState !== 'loading') return;
+      set({
+        qrLoginState: 'error',
+        qrLoginError: err instanceof Error ? err.message : String(err),
+      });
+    });
+  },
+
+  cancelQrLogin: () => {
+    set({
+      qrLoginChannelId: null,
+      qrLoginState: 'idle',
+      qrLoginDataUrl: null,
+      qrLoginMessage: null,
+      qrLoginError: null,
+    });
   },
 
   // ── Plugins ─────────────────────────────────────────────────────────────

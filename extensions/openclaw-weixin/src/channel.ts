@@ -339,9 +339,18 @@ export const weixinPlugin: ChannelPlugin<ResolvedWeixinAccount> = {
         timeoutMs,
         verbose,
       });
-      // Return sessionKey so the client can pass it back in loginWithQrWait.
+      // Generate PNG data URL from raw QR data so dashboard can render inline <img>.
+      let qrDataUrl: string | undefined;
+      if (result.qrcode) {
+        try {
+          const { renderQrDataUrl } = await import("./util/qr-image.js");
+          qrDataUrl = renderQrDataUrl(result.qrcode);
+        } catch (err) {
+          logger.error(`loginWithQrStart: renderQrDataUrl failed: ${String(err)}`);
+        }
+      }
       return {
-        qrDataUrl: result.qrcodeUrl,
+        qrDataUrl,
         message: result.message,
         sessionKey: result.sessionKey,
       } as { qrDataUrl?: string; message: string };
