@@ -65,7 +65,7 @@ describe('Chat store', () => {
 
       await useChatStore.getState().send('test');
 
-      expect(useChatStore.getState().lastError).toBe('Not connected to gateway');
+      expect(useChatStore.getState().lastError).toBe('未连接网关 — 请检查网关是否正在运行');
       expect(mockGatewayClient.request).not.toHaveBeenCalled();
     });
 
@@ -75,7 +75,7 @@ describe('Chat store', () => {
       mockGatewayClient.isConnected = false;
 
       await useChatStore.getState().send('test');
-      expect(useChatStore.getState().lastError).toBe('Not connected to gateway');
+      expect(useChatStore.getState().lastError).toBe('未连接网关 — 请检查网关是否正在运行');
       expect(mockGatewayClient.request).not.toHaveBeenCalled();
     });
 

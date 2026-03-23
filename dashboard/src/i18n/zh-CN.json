@@ -25,6 +25,12 @@
     "thinking": "思考中...",
     "empty": "开始与你的科研助手对话。",
     "abort": "停止",
+    "connectionBanner": {
+      "reconnecting": "连接中断 — 正在自动重连...",
+      "disconnected": "与网关断开连接 — 未发送的消息可能丢失，请检查网关是否在运行"
+    },
+    "notConnected": "未连接网关 — 请检查网关是否正在运行",
+    "sendFailed": "发送失败 — 连接可能已中断，请尝试重新发送",
     "you": "你",
     "assistant": "助手",
     "dismiss": "关闭",
@@ -175,7 +181,7 @@
     "upload": "添加文件",
     "uploadSuccess": "文件已添加到工作区",
     "uploadSuccessWithPath": "已上传 {{count}} 个文件到 {{path}}",
-    "uploadFailedMulti": "{{count}} 个文件上传失败",
+    "uploadFailedMulti": "{{count}} 个文件上传失败 — 请检查文件权限",
     "history": "版本历史",
     "recentChanges": "最近变更",
     "loadMore": "加载更多...",
@@ -189,26 +195,26 @@
       "openFolder": "打开文件夹",
       "copyPath": "复制路径",
       "pathCopied": "路径已复制",
-      "openFailed": "打开失败",
+      "openFailed": "打开失败 — 文件可能已被移动或删除",
       "delete": "删除",
       "deleteConfirmTitle": "确认删除此文件？",
       "deleteOk": "删除",
       "deleteCancel": "取消",
       "deleteSuccess": "文件已删除",
-      "deleteFailed": "删除文件失败",
+      "deleteFailed": "删除失败 — 文件可能正在使用中或权限不足",
       "rename": "重命名",
       "newFile": "新建文件",
       "newFolder": "新建文件夹"
     },
     "uploading": "上传中...",
-    "uploadFailed": "上传失败",
+    "uploadFailed": "上传失败 — 请检查文件权限和可用磁盘空间",
     "moveSuccess": "文件已移动",
-    "moveFailed": "移动失败",
+    "moveFailed": "移动失败 — 目标目录可能不存在或存在同名文件",
     "moveToRoot": "释放以移动到根目录",
     "renameSuccess": "重命名成功",
-    "renameFailed": "重命名失败",
+    "renameFailed": "重命名失败 — 请检查是否存在同名文件或包含非法字符",
     "createSuccess": "创建成功",
-    "createFailed": "创建失败",
+    "createFailed": "创建失败 — 请检查目录权限或文件名是否冲突",
     "searchPlaceholder": "搜索文件...",
     "searchNoResults": "无匹配结果",
     "systemFilesHidden": "{{count}} 个系统文件已隐藏",
@@ -218,9 +224,9 @@
     "preview": {
       "title": "文件预览",
       "loading": "加载文件中...",
-      "errorTooLarge": "文件过大，无法预览。",
-      "errorNotFound": "文件未找到。",
-      "errorGeneric": "加载文件失败。",
+      "errorTooLarge": "文件过大，无法预览 — 请尝试使用外部编辑器打开",
+      "errorNotFound": "文件未找到 — 可能已被 Agent 移动或删除",
+      "errorGeneric": "加载文件失败 — 请尝试刷新或使用外部工具打开",
       "binaryNotPreviewable": "二进制文件 — 无法预览。",
       "openFile": "打开文件",
       "openFolder": "打开文件夹",
@@ -230,7 +236,7 @@
       "deleteOk": "删除",
       "deleteCancel": "取消",
       "deleteSuccess": "文件已删除",
-      "deleteFailed": "删除文件失败"
+      "deleteFailed": "删除失败 — 文件可能正在使用中或权限不足"
     }
   },
   "time": {
@@ -294,8 +300,9 @@
     "refreshConfig": "刷新",
     "restartHint": "配置已保存到 openclaw.json，gateway 将自动重启。代理变更需要完全重启网关（openclaw gateway --force）。",
     "saved": "已保存",
-    "saveFailed": "保存失败",
-    "copyFailed": "复制失败",
+    "saveFailed": "保存失败 — 网关可能已重启，请重试",
+    "copyFailed": "复制失败 — 浏览器可能不支持剪贴板访问",
+    "validationMissing": "请填写 API 地址和模型名称",
     "save": "保存",
     "cancel": "取消",
     "restartConfirmTitle": "重启网关？",
@@ -309,6 +316,14 @@
     "webSearchProvider": "搜索提供商",
     "webSearchApiKey": "API 密钥",
     "webSearchPriorityHint": "网页搜索优先级 L3 — 智能体优先使用学术 API（arXiv、OpenAlex 等）。",
+    "heartbeat": "心跳检查",
+    "heartbeatHint": "定期后台检查（截止日期、阅读提醒等）。使用轻量上下文以减少 token 消耗。",
+    "heartbeatInterval": "检查间隔",
+    "heartbeatInterval15m": "每 15 分钟",
+    "heartbeatInterval30m": "每 30 分钟（默认）",
+    "heartbeatInterval1h": "每 1 小时",
+    "heartbeatInterval2h": "每 2 小时",
+    "heartbeatInterval4h": "每 4 小时",
     "aboutGithub": "在 GitHub 上查看"
   },
   "setup": {
@@ -339,6 +354,7 @@
     "restartHint": "保存后 gateway 将自动重启，仪表盘会自动重连。",
     "start": "启动科研龙虾",
     "configuring": "配置中...",
+    "configureFailed": "配置失败 — 请检查 API 地址和密钥后重试",
     "skipToDashboard": "跳过，进入 Dashboard \u2192"
   },
   "boot": {
@@ -362,7 +378,7 @@
     "tokensOut": "输出",
     "heartbeat": "心跳",
     "version": "v{{version}}",
-    "versionFallback": "v0.5.8",
+    "versionFallback": "v0.5.9",
     "modelDefault": "（默认）",
     "modelNA": "N/A"
   },
@@ -486,7 +502,7 @@
     "deleteConfirm": "删除此项目？聊天记录将丢失。"
   },
   "error": {
-    "title": "出了点问题",
+    "title": "出了点问题 — 请点击重试或刷新页面",
     "retry": "重试",
     "details": "详情"
   },
@@ -505,6 +521,8 @@
     "description": "Research-Claw 运行在 Docker 容器中，文件无法用宿主机应用直接打开。",
     "downloadFile": "下载文件",
     "downloadFolder": "下载文件夹 (.tar.gz)",
+    "copyFailed": "复制失败 — 浏览器可能不支持剪贴板访问",
+    "downloadFailed": "下载失败 — 请检查与网关的网络连接",
     "bindMountHint": "提示：在 docker-compose.yml 中改为 bind mount，即可直接用文件管理器浏览工作区："
   },
   "extensions": {
@@ -535,8 +553,8 @@
       "disable": "禁用",
       "enableSuccess": "技能已启用",
       "disableSuccess": "技能已禁用",
-      "updateFailed": "更新技能失败",
-      "openFailed": "打开失败",
+      "updateFailed": "技能更新失败 — 网关可能正在重启，请稍后重试",
+      "openFailed": "打开失败 — 文件可能已被移动或删除",
       "group": {
         "local": "科研龙虾本地",
         "research-plugins": "科研技能库",
@@ -547,23 +565,32 @@
     "channels": {
       "title": "通道",
       "empty": "未配置任何通道。",
-      "emptyHint": "在 openclaw.json 中配置消息通道以启用集成。",
+      "emptyHint": "让 Agent 帮你配置消息通道以启用 IM 集成。",
       "connected": "已连接",
       "configured": "已配置",
       "notConfigured": "未配置",
+      "disabled": "已停用",
       "error": "错误",
       "account": "账户",
       "lastInbound": "最近收入",
       "lastOutbound": "最近发出",
       "mode": "模式",
-      "probe": "探测",
-      "probing": "探测中...",
-      "config": "配置",
-      "logout": "登出",
-      "logoutConfirmTitle": "登出通道",
-      "logoutConfirmContent": "确认登出 {{channel}}？凭证将被清除。",
-      "logoutSuccess": "已登出",
-      "logoutFailed": "登出失败"
+      "providerDown": "服务未运行",
+      "enableSuccess": "通道已启用",
+      "disableSuccess": "通道已停用",
+      "toggleFailed": "切换通道失败 — 网关可能正在重启，请稍后重试",
+      "delete": "删除通道",
+      "deleteConfirmTitle": "删除通道",
+      "deleteConfirmContent": "确认删除 {{channel}}？通道配置将被移除。",
+      "confirmDelete": "删除",
+      "deleteSuccess": "通道已删除",
+      "deleteFailed": "删除通道失败 — 网关可能正在重启，请稍后重试",
+      "askAgentFix": "让 Agent 修复",
+      "askAgentConfigure": "让 Agent 配置",
+      "addChannel": "添加通道",
+      "qrLoginFailed": "登录失败 — 二维码可能已过期，请点击重试重新扫码",
+      "qrLoginRetry": "重试",
+      "qrLoginSuccess": "已连接！"
     },
     "plugins": {
       "title": "插件",
@@ -571,7 +598,7 @@
       "path": "路径",
       "config": "配置",
       "copyConfigPath": "复制 openclaw.json 路径",
-      "toggleFailed": "切换插件状态失败",
+      "toggleFailed": "切换插件失败 — 网关可能正在重启，请稍后重试",
       "packages": "已安装技能包"
     }
   }

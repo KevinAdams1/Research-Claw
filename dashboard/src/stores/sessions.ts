@@ -22,6 +22,15 @@ export interface Session {
   kind?: string;
 }
 
+/** Fields supported by OC sessions.patch RPC (aligned with OC controllers/sessions.ts). */
+export interface SessionPatchFields {
+  label?: string | null;
+  thinkingLevel?: string | null;
+  fastMode?: boolean | null;
+  verboseLevel?: string | null;
+  reasoningLevel?: string | null;
+}
+
 interface SessionsState {
   sessions: Session[];
   activeSessionKey: string;
@@ -32,6 +41,8 @@ interface SessionsState {
   createSession: () => Promise<string>;
   deleteSession: (key: string) => Promise<void>;
   renameSession: (key: string, label: string) => Promise<void>;
+  /** General-purpose session patch (aligned with OC sessions.patch — supports all fields). */
+  patchSession: (key: string, fields: SessionPatchFields) => Promise<void>;
   isMainSession: (key: string) => boolean;
 }
 
@@ -163,6 +174,24 @@ export const useSessionsStore = create<SessionsState>()((set, get) => ({
       }));
     } catch {
       // Rename failed
+    }
+  },
+
+  patchSession: async (key: string, fields: SessionPatchFields) => {
+    const client = useGatewayStore.getState().client;
+    if (!client?.isConnected) return;
+    try {
+      await client.request('sessions.patch', { key, ...fields });
+      // Update local label if changed
+      if ('label' in fields) {
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.key === key ? { ...sess, label: fields.label || undefined } : sess,
+          ),
+        }));
+      }
+    } catch {
+      // Patch failed
     }
   },
 

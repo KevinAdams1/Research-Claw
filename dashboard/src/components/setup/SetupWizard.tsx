@@ -272,7 +272,7 @@ export default function SetupWizard() {
       setRestarting(true);
     } catch (err) {
       setSaving(false);
-      setError(err instanceof Error ? err.message : 'Failed to configure gateway');
+      setError(err instanceof Error ? err.message : t('setup.configureFailed'));
     }
   };
 

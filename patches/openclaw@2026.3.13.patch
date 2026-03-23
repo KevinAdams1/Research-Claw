@@ -104,6 +104,24 @@ index 877bba82d7287f692638fd95d064d22ace99c9d1..4b3a96654e79f612abca79848423bb5a
  		}
  	];
  	const memoryEntry = await resolveMemoryBootstrapEntry(resolvedDir);
+diff --git a/dist/gateway-cli-CuZs0RlJ.js b/dist/gateway-cli-CuZs0RlJ.js
+index 1111111111111111111111111111111111111111..2222222222222222222222222222222222222222 100644
+--- a/dist/gateway-cli-CuZs0RlJ.js
++++ b/dist/gateway-cli-CuZs0RlJ.js
+@@ -24275,2 +24275,2 @@
+-	const DRAIN_TIMEOUT_MS = 9e4;
+-	const SHUTDOWN_TIMEOUT_MS = 5e3;
++	const DRAIN_TIMEOUT_MS = 15e3;
++	const SHUTDOWN_TIMEOUT_MS = 8e3;
+diff --git a/dist/gateway-cli-Ol-vpIk7.js b/dist/gateway-cli-Ol-vpIk7.js
+index 3333333333333333333333333333333333333333..4444444444444444444444444444444444444444 100644
+--- a/dist/gateway-cli-Ol-vpIk7.js
++++ b/dist/gateway-cli-Ol-vpIk7.js
+@@ -24273,2 +24273,2 @@
+-	const DRAIN_TIMEOUT_MS = 9e4;
+-	const SHUTDOWN_TIMEOUT_MS = 5e3;
++	const DRAIN_TIMEOUT_MS = 15e3;
++	const SHUTDOWN_TIMEOUT_MS = 8e3;
 diff --git a/dist/cli/daemon-cli.js b/dist/cli/daemon-cli.js
 index 336686b8b31f6e417786c44e73b34facd8829b90..86058e0c863ae2403b9525bbf770af10f9822103 100644
 --- a/dist/cli/daemon-cli.js

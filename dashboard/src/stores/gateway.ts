@@ -1,7 +1,10 @@
 import { create } from 'zustand';
-import { GatewayClient } from '../gateway/client';
+import { GatewayClient, type CloseInfo, type GapInfo } from '../gateway/client';
 import { useConfigStore } from './config';
 import type { ConnectionState, HelloOk, EventFrame, SessionDefaults } from '../gateway/types';
+
+/** Stable per-tab instance ID for gateway deduplication (aligned with OC clientInstanceId). */
+const _instanceId = crypto.randomUUID();
 
 interface GatewayState {
   client: GatewayClient | null;
@@ -38,8 +41,9 @@ export const useGatewayStore = create<GatewayState>()((set, get) => ({
       url,
       token,
       clientName: 'research-claw-dashboard',
-      clientVersion: '0.5.8',
+      clientVersion: '0.5.9',
       platform: 'browser',
+      instanceId: _instanceId,
       onStateChange: (state: ConnectionState) => {
         set({ state, ...(state === 'connected' ? { connectError: null } : {}) });
       },
@@ -109,8 +113,8 @@ export const useGatewayStore = create<GatewayState>()((set, get) => ({
           console.info(`[Gateway] Shutdown event: ${payload?.reason ?? 'unknown reason'}`);
         }
       },
-      onGap: (expected: number, actual: number) => {
-        console.warn(`[Gateway] Event sequence gap: expected ${expected}, got ${actual} — scheduling history sync`);
+      onGap: ({ expected, received }: GapInfo) => {
+        console.warn(`[Gateway] Event sequence gap: expected ${expected}, got ${received} — scheduling history sync`);
         // Dynamic import breaks gateway ↔ chat circular dependency.
         // Safe: onGap fires only after connect, when both stores are initialized.
         void import('./chat').then(({ useChatStore }) => {

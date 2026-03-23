@@ -19,11 +19,12 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   CopyOutlined,
+  DeleteOutlined,
   DownOutlined,
   ExclamationCircleOutlined,
   LinkOutlined,
   LoadingOutlined,
-  LogoutOutlined,
+  MessageOutlined,
   ReloadOutlined,
   SettingOutlined,
   UpOutlined,
@@ -31,6 +32,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { List } from 'react-window';
 import { useGatewayStore } from '../../stores/gateway';
+import { useChatStore } from '../../stores/chat';
 import { useConfigStore } from '../../stores/config';
 import {
   useExtensionsStore,
@@ -49,6 +51,9 @@ const { Text } = Typography;
 const { Search } = Input;
 
 type SubTab = 'skills' | 'channels' | 'plugins';
+
+/** Channels that support QR code login via web.login.start / web.login.wait */
+const QR_LOGIN_CHANNELS = new Set(['openclaw-weixin', 'whatsapp']);
 
 // ── Virtual list types & constants ───────────────────────────────────────────
 
@@ -388,44 +393,103 @@ function ChannelCard({
 }) {
   const { t } = useTranslation();
   const { message: messageApi } = App.useApp();
-  const { logoutChannel } = useExtensionsStore();
-  const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const { enableChannel, deleteChannel } = useExtensionsStore();
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const defaultAccount: ChannelAccount | undefined =
     channel.accounts.find((a) => a.accountId === channel.defaultAccountId) ?? channel.accounts[0];
 
-  const isConnected = defaultAccount?.connected === true;
-  const isConfigured = defaultAccount?.configured === true;
-  const hasError = !!defaultAccount?.lastError;
+  // OC built-in channels vary in which status fields they set:
+  //   Discord, WhatsApp, WeChat → set connected=true explicitly
+  //   Telegram, Slack, Signal, iMessage → only set running=true
+  // Normalize: running + configured ≡ connected (live provider with valid creds).
+  const isLive = (a: ChannelAccount) =>
+    a.connected === true || (a.running === true && a.configured === true);
 
-  const statusColor = isConnected
-    ? tokens.accent.green
-    : isConfigured
-      ? tokens.accent.blue
-      : hasError
-        ? tokens.accent.red
-        : tokens.text.muted;
+  // For channel-level status: use the best account (live > configured > any)
+  // This prevents "not configured" when the default account is stale but another works fine.
+  const bestAccount = useMemo(() => {
+    const accts = channel.accounts;
+    return accts.find(isLive)
+      ?? accts.find((a) => a.configured)
+      ?? defaultAccount;
+  }, [channel.accounts, defaultAccount]);
 
-  const statusText = isConnected
-    ? t('extensions.channels.connected', 'Connected')
-    : isConfigured
-      ? t('extensions.channels.configured', 'Configured')
-      : hasError
-        ? t('extensions.channels.error', 'Error')
-        : t('extensions.channels.notConfigured', 'Not configured');
+  const isConnected = isLive(bestAccount ?? {} as ChannelAccount);
+  const isConfigured = bestAccount?.configured === true;
+  const isRunning = bestAccount?.running === true;
+  const isEnabled = bestAccount?.enabled !== false;
 
-  const handleLogout = useCallback(() => {
-    setLogoutConfirm(true);
+  // Status priority: disabled > hasError > connected > configured > not configured
+  // A disabled channel (enabled=false in config) should show as "disabled", not "error"
+  const derivedDown = isEnabled && isConfigured && !isRunning && !isConnected;
+  const hasError = isEnabled && (!!bestAccount?.lastError || derivedDown);
+
+  const statusColor = !isEnabled
+    ? tokens.text.muted
+    : hasError
+      ? tokens.accent.red
+      : isConnected
+        ? tokens.accent.green
+        : isConfigured
+          ? tokens.accent.blue
+          : tokens.text.muted;
+
+  const statusText = !isEnabled
+    ? t('extensions.channels.disabled', 'Disabled')
+    : hasError
+      ? t('extensions.channels.error', 'Error')
+      : isConnected
+        ? t('extensions.channels.connected', 'Connected')
+        : isConfigured
+          ? t('extensions.channels.configured', 'Configured')
+          : t('extensions.channels.notConfigured', 'Not configured');
+
+  // Card-level error: only show structural issues (derivedDown).
+  // Per-account lastError is shown in the expanded account list — no duplication.
+  const errorMessage = derivedDown
+    ? t('extensions.channels.providerDown', 'Provider not running')
+    : '';
+
+  const handleEnableToggle = useCallback(
+    (checked: boolean) => {
+      enableChannel(channel.id, checked).then(() => {
+        messageApi.success(
+          checked
+            ? t('extensions.channels.enableSuccess', 'Channel enabled')
+            : t('extensions.channels.disableSuccess', 'Channel disabled'),
+        );
+      }).catch(() => {
+        messageApi.error(t('extensions.channels.toggleFailed', 'Failed to toggle channel'));
+      });
+    },
+    [channel.id, enableChannel, messageApi, t],
+  );
+
+  const handleDelete = useCallback(() => {
+    setDeleteConfirm(true);
   }, []);
 
-  const confirmLogout = useCallback(() => {
-    logoutChannel(channel.id, defaultAccount?.accountId).then(() => {
-      messageApi.success(t('extensions.channels.logoutSuccess', 'Logged out'));
+  const confirmDelete = useCallback(() => {
+    deleteChannel(channel.id).then(() => {
+      messageApi.success(t('extensions.channels.deleteSuccess', 'Channel deleted'));
     }).catch(() => {
-      messageApi.error(t('extensions.channels.logoutFailed', 'Logout failed'));
+      messageApi.error(t('extensions.channels.deleteFailed', 'Failed to delete channel'));
     });
-    setLogoutConfirm(false);
-  }, [channel.id, defaultAccount?.accountId, logoutChannel, messageApi, t]);
+    setDeleteConfirm(false);
+  }, [channel.id, deleteChannel, messageApi, t]);
+
+  const handleAskAgent = useCallback(() => {
+    let message: string;
+    if (hasError) {
+      message = `请帮我修复 ${channel.label} 通道连接`;
+    } else if (!isConfigured) {
+      message = `请帮我配置 ${channel.label} 通道`;
+    } else {
+      return; // No action needed for healthy configured channels
+    }
+    useChatStore.getState().send(message);
+  }, [channel.label, hasError, isConfigured]);
 
   return (
     <>
@@ -465,7 +529,7 @@ function ChannelCard({
           }}
         />
 
-        {/* Label + account */}
+        {/* Label + status */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Text strong style={{ color: tokens.text.primary, fontSize: 13 }} ellipsis>
@@ -489,6 +553,33 @@ function ChannelCard({
           </Text>
         </div>
 
+        {/* Enable/Disable switch */}
+        {isConfigured && (
+          <Switch
+            size="small"
+            checked={isEnabled}
+            onChange={handleEnableToggle}
+            onClick={(_, e) => e.stopPropagation()}
+          />
+        )}
+
+        {/* Delete button */}
+        {isConfigured && (
+          <Tooltip title={t('extensions.channels.delete', 'Delete channel')}>
+            <Button
+              type="text"
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete();
+              }}
+              style={{ minWidth: 24, padding: '0 4px' }}
+            />
+          </Tooltip>
+        )}
+
         {/* Expand arrow */}
         <span style={{ color: tokens.text.muted, fontSize: 10 }}>
           {expanded ? <UpOutlined /> : <DownOutlined />}
@@ -506,6 +597,22 @@ function ChannelCard({
             marginTop: -2,
           }}
         >
+          {/* Error display */}
+          {errorMessage && (
+            <div
+              style={{
+                margin: '0 0 8px 0',
+                padding: '4px 8px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                borderRadius: 4,
+                fontSize: 11,
+                color: tokens.accent.red,
+              }}
+            >
+              {errorMessage}
+            </div>
+          )}
+
           {/* Accounts list */}
           {channel.accounts.map((account) => (
             <div
@@ -517,8 +624,8 @@ function ChannelCard({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <span style={{ color: account.connected ? tokens.accent.green : tokens.text.muted, fontSize: 12 }}>
-                  {account.connected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                <span style={{ color: isLive(account) ? tokens.accent.green : tokens.text.muted, fontSize: 12 }}>
+                  {isLive(account) ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
                 </span>
                 <Text style={{ color: tokens.text.primary, fontSize: 12 }}>
                   {account.name ?? account.accountId}
@@ -565,31 +672,51 @@ function ChannelCard({
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            {isConfigured && (
+            {QR_LOGIN_CHANNELS.has(channel.id) && isEnabled && (
               <Button
                 size="small"
-                danger
-                icon={<LogoutOutlined />}
-                onClick={handleLogout}
+                type="primary"
+                icon={<LinkOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  useExtensionsStore.getState().startQrLogin(
+                    channel.id,
+                    defaultAccount?.accountId !== 'default' ? defaultAccount?.accountId : undefined,
+                  );
+                }}
               >
-                {t('extensions.channels.logout', 'Logout')}
+                {isConnected
+                  ? t('extensions.channels.reconnect', 'Reconnect')
+                  : t('extensions.channels.connect', 'Connect')}
+              </Button>
+            )}
+            {(hasError || !isConfigured) && !QR_LOGIN_CHANNELS.has(channel.id) && (
+              <Button
+                size="small"
+                icon={<MessageOutlined />}
+                onClick={handleAskAgent}
+              >
+                {hasError
+                  ? t('extensions.channels.askAgentFix', 'Ask Agent to Fix')
+                  : t('extensions.channels.askAgentConfigure', 'Ask Agent to Configure')}
               </Button>
             )}
           </div>
         </div>
       )}
 
-      {/* Logout confirm modal */}
+      {/* Delete confirm modal */}
       <Modal
-        title={t('extensions.channels.logoutConfirmTitle', 'Logout from channel')}
-        open={logoutConfirm}
-        onOk={confirmLogout}
-        onCancel={() => setLogoutConfirm(false)}
-        okText={t('extensions.channels.logout', 'Logout')}
+        title={t('extensions.channels.deleteConfirmTitle', 'Delete channel')}
+        open={deleteConfirm}
+        onOk={confirmDelete}
+        onCancel={() => setDeleteConfirm(false)}
+        okText={t('extensions.channels.confirmDelete', 'Delete')}
         okButtonProps={{ danger: true }}
+        centered
       >
-        {t('extensions.channels.logoutConfirmContent', {
-          defaultValue: 'Logout from {{channel}}? Credentials will be cleared.',
+        {t('extensions.channels.deleteConfirmContent', {
+          defaultValue: 'Delete {{channel}}? This will remove the channel configuration.',
           channel: channel.label,
         })}
       </Modal>
@@ -857,12 +984,129 @@ function SkillsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
 
 // ── Channels Sub-Tab ────────────────────────────────────────────────────────
 
+// ── QR Login Modal ──────────────────────────────────────────────────────────
+
+function QrLoginModal({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
+  const { t } = useTranslation();
+  const { message: messageApi } = App.useApp();
+  const qrLoginState = useExtensionsStore((s) => s.qrLoginState);
+  const qrLoginDataUrl = useExtensionsStore((s) => s.qrLoginDataUrl);
+  const qrLoginMessage = useExtensionsStore((s) => s.qrLoginMessage);
+  const qrLoginError = useExtensionsStore((s) => s.qrLoginError);
+  const qrLoginChannelId = useExtensionsStore((s) => s.qrLoginChannelId);
+  const cancelQrLogin = useExtensionsStore((s) => s.cancelQrLogin);
+
+  const isOpen = qrLoginState !== 'idle';
+
+  const handleClose = useCallback(() => {
+    cancelQrLogin();
+  }, [cancelQrLogin]);
+
+  const handleRetry = useCallback(() => {
+    const channelId = qrLoginChannelId;
+    if (channelId) {
+      cancelQrLogin();
+      setTimeout(() => {
+        useExtensionsStore.getState().startQrLogin(channelId);
+      }, 100);
+    }
+  }, [qrLoginChannelId, cancelQrLogin]);
+
+  useEffect(() => {
+    if (qrLoginState === 'success') {
+      messageApi.success(qrLoginMessage || t('extensions.channels.qrLoginSuccess', 'Connected!'));
+      const timer = setTimeout(() => cancelQrLogin(), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [qrLoginState, qrLoginMessage, messageApi, t, cancelQrLogin]);
+
+  return (
+    <Modal
+      title={t('extensions.channels.qrLoginTitle', 'Scan QR Code to Connect')}
+      open={isOpen}
+      onCancel={handleClose}
+      footer={null}
+      centered
+      width={360}
+      destroyOnClose
+    >
+      <div style={{ textAlign: 'center', padding: '16px 0' }}>
+        {qrLoginState === 'loading' && (
+          <>
+            <LoadingOutlined style={{ fontSize: 32, color: tokens.accent.blue, display: 'block', marginBottom: 16 }} />
+            <Text style={{ color: tokens.text.muted, fontSize: 13 }}>
+              {t('extensions.channels.qrLoginGenerating', 'Generating QR code...')}
+            </Text>
+          </>
+        )}
+
+        {qrLoginState === 'waiting' && qrLoginDataUrl && (
+          <>
+            <img
+              src={qrLoginDataUrl}
+              alt="QR Code"
+              style={{
+                width: 240,
+                height: 240,
+                borderRadius: 8,
+                border: `1px solid ${tokens.border.default}`,
+                background: '#fff',
+                marginBottom: 16,
+              }}
+            />
+            <div style={{ marginBottom: 8 }}>
+              <Text style={{ color: tokens.text.primary, fontSize: 13 }}>
+                {qrLoginMessage || t('extensions.channels.qrLoginScanPrompt', 'Scan the QR code with your app')}
+              </Text>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <LoadingOutlined style={{ fontSize: 14, color: tokens.accent.blue }} />
+              <Text style={{ color: tokens.text.muted, fontSize: 12 }}>
+                {t('extensions.channels.qrLoginWaiting', 'Waiting for scan...')}
+              </Text>
+            </div>
+          </>
+        )}
+
+        {qrLoginState === 'success' && (
+          <>
+            <CheckCircleOutlined style={{ fontSize: 48, color: tokens.accent.green, display: 'block', marginBottom: 16 }} />
+            <Text style={{ color: tokens.accent.green, fontSize: 14, fontWeight: 600 }}>
+              {qrLoginMessage || t('extensions.channels.qrLoginSuccess', 'Connected!')}
+            </Text>
+          </>
+        )}
+
+        {qrLoginState === 'error' && (
+          <>
+            <ExclamationCircleOutlined style={{ fontSize: 48, color: tokens.accent.red, display: 'block', marginBottom: 16 }} />
+            <div style={{ marginBottom: 12 }}>
+              <Text style={{ color: tokens.accent.red, fontSize: 13 }}>
+                {qrLoginError || t('extensions.channels.qrLoginFailed', 'Login failed')}
+              </Text>
+            </div>
+            <Button size="small" onClick={handleRetry}>
+              {t('extensions.channels.qrLoginRetry', 'Retry')}
+            </Button>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Channels Sub-Tab ────────────────────────────────────────────────────────
+
 function ChannelsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) {
   const { t } = useTranslation();
   const channels = useExtensionsStore((s) => s.channels);
   const channelsLoading = useExtensionsStore((s) => s.channelsLoading);
   const channelsLoaded = useExtensionsStore((s) => s.channelsLoaded);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const handleAddChannel = useCallback(() => {
+    useChatStore.getState().send('请帮我添加一个新的 IM 通道');
+  }, []);
 
   if (!channelsLoaded || channelsLoading) {
     return (
@@ -883,26 +1127,51 @@ function ChannelsTab({ tokens }: { tokens: ReturnType<typeof getThemeTokens> }) 
           {t('extensions.channels.empty', 'No channels configured.')}
         </Text>
         <br />
-        <Text style={{ color: tokens.text.muted, fontSize: 12 }}>
-          {t('extensions.channels.emptyHint', 'Configure messaging channels in openclaw.json to enable integrations.')}
+        <Text style={{ color: tokens.text.muted, fontSize: 12, marginBottom: 12, display: 'inline-block' }}>
+          {t('extensions.channels.emptyHint', 'Ask the agent to help you configure a messaging channel.')}
         </Text>
+        <br />
+        <Button
+          icon={<MessageOutlined />}
+          onClick={handleAddChannel}
+          style={{ marginTop: 12, borderStyle: 'dashed', color: tokens.text.secondary }}
+        >
+          {t('extensions.channels.addChannel', 'Add Channel')}
+        </Button>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '8px 8px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {channels.map((channel) => (
-          <ChannelCard
-            key={channel.id}
-            channel={channel}
-            expanded={expandedId === channel.id}
-            onToggleExpand={() => setExpandedId((prev) => (prev === channel.id ? null : channel.id))}
-            tokens={tokens}
-          />
-        ))}
+    <div>
+      <div style={{ padding: '8px 8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {channels.map((channel) => (
+            <ChannelCard
+              key={channel.id}
+              channel={channel}
+              expanded={expandedId === channel.id}
+              onToggleExpand={() => setExpandedId((prev) => (prev === channel.id ? null : channel.id))}
+              tokens={tokens}
+            />
+          ))}
+        </div>
       </div>
+
+      {/* Add Channel button — always visible at bottom */}
+      <div style={{ padding: '12px 12px 8px', borderTop: `1px solid ${tokens.border.default}` }}>
+        <Button
+          block
+          icon={<MessageOutlined />}
+          onClick={handleAddChannel}
+          style={{ borderStyle: 'dashed', color: tokens.text.secondary }}
+        >
+          {t('extensions.channels.addChannel', 'Add Channel')}
+        </Button>
+      </div>
+
+      {/* QR Login Modal — rendered once, state-driven */}
+      <QrLoginModal tokens={tokens} />
     </div>
   );
 }

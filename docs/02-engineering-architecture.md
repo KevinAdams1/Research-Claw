@@ -2,7 +2,7 @@
 
 > **Research-Claw (科研龙虾) — Engineering Architecture**
 >
-> Status: DRAFT v1.0 | Last updated: 2026-03-11
+> Status: HISTORICAL (pre-redesign, 2026-03-11). Prompt architecture superseded by `docs/research-claw/PROMPT-ARCHITECTURE-REDESIGN.md` | Last updated: 2026-03-11
 >
 > OpenClaw base: `2026.3.8` (commit `62d5df28d`) | Protocol: v3
 
@@ -556,6 +556,36 @@ export interface ReconnectConfig {
 3. On successful reconnect: reset delay to 800ms, request fresh snapshot
 4. On page visibility change (hidden → visible): attempt immediate reconnect if disconnected
 5. Maximum reconnect attempts: unlimited (user must manually stop the gateway)
+
+#### 4.5.1 Connection Liveness Detection (3-Layer)
+
+The dashboard uses a three-layer system to detect dead/zombie connections that the browser WebSocket layer cannot detect natively (half-open TCP connections produce no `onclose` event).
+
+**Layer 1 — Tick Watchdog** (`client.ts`):
+- OC gateway broadcasts `tick` event every 30s (`policy.tickIntervalMs` in hello)
+- Client tracks `lastTick` timestamp; `setInterval` checks `gap > tickIntervalMs * 2`
+- Timeout: `ws.close(4000, 'tick timeout')` → triggers reconnect via backoff
+- Aligned with OC Node.js client (`src/gateway/client.ts:659-681`)
+
+**Layer 2 — Page Visibility Recovery** (`client.ts` + `App.tsx`):
+- Chrome throttles background-tab `setInterval` to ≥1min, so tick watchdog may not fire
+- `visibilitychange → visible`: calls `client.checkTickLiveness()` immediately
+- If `lastTick` is stale → `close(4000)` → reconnect
+
+**Layer 3 — Stale Stream Watchdog** (`chat.ts`):
+- `setInterval(15s)` checks if `Date.now() - lastDeltaAt > 60s` during streaming
+- Covers "connection alive but model stopped responding" (tick watchdog won't help)
+- **Tool guard**: skips recovery when `pendingTools.length > 0` (tool calls take minutes)
+- Replaces the original `setTimeout` approach which only detected "no first delta"
+
+**Close code reference:**
+| Code | Meaning | Reconnect? |
+|------|---------|------------|
+| 1000 | Normal close | No |
+| 1001 | Going away | No |
+| 1012 | Service restart | Yes (silent) |
+| 4000 | Tick timeout | Yes |
+| 4008 | Connect handshake failed | Depends on error |
 
 ### 4.6 Chat Streaming
 

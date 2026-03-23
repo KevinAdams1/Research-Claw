@@ -819,16 +819,16 @@ describe('Bootstrap file consistency (AGENTS.md v3.5 & TOOLS.md v3.3)', () => {
   // ── Version headers ───────────────────────────────────────────────────
 
   describe('Version metadata', () => {
-    it('AGENTS.md is version 3.6', () => {
-      expect(agentsMd).toMatch(/version:\s*3\.6/);
+    it('AGENTS.md is version 3.7', () => {
+      expect(agentsMd).toMatch(/version:\s*3\.7/);
     });
 
     it('TOOLS.md is version 3.4', () => {
       expect(toolsMd).toMatch(/version:\s*3\.4/);
     });
 
-    it('AGENTS.md has 2026-03-22 date', () => {
-      expect(agentsMd).toContain('2026-03-22');
+    it('AGENTS.md has 2026-03-23 date', () => {
+      expect(agentsMd).toContain('2026-03-23');
     });
 
     it('TOOLS.md has 2026-03-22 date', () => {

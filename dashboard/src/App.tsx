@@ -173,6 +173,20 @@ export default function App() {
     }
   }, [bootState, connState]);
 
+  // Page visibility resume: check tick liveness to detect zombie connections.
+  // Chrome throttles background tab timers to ≥1min, so the tick watchdog
+  // interval may not fire in time. On tab resume, immediately check whether
+  // the last tick is stale and force reconnect if so.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      const { client: c } = useGatewayStore.getState();
+      c?.checkTickLiveness(); // closes socket + triggers reconnect if stale
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
   // Poll for deadline notifications every 60s while connected
   useEffect(() => {
     if (connState !== 'connected') return;

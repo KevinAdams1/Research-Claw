@@ -20,7 +20,7 @@
 
 const fs = require('fs');
 
-const REQUIRED_ALLOW = ['research-claw-core', 'research-plugins'];
+const REQUIRED_ALLOW = ['research-claw-core', 'research-plugins', 'openclaw-weixin'];
 const STALE_TOOLS = [
   'search_papers', 'get_paper', 'get_citations',
   'radar_configure', 'radar_get_config', 'radar_scan',
@@ -101,6 +101,63 @@ function ensureConfig(filePath) {
     const before = c.plugins.load.paths.length;
     c.plugins.load.paths = c.plugins.load.paths.filter(p => !p.includes('node_modules'));
     if (c.plugins.load.paths.length !== before) changed = true;
+  }
+
+  // 8. plugins.load.paths — ensure openclaw-weixin is discoverable
+  // Match by directory suffix, not exact string — paths may be absolute from a previous run.
+  if (!c.plugins.load) c.plugins.load = {};
+  if (!Array.isArray(c.plugins.load.paths)) c.plugins.load.paths = [];
+  const REQUIRED_DIRS = ['extensions/research-claw-core', 'extensions/openclaw-weixin'];
+  for (const dir of REQUIRED_DIRS) {
+    const alreadyPresent = c.plugins.load.paths.some(p =>
+      p === './' + dir || p.endsWith('/' + dir)
+    );
+    if (!alreadyPresent) {
+      c.plugins.load.paths.push('./' + dir);
+      changed = true;
+    }
+  }
+
+  // 9. Restore critical RC fields if missing (safety net for config.apply stripping)
+  if (!c.gateway) c.gateway = {};
+  if (!c.gateway.controlUi) {
+    c.gateway.controlUi = {
+      root: './dashboard/dist',
+      allowedOrigins: [
+        'http://127.0.0.1:28789', 'http://localhost:28789',
+        'http://127.0.0.1:5175', 'http://localhost:5175',
+      ],
+      dangerouslyDisableDeviceAuth: true,
+    };
+    changed = true;
+  }
+  if (!c.gateway.auth || !c.gateway.auth.mode) {
+    c.gateway.auth = { mode: 'none' };
+    changed = true;
+  }
+  if (!c.gateway.port) { c.gateway.port = 28789; changed = true; }
+  if (!c.gateway.mode) { c.gateway.mode = 'local'; changed = true; }
+  if (!c.gateway.bind) { c.gateway.bind = 'loopback'; changed = true; }
+  if (!c.ui) { c.ui = { assistant: { name: 'Research-Claw' } }; changed = true; }
+  if (!c.skills) { c.skills = { load: { extraDirs: ['./skills'] } }; changed = true; }
+  if (!c.cron) { c.cron = { enabled: true }; changed = true; }
+
+  // 10. Heartbeat — ensure lightContext is true to minimize token cost
+  if (!c.agents) c.agents = {};
+  if (!c.agents.defaults) c.agents.defaults = {};
+  if (!c.agents.defaults.heartbeat) {
+    c.agents.defaults.heartbeat = { every: '30m', lightContext: true };
+    changed = true;
+  } else if (c.agents.defaults.heartbeat.lightContext !== true) {
+    c.agents.defaults.heartbeat.lightContext = true;
+    changed = true;
+  }
+  if (!c.plugins.entries) {
+    c.plugins.entries = {
+      'research-claw-core': { enabled: true, config: { dbPath: '.research-claw/library.db', autoTrackGit: true, defaultCitationStyle: 'apa', heartbeatDeadlineWarningHours: 48 } },
+      'openclaw-weixin': { enabled: true },
+    };
+    changed = true;
   }
 
   // Write atomically (temp + rename) to prevent corruption on disk-full

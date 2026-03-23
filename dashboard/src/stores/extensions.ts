@@ -10,6 +10,10 @@
 import { create } from 'zustand';
 import { useGatewayStore } from './gateway';
 
+/** Channels that store credentials on filesystem (not in config), so config-based
+ *  `configured` detection cannot rely on token/botToken/appToken fields. */
+const QR_LOGIN_CHANNELS = new Set(['openclaw-weixin', 'whatsapp']);
+
 // ── Skill types ─────────────────────────────────────────────────────────────
 
 export interface SkillRequirements {
@@ -107,6 +111,17 @@ interface ExtensionsState {
   channelsLoaded: boolean;
   loadChannels: (probe?: boolean) => Promise<void>;
   logoutChannel: (channelId: string, accountId?: string) => Promise<void>;
+  enableChannel: (channelId: string, enabled: boolean) => Promise<void>;
+  deleteChannel: (channelId: string) => Promise<void>;
+
+  // QR Login
+  qrLoginChannelId: string | null;
+  qrLoginState: 'idle' | 'loading' | 'waiting' | 'success' | 'error';
+  qrLoginDataUrl: string | null;
+  qrLoginMessage: string | null;
+  qrLoginError: string | null;
+  startQrLogin: (channelId: string, accountId?: string) => void;
+  cancelQrLogin: () => void;
 
   // Plugins
   plugins: PluginEntry[];
@@ -129,6 +144,13 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
   channels: [],
   channelsLoading: false,
   channelsLoaded: false,
+
+  // QR Login
+  qrLoginChannelId: null,
+  qrLoginState: 'idle',
+  qrLoginDataUrl: null,
+  qrLoginMessage: null,
+  qrLoginError: null,
 
   // Plugins
   plugins: [],
@@ -194,6 +216,7 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
 
     set({ channelsLoading: true });
     try {
+      // Fetch active channels from gateway
       const result = await client.request<{
         ts: number;
         channelOrder: string[];
@@ -212,6 +235,49 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
         defaultAccountId: result.channelDefaultAccountId[id] ?? 'default',
         summary: result.channels[id] ?? {},
       }));
+
+      // Also fetch disabled channels from config — channels.status only returns
+      // enabled channels, so disabled ones vanish from the list. We need them
+      // visible so the user can re-enable them via the Switch.
+      try {
+        const configSnapshot = await client.request<{
+          config?: Record<string, unknown>;
+          resolved?: Record<string, unknown>;
+        }>('config.get', {});
+        // Use `config` (has runtime defaults) over `resolved` (lacks models.providers etc.)
+        // See b4a9c0e for the same fix in config.ts.
+        const configObj = (configSnapshot.config ?? configSnapshot.resolved ?? {}) as Record<string, unknown>;
+        const channelsCfg = configObj.channels as Record<string, unknown> | undefined;
+        if (channelsCfg) {
+          const activeIds = new Set(entries.map((e) => e.id));
+          for (const [id, cfg] of Object.entries(channelsCfg)) {
+            if (activeIds.has(id)) continue;
+            // Only include objects (skip scalar fields like "defaults")
+            if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) continue;
+            const cfgObj = cfg as Record<string, unknown>;
+            // QR-login channels (WeChat, WhatsApp) store tokens on filesystem,
+            // not in config — treat their presence in config as "configured".
+            const hasTokenInConfig = !!(cfgObj.token || cfgObj.botToken || cfgObj.appToken);
+            const isConfigured = QR_LOGIN_CHANNELS.has(id) || hasTokenInConfig;
+            // This is a disabled channel — create a placeholder entry
+            entries.push({
+              id,
+              label: id,
+              accounts: [{
+                accountId: 'default',
+                enabled: cfgObj.enabled !== undefined ? Boolean(cfgObj.enabled) : true,
+                configured: isConfigured,
+                connected: false,
+                running: false,
+              }],
+              defaultAccountId: 'default',
+              summary: { configured: isConfigured },
+            });
+          }
+        }
+      } catch {
+        // config.get failed — proceed with active channels only
+      }
 
       set({ channels: entries, channelsLoaded: true });
     } catch (err) {
@@ -234,7 +300,164 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
       await get().loadChannels();
     } catch (err) {
       console.error('[ExtensionsStore] logoutChannel failed:', err);
+      throw err;
     }
+  },
+
+  enableChannel: async (channelId: string, enabled: boolean) => {
+    const client = useGatewayStore.getState().client;
+    if (!client?.isConnected) return;
+
+    try {
+      // Get baseHash for config.patch
+      const snapshot = await client.request<{ hash?: string }>('config.get', {});
+      const baseHash = snapshot.hash ?? undefined;
+
+      const patch = {
+        channels: { [channelId]: { enabled } },
+      };
+
+      await client.request('config.patch', {
+        raw: JSON.stringify(patch),
+        ...(baseHash ? { baseHash } : {}),
+        note: `${enabled ? 'Enable' : 'Disable'} channel ${channelId}`,
+      });
+
+      // Gateway auto-restarts via SIGUSR1 — wait for it to settle, then reload
+      setTimeout(() => {
+        get().loadChannels();
+      }, 3000);
+    } catch (err) {
+      console.error('[ExtensionsStore] enableChannel failed:', err);
+      throw err;
+    }
+  },
+
+  deleteChannel: async (channelId: string) => {
+    const client = useGatewayStore.getState().client;
+    if (!client?.isConnected) return;
+
+    try {
+      // Get baseHash for config.patch
+      const snapshot = await client.request<{ hash?: string }>('config.get', {});
+      const baseHash = snapshot.hash ?? undefined;
+
+      // JSON merge patch: null = delete key
+      const patch = {
+        channels: { [channelId]: null },
+      };
+
+      await client.request('config.patch', {
+        raw: JSON.stringify(patch),
+        ...(baseHash ? { baseHash } : {}),
+        note: `Delete channel ${channelId}`,
+      });
+
+      // Gateway auto-restarts via SIGUSR1 — wait for it to settle, then reload
+      setTimeout(() => {
+        get().loadChannels();
+      }, 3000);
+    } catch (err) {
+      console.error('[ExtensionsStore] deleteChannel failed:', err);
+      throw err;
+    }
+  },
+
+  // ── QR Login ────────────────────────────────────────────────────────────
+
+  startQrLogin: (channelId: string, accountId?: string) => {
+    const client = useGatewayStore.getState().client;
+    if (!client?.isConnected) return;
+    if (get().qrLoginState !== 'idle') return;
+
+    set({
+      qrLoginChannelId: channelId,
+      qrLoginState: 'loading',
+      qrLoginDataUrl: null,
+      qrLoginMessage: null,
+      qrLoginError: null,
+    });
+
+    // Step 1: web.login.start — generate QR code (30s timeout is fine)
+    client.request<{
+      qrDataUrl?: string;
+      message: string;
+    }>('web.login.start', {
+      force: true,
+      ...(accountId ? { accountId } : {}),
+    }).then((startResult) => {
+      if (get().qrLoginState !== 'loading') return;
+
+      if (!startResult.qrDataUrl || !startResult.qrDataUrl.startsWith('data:')) {
+        set({
+          qrLoginState: 'error',
+          qrLoginError: startResult.message || 'Failed to generate QR code',
+        });
+        return;
+      }
+
+      set({
+        qrLoginState: 'waiting',
+        qrLoginDataUrl: startResult.qrDataUrl,
+        qrLoginMessage: startResult.message,
+      });
+
+      // Step 2: web.login.wait — block until user scans (120s server, 150s client)
+      client.request<{
+        connected: boolean;
+        message: string;
+      }>('web.login.wait', {
+        timeoutMs: 120_000,
+        ...(accountId ? { accountId } : {}),
+      }, { timeoutMs: 150_000 }).then((waitResult) => {
+        if (get().qrLoginState !== 'waiting') return;
+
+        if (waitResult.connected) {
+          set({
+            qrLoginState: 'success',
+            qrLoginMessage: waitResult.message || '连接成功！',
+          });
+          // Nudge gateway to reload: config.patch triggers SIGUSR1 restart so
+          // the newly-saved QR credentials are picked up by the channel runtime.
+          client.request<{ hash?: string }>('config.get', {}).then((snap) => {
+            client.request('config.patch', {
+              raw: JSON.stringify({ channels: { [channelId]: { enabled: true } } }),
+              ...(snap.hash ? { baseHash: snap.hash } : {}),
+              note: 'Reload after QR login',
+            }).catch(() => { /* best-effort */ });
+          }).catch(() => { /* best-effort */ });
+          // Wait for restart, then reload with probe
+          setTimeout(() => { get().loadChannels(true); }, 4000);
+        } else {
+          set({
+            qrLoginState: 'error',
+            qrLoginError: waitResult.message || 'Login timed out',
+          });
+        }
+      }).catch((err) => {
+        if (get().qrLoginState !== 'waiting') return;
+        set({
+          qrLoginState: 'error',
+          qrLoginError: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }).catch((err) => {
+      if (get().qrLoginState !== 'loading') return;
+      set({
+        qrLoginState: 'error',
+        qrLoginError: err instanceof Error ? err.message : String(err),
+      });
+    });
+  },
+
+  cancelQrLogin: () => {
+    set({
+      qrLoginChannelId: null,
+      qrLoginState: 'idle',
+      qrLoginDataUrl: null,
+      qrLoginMessage: null,
+      qrLoginError: null,
+    });
   },
 
   // ── Plugins ─────────────────────────────────────────────────────────────
@@ -249,9 +472,9 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
         resolved?: Record<string, unknown>;
       }>('config.get', {});
 
-      const configObj = (result.resolved && Object.keys(result.resolved).length > 0
-        ? result.resolved
-        : result.config ?? {}) as Record<string, unknown>;
+      // Use `config` (has runtime defaults) over `resolved` (lacks models.providers etc.)
+      // See b4a9c0e for the same fix in config.ts.
+      const configObj = (result.config ?? result.resolved ?? {}) as Record<string, unknown>;
 
       const pluginsSection = configObj.plugins as {
         load?: { paths?: string[] };
@@ -263,7 +486,12 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
       const pluginEntries = pluginsSection?.entries ?? {};
 
       for (const [name, entry] of Object.entries(pluginEntries)) {
-        const matchingPath = paths.find((p) => p.includes(name)) ?? '';
+        let matchingPath = paths.find((p) => p.includes(name)) ?? '';
+        // Fallback: globally installed plugins aren't in load.paths.
+        // Mark as "global install" so UI doesn't show "—".
+        if (!matchingPath) {
+          matchingPath = `~/.openclaw/extensions/${name}`;
+        }
         entries.push({
           name,
           enabled: entry.enabled !== false,
