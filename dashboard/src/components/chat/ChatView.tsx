@@ -4,6 +4,7 @@ import { MessageOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../../stores/chat';
 import { useToolStreamStore } from '../../stores/tool-stream';
+import { useGatewayStore } from '../../stores/gateway';
 import type { ChatMessage } from '../../gateway/types';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
@@ -55,6 +56,7 @@ export default function ChatView() {
   const lastError = useChatStore((s) => s.lastError);
   const clearError = useChatStore((s) => s.clearError);
   const pendingTools = useToolStreamStore((s) => s.pendingTools);
+  const connState = useGatewayStore((s) => s.state);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Smart scroll state — refs to avoid re-renders on every scroll event
@@ -153,6 +155,28 @@ export default function ChatView() {
     >
       {/* Background activity bar (P1-3) */}
       <AgentActivityBar />
+
+      {/* Connection status banner — visible during reconnect/disconnect */}
+      {(connState === 'reconnecting' || connState === 'disconnected') && (
+        <div
+          role="alert"
+          style={{
+            padding: '6px 16px',
+            fontSize: 12,
+            fontFamily: "'Fira Code', 'JetBrains Mono', Consolas, monospace",
+            textAlign: 'center',
+            color: connState === 'reconnecting' ? '#FBBF24' : '#F87171',
+            background: connState === 'reconnecting'
+              ? 'rgba(251, 191, 36, 0.08)'
+              : 'rgba(248, 113, 113, 0.08)',
+            borderBottom: `1px solid ${connState === 'reconnecting' ? 'rgba(251, 191, 36, 0.2)' : 'rgba(248, 113, 113, 0.2)'}`,
+          }}
+        >
+          {connState === 'reconnecting'
+            ? t('chat.connectionBanner.reconnecting')
+            : t('chat.connectionBanner.disconnected')}
+        </div>
+      )}
 
       {/* Message list */}
       <div

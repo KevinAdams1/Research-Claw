@@ -25,6 +25,10 @@
     "thinking": "Thinking...",
     "empty": "Start a conversation with your research assistant.",
     "abort": "Stop",
+    "connectionBanner": {
+      "reconnecting": "Connection lost — reconnecting...",
+      "disconnected": "Disconnected from gateway. Messages may be lost."
+    },
     "you": "You",
     "assistant": "Assistant",
     "dismiss": "Dismiss",

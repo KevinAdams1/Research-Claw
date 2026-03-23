@@ -25,6 +25,10 @@
     "thinking": "思考中...",
     "empty": "开始与你的科研助手对话。",
     "abort": "停止",
+    "connectionBanner": {
+      "reconnecting": "连接中断 — 正在重新连接...",
+      "disconnected": "与网关断开连接，消息可能丢失。"
+    },
     "you": "你",
     "assistant": "助手",
     "dismiss": "关闭",
