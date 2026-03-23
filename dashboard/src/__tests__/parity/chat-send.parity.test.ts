@@ -453,17 +453,17 @@ describe('Chat send parity with OpenClaw native UI', () => {
       mockGatewayClient.isConnected = false;
       await useChatStore.getState().send('hello');
 
-      expect(useChatStore.getState().lastError).toBe('Not connected to gateway');
+      expect(useChatStore.getState().lastError).toBe('未连接网关 — 请检查网关是否正在运行');
       expect(mockGatewayClient.request).not.toHaveBeenCalled();
     });
 
     it('uses generic error message for non-Error exceptions', async () => {
       // OpenClaw chat.ts:226: const error = String(err)
-      // Our impl: err instanceof Error ? err.message : 'Failed to send message'
+      // Our impl: err instanceof Error ? err.message : i18n.t('chat.sendFailed')
       mockGatewayClient.request.mockRejectedValue('string error');
       await useChatStore.getState().send('hello');
 
-      expect(useChatStore.getState().lastError).toBe('Failed to send message');
+      expect(useChatStore.getState().lastError).toBe('发送失败 — 连接可能已中断，请尝试重新发送');
     });
   });
 

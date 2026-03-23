@@ -10,6 +10,10 @@
 import { create } from 'zustand';
 import { useGatewayStore } from './gateway';
 
+/** Channels that store credentials on filesystem (not in config), so config-based
+ *  `configured` detection cannot rely on token/botToken/appToken fields. */
+const QR_LOGIN_CHANNELS = new Set(['openclaw-weixin', 'whatsapp']);
+
 // ── Skill types ─────────────────────────────────────────────────────────────
 
 export interface SkillRequirements {
@@ -251,6 +255,10 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
             // Only include objects (skip scalar fields like "defaults")
             if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) continue;
             const cfgObj = cfg as Record<string, unknown>;
+            // QR-login channels (WeChat, WhatsApp) store tokens on filesystem,
+            // not in config — treat their presence in config as "configured".
+            const hasTokenInConfig = !!(cfgObj.token || cfgObj.botToken || cfgObj.appToken);
+            const isConfigured = QR_LOGIN_CHANNELS.has(id) || hasTokenInConfig;
             // This is a disabled channel — create a placeholder entry
             entries.push({
               id,
@@ -258,12 +266,12 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
               accounts: [{
                 accountId: 'default',
                 enabled: cfgObj.enabled !== undefined ? Boolean(cfgObj.enabled) : true,
-                configured: !!(cfgObj.token || cfgObj.botToken || cfgObj.appToken),
+                configured: isConfigured,
                 connected: false,
                 running: false,
               }],
               defaultAccountId: 'default',
-              summary: { configured: !!(cfgObj.token || cfgObj.botToken || cfgObj.appToken) },
+              summary: { configured: isConfigured },
             });
           }
         }
@@ -409,7 +417,17 @@ export const useExtensionsStore = create<ExtensionsState>()((set, get) => ({
             qrLoginState: 'success',
             qrLoginMessage: waitResult.message || '连接成功！',
           });
-          setTimeout(() => { get().loadChannels(); }, 3000);
+          // Nudge gateway to reload: config.patch triggers SIGUSR1 restart so
+          // the newly-saved QR credentials are picked up by the channel runtime.
+          client.request<{ hash?: string }>('config.get', {}).then((snap) => {
+            client.request('config.patch', {
+              raw: JSON.stringify({ channels: { [channelId]: { enabled: true } } }),
+              ...(snap.hash ? { baseHash: snap.hash } : {}),
+              note: 'Reload after QR login',
+            }).catch(() => { /* best-effort */ });
+          }).catch(() => { /* best-effort */ });
+          // Wait for restart, then reload with probe
+          setTimeout(() => { get().loadChannels(true); }, 4000);
         } else {
           set({
             qrLoginState: 'error',

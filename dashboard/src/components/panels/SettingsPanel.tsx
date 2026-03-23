@@ -70,7 +70,7 @@ function AboutSection() {
 
   const handleCopyDiagnostics = async () => {
     const diagnostics = [
-      `Research-Claw v0.5.8`,
+      `Research-Claw v0.5.9`,
       `Powered by OpenClaw ${serverVersion ?? 'unknown'}`,
       `Gateway: ws://127.0.0.1:28789`,
       `Platform: ${navigator.platform}`,
@@ -126,7 +126,7 @@ function AboutSection() {
               letterSpacing: 1,
             }}
           >
-            Research-Claw v0.5.8
+            Research-Claw v0.5.9
           </span>
         </a>
       </div>
@@ -366,7 +366,7 @@ export default function SettingsPanel() {
     if (!client?.isConnected) return;
 
     if (!baseUrl.trim() || !textModel.trim()) {
-      message.error(t('settings.saveFailed'));
+      message.error(t('settings.validationMissing'));
       return;
     }
 

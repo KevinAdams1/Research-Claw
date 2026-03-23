@@ -41,7 +41,7 @@ export default function DockerFileModal({
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(containerPath).then(
       () => message.success(t('workspace.contextMenu.pathCopied')),
-      () => message.error('Copy failed'),
+      () => message.error(t('docker.copyFailed')),
     );
   }, [containerPath, message, t]);
 
@@ -62,7 +62,7 @@ export default function DockerFileModal({
       a.click();
       URL.revokeObjectURL(a.href);
     } catch {
-      message.error('Download failed');
+      message.error(t('docker.downloadFailed'));
     }
   }, [relativePath, fileName, message]);
 

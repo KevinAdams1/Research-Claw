@@ -375,7 +375,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   send: async (text: string, attachments?: ChatAttachment[]) => {
     const client = useGatewayStore.getState().client;
     if (!client || !client.isConnected) {
-      set({ lastError: 'Not connected to gateway' });
+      set({ lastError: i18n.t('chat.notConnected') });
       return;
     }
 
@@ -527,7 +527,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         streamText: null,
         runId: null,
         _streamStartedAt: null, _lastDeltaAt: null,
-        lastError: err instanceof Error ? err.message : 'Failed to send message',
+        lastError: err instanceof Error ? err.message : i18n.t('chat.sendFailed'),
       });
     }
   },

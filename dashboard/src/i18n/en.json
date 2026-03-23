@@ -26,9 +26,11 @@
     "empty": "Start a conversation with your research assistant.",
     "abort": "Stop",
     "connectionBanner": {
-      "reconnecting": "Connection lost — reconnecting...",
-      "disconnected": "Disconnected from gateway. Messages may be lost."
+      "reconnecting": "Connection lost — reconnecting automatically...",
+      "disconnected": "Disconnected — unsent messages may be lost. Check if the gateway is running"
     },
+    "notConnected": "Not connected — check if the gateway is running",
+    "sendFailed": "Send failed — the connection may have dropped. Try resending",
     "you": "You",
     "assistant": "Assistant",
     "dismiss": "Dismiss",
@@ -179,7 +181,7 @@
     "upload": "Add File",
     "uploadSuccess": "File added to workspace",
     "uploadSuccessWithPath": "{{count}} file(s) uploaded to {{path}}",
-    "uploadFailedMulti": "{{count}} file(s) failed to upload",
+    "uploadFailedMulti": "{{count}} file(s) failed to upload — check file permissions",
     "history": "Version History",
     "recentChanges": "Recent Changes",
     "loadMore": "Load more...",
@@ -193,26 +195,26 @@
       "openFolder": "Open Folder",
       "copyPath": "Copy Path",
       "pathCopied": "Path copied",
-      "openFailed": "Failed to open",
+      "openFailed": "Failed to open — the file may have been moved or deleted",
       "delete": "Delete",
       "deleteConfirmTitle": "Delete this file?",
       "deleteOk": "Delete",
       "deleteCancel": "Cancel",
       "deleteSuccess": "File deleted",
-      "deleteFailed": "Failed to delete file",
+      "deleteFailed": "Delete failed — the file may be in use or permission denied",
       "rename": "Rename",
       "newFile": "New File",
       "newFolder": "New Folder"
     },
     "uploading": "Uploading...",
-    "uploadFailed": "Upload failed",
+    "uploadFailed": "Upload failed — check file permissions and available disk space",
     "moveSuccess": "File moved",
-    "moveFailed": "Move failed",
+    "moveFailed": "Move failed — the target folder may not exist or has a name conflict",
     "moveToRoot": "Release to move to root",
     "renameSuccess": "Renamed successfully",
-    "renameFailed": "Rename failed",
+    "renameFailed": "Rename failed — check for name conflicts or invalid characters",
     "createSuccess": "Created successfully",
-    "createFailed": "Creation failed",
+    "createFailed": "Creation failed — check folder permissions or name conflicts",
     "searchPlaceholder": "Search files...",
     "searchNoResults": "No matches found",
     "systemFilesHidden": "{{count}} system files hidden",
@@ -222,9 +224,9 @@
     "preview": {
       "title": "File Preview",
       "loading": "Loading file...",
-      "errorTooLarge": "File is too large to preview.",
-      "errorNotFound": "File not found.",
-      "errorGeneric": "Failed to load file.",
+      "errorTooLarge": "File is too large to preview — try opening it with an external editor",
+      "errorNotFound": "File not found — it may have been moved or deleted by the agent",
+      "errorGeneric": "Failed to load file — try refreshing or opening externally",
       "binaryNotPreviewable": "Binary file — not previewable.",
       "openFile": "Open File",
       "openFolder": "Open Folder",
@@ -234,7 +236,7 @@
       "deleteOk": "Delete",
       "deleteCancel": "Cancel",
       "deleteSuccess": "File deleted",
-      "deleteFailed": "Failed to delete file"
+      "deleteFailed": "Delete failed — the file may be in use or permission denied"
     }
   },
   "time": {
@@ -298,8 +300,9 @@
     "refreshConfig": "Refresh",
     "restartHint": "Changes are saved to openclaw.json. The gateway will restart automatically. Proxy changes require a full restart (openclaw gateway --force).",
     "saved": "Saved",
-    "saveFailed": "Failed to save",
-    "copyFailed": "Failed to copy",
+    "saveFailed": "Save failed — the gateway may have restarted. Try again",
+    "copyFailed": "Copy failed — your browser may not support clipboard access",
+    "validationMissing": "Please enter API URL and model name",
     "save": "Save",
     "cancel": "Cancel",
     "restartConfirmTitle": "Restart Gateway?",
@@ -351,6 +354,7 @@
     "restartHint": "After saving, the gateway will restart automatically. The dashboard reconnects on its own.",
     "start": "Start Research-Claw",
     "configuring": "Configuring...",
+    "configureFailed": "Configuration failed — check the API URL and key, then try again",
     "skipToDashboard": "Skip to Dashboard \u2192"
   },
   "boot": {
@@ -374,7 +378,7 @@
     "tokensOut": "Out",
     "heartbeat": "Heartbeat",
     "version": "v{{version}}",
-    "versionFallback": "v0.5.8",
+    "versionFallback": "v0.5.9",
     "modelDefault": "(default)",
     "modelNA": "N/A"
   },
@@ -498,7 +502,7 @@
     "deleteConfirm": "Delete this project? Chat history will be lost."
   },
   "error": {
-    "title": "Something went wrong",
+    "title": "Something went wrong — click Retry or refresh the page",
     "retry": "Retry",
     "details": "Details"
   },
@@ -517,6 +521,8 @@
     "description": "Research-Claw is running inside a Docker container. Files cannot be opened with host applications directly.",
     "downloadFile": "Download File",
     "downloadFolder": "Download Folder (.tar.gz)",
+    "copyFailed": "Copy failed — your browser may not support clipboard access",
+    "downloadFailed": "Download failed — check your network connection to the gateway",
     "bindMountHint": "Tip: change your docker-compose.yml to a bind mount so you can browse workspace files from the host:"
   },
   "extensions": {
@@ -547,8 +553,8 @@
       "disable": "Disable",
       "enableSuccess": "Skill enabled",
       "disableSuccess": "Skill disabled",
-      "updateFailed": "Failed to update skill",
-      "openFailed": "Failed to open",
+      "updateFailed": "Skill update failed — the gateway may be restarting. Try again shortly",
+      "openFailed": "Failed to open — the file may have been moved or deleted",
       "group": {
         "local": "Research-Claw Local",
         "research-plugins": "Research-Plugins",
@@ -572,16 +578,19 @@
       "providerDown": "Provider not running",
       "enableSuccess": "Channel enabled",
       "disableSuccess": "Channel disabled",
-      "toggleFailed": "Failed to toggle channel",
+      "toggleFailed": "Channel toggle failed — the gateway may be restarting. Try again shortly",
       "delete": "Delete channel",
       "deleteConfirmTitle": "Delete channel",
       "deleteConfirmContent": "Delete {{channel}}? The channel configuration will be removed.",
       "confirmDelete": "Delete",
       "deleteSuccess": "Channel deleted",
-      "deleteFailed": "Failed to delete channel",
+      "deleteFailed": "Channel delete failed — the gateway may be restarting. Try again shortly",
       "askAgentFix": "Ask Agent to Fix",
       "askAgentConfigure": "Ask Agent to Configure",
-      "addChannel": "Add Channel"
+      "addChannel": "Add Channel",
+      "qrLoginFailed": "QR login failed — the code may have expired. Tap Retry to scan again",
+      "qrLoginRetry": "Retry",
+      "qrLoginSuccess": "Connected!"
     },
     "plugins": {
       "title": "Plugins",
@@ -589,7 +598,7 @@
       "path": "Path",
       "config": "Config",
       "copyConfigPath": "Copy openclaw.json Path",
-      "toggleFailed": "Failed to toggle plugin",
+      "toggleFailed": "Plugin toggle failed — the gateway may be restarting. Try again shortly",
       "packages": "Installed Skill Packages"
     }
   }

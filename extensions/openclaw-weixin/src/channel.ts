@@ -203,6 +203,8 @@ export const weixinPlugin: ChannelPlugin<ResolvedWeixinAccount> = {
       name: account.name,
       enabled: account.enabled,
       configured: account.configured,
+      // Derive connected: running with no fatal error means the provider is live
+      connected: runtime.running === true && !runtime.lastError,
     }),
   },
   auth: {
@@ -299,6 +301,7 @@ export const weixinPlugin: ChannelPlugin<ResolvedWeixinAccount> = {
       ctx.setStatus?.({
         accountId: account.accountId,
         running: true,
+        connected: true,
         lastStartAt: Date.now(),
         lastEventAt: Date.now(),
       });

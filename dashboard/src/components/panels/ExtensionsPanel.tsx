@@ -399,15 +399,31 @@ function ChannelCard({
   const defaultAccount: ChannelAccount | undefined =
     channel.accounts.find((a) => a.accountId === channel.defaultAccountId) ?? channel.accounts[0];
 
-  const isConnected = defaultAccount?.connected === true;
-  const isConfigured = defaultAccount?.configured === true;
-  const isRunning = defaultAccount?.running === true;
-  const isEnabled = defaultAccount?.enabled !== false;
+  // OC built-in channels vary in which status fields they set:
+  //   Discord, WhatsApp, WeChat → set connected=true explicitly
+  //   Telegram, Slack, Signal, iMessage → only set running=true
+  // Normalize: running + configured ≡ connected (live provider with valid creds).
+  const isLive = (a: ChannelAccount) =>
+    a.connected === true || (a.running === true && a.configured === true);
+
+  // For channel-level status: use the best account (live > configured > any)
+  // This prevents "not configured" when the default account is stale but another works fine.
+  const bestAccount = useMemo(() => {
+    const accts = channel.accounts;
+    return accts.find(isLive)
+      ?? accts.find((a) => a.configured)
+      ?? defaultAccount;
+  }, [channel.accounts, defaultAccount]);
+
+  const isConnected = isLive(bestAccount ?? {} as ChannelAccount);
+  const isConfigured = bestAccount?.configured === true;
+  const isRunning = bestAccount?.running === true;
+  const isEnabled = bestAccount?.enabled !== false;
 
   // Status priority: disabled > hasError > connected > configured > not configured
   // A disabled channel (enabled=false in config) should show as "disabled", not "error"
   const derivedDown = isEnabled && isConfigured && !isRunning && !isConnected;
-  const hasError = isEnabled && (!!defaultAccount?.lastError || derivedDown);
+  const hasError = isEnabled && (!!bestAccount?.lastError || derivedDown);
 
   const statusColor = !isEnabled
     ? tokens.text.muted
@@ -429,8 +445,11 @@ function ChannelCard({
           ? t('extensions.channels.configured', 'Configured')
           : t('extensions.channels.notConfigured', 'Not configured');
 
-  const errorMessage = defaultAccount?.lastError
-    || (derivedDown ? t('extensions.channels.providerDown', 'Provider not running') : '');
+  // Card-level error: only show structural issues (derivedDown).
+  // Per-account lastError is shown in the expanded account list — no duplication.
+  const errorMessage = derivedDown
+    ? t('extensions.channels.providerDown', 'Provider not running')
+    : '';
 
   const handleEnableToggle = useCallback(
     (checked: boolean) => {
@@ -605,8 +624,8 @@ function ChannelCard({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <span style={{ color: account.connected ? tokens.accent.green : tokens.text.muted, fontSize: 12 }}>
-                  {account.connected ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                <span style={{ color: isLive(account) ? tokens.accent.green : tokens.text.muted, fontSize: 12 }}>
+                  {isLive(account) ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
                 </span>
                 <Text style={{ color: tokens.text.primary, fontSize: 12 }}>
                   {account.name ?? account.accountId}

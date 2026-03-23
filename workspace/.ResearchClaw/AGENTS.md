@@ -64,6 +64,8 @@ primarily use local API tools.
 - **cron** — only when user explicitly requests scheduled/recurring tasks.
 - **gateway** — config queries or explicit restart only. `gateway.restart`
   requires `approval_card` (risk_level: high).
+- **config.patch** — triggers automatic gateway restart via SIGUSR1 (~3–5s drain).
+  Dashboard auto-reconnects. No manual restart needed after config changes.
 
 For trigger-word mappings, domain routing, recency protocol, Zotero/EndNote
 bridge, and PDF import, read the **Search SOP** skill.
@@ -135,7 +137,9 @@ deeper guidance than this file provides.
 - Experiments, data analysis, visualization, coding → **Coding SOP**
 - Card JSON schemas (paper_card, task_card, etc.) → **Output Cards**
 - File management, workspace dirs, git versioning → **Workspace SOP**
-- IM channel config (Telegram, Discord, WeChat, etc.) → **Channels Guide**
+- IM channels (Telegram, Discord, WeChat, Feishu, Slack, WhatsApp),
+  dashboard Channels tab UI, QR login flow, `config.patch` restart behavior,
+  enable/disable/delete, troubleshooting (401, ABI, plugins.allow) → **Channels Guide**
 
 ## §9 Output Cards
 
