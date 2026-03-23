@@ -142,21 +142,27 @@ Channels 是 OC 基础设施，RC 完全复用。
 
 1. Bot-token 类 (Telegram / Discord / 飞书 / QQ / Slack):
    - 引导用户在对应平台创建 bot 并获取 token
-   - 用 `config.patch` 写入: `{ channels: { <id>: { token: "...", enabled: true } } }`
+   - 用 `config.patch` 写入配置。**注意字段名因平台而异**:
+     - Telegram: `{ channels: { telegram: { botToken: "...", enabled: true } } }`
+     - Discord: `{ channels: { discord: { token: "...", enabled: true } } }`
+     - 其他: 参考对应平台文档的字段名
    - Telegram: 告知用户需在 bot 聊天中发送 "/start" 才能收到回复
-   - Discord: 需要 bot token + application ID
    - `commands.native` 必须为 false (sync-global-config.cjs 自动修复)
 
-2. QR 扫码类 (WeChat / WhatsApp):
-   - 调用 `web.login.start` → 获取 `qrDataUrl` (data:image/png;base64,...)
-   - 在回复中用 markdown image 展示: `![qr](data:image/png;base64,...)`
-   - 提示用户扫码
-   - 调用 `web.login.wait { timeoutMs: 60000 }` 等待连接
-   - 连接成功后 gateway 自动启动 channel
+2. WeChat (微信) — QR 扫码连接:
+   - **前提**: `openclaw-weixin` 插件已安装且在 `plugins.allow` 中
+   - 调用 `web.login.start {}` RPC
+   - 返回 `{ qrDataUrl: "https://...", message: "..." }` (注意: WeChat 返回 HTTP URL，非 base64)
+   - 在回复中用 markdown image 展示: `![qr](qrDataUrl 的值)`
+   - 提示用户用微信扫描二维码
+   - 调用 `web.login.wait { timeoutMs: 60000 }` 等待扫码确认
+   - 扫码成功后插件自动保存凭据，gateway 自动启动 channel
+   - **注意**: WeChat 不支持主动发消息，只能回复用户发来的消息 (contextToken 机制)
 
-3. 插件通道 (openclaw-weixin 等):
-   - 必须在 `plugins.allow` 中声明 (OC allowlist step 6 拦截 > explicit enable)
-   - 同步修改 4 处: openclaw.json, openclaw.example.json, ensure-config.cjs, config-patch.ts
+3. WhatsApp — QR 扫码连接:
+   - 调用 `web.login.start {}` → 返回 `{ qrDataUrl: "data:image/png;base64,..." }`
+   - 在回复中展示: `![qr](data:image/png;base64,...)`
+   - 调用 `web.login.wait { timeoutMs: 60000 }` 等待连接
 
 **通道内行为**:
 - 所有 RC 工具 (library, tasks, workspace, monitor) 在通道会话中**完全可用**
