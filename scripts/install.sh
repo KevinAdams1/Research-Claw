@@ -599,16 +599,32 @@ node -e "
     if (p.channels) {
       for (const [k, v] of Object.entries(p.channels)) merged[k] = v;
     }
-    // Safety: force commands.native=false on ALL channels
-    // RC registers 529 commands, exceeding every IM platform's menu limit.
-    // Without this, Telegram enters BOT_COMMANDS_TOO_MUCH retry loop (15+ min block).
+    // Filter: only migrate channels that have valid credentials.
+    // Channels with empty/missing tokens cause noisy auto-restart loops (10 retries each).
+    const hasCredential = (name, ch) => {
+      if (name === 'defaults' || typeof ch !== 'object' || ch === null) return true;
+      const s = v => typeof v === 'string' && v.trim().length > 0;
+      if (name === 'telegram') return s(ch.token) || s(ch.botToken);
+      if (name === 'discord') return s(ch.token);
+      if (name === 'feishu') {
+        const accs = ch.accounts || {};
+        return Object.values(accs).some(a => a && s(a.appId));
+      }
+      if (name === 'slack') return s(ch.token) || s(ch.appToken);
+      return true; // whatsapp (QR), extensions, unknown — keep
+    };
     for (const [name, ch] of Object.entries(merged)) {
+      if (!hasCredential(name, ch)) { delete merged[name]; continue; }
       if (name === 'defaults' || typeof ch !== 'object' || ch === null) continue;
+      // Safety: force commands.native=false on ALL channels
+      // RC registers 529 commands, exceeding every IM platform's menu limit.
       if (!ch.commands) ch.commands = {};
       ch.commands.native = false;
     }
-    p.channels = merged;
-    migrated = true;
+    if (Object.keys(merged).length > 0) {
+      p.channels = merged;
+      migrated = true;
+    }
   }
 
   // 4. env — HTTP_PROXY, HTTPS_PROXY, custom vars

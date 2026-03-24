@@ -89,11 +89,21 @@ if [ -f "$GLOBAL_CONFIG" ] && [ -f "$CONFIG_FILE" ]; then
     if (hasGlobalChannels) {
       const merged = { ...g.channels };
       if (p.channels) { for (const [k, v] of Object.entries(p.channels)) merged[k] = v; }
+      const s = v => typeof v === 'string' && v.trim().length > 0;
+      const hasCredential = (n, c) => {
+        if (n === 'defaults' || typeof c !== 'object' || c === null) return true;
+        if (n === 'telegram') return s(c.token) || s(c.botToken);
+        if (n === 'discord') return s(c.token);
+        if (n === 'feishu') return Object.values(c.accounts||{}).some(a => a && s(a.appId));
+        if (n === 'slack') return s(c.token) || s(c.appToken);
+        return true;
+      };
       for (const [name, ch] of Object.entries(merged)) {
+        if (!hasCredential(name, ch)) { delete merged[name]; continue; }
         if (name === 'defaults' || typeof ch !== 'object' || ch === null) continue;
         if (!ch.commands) ch.commands = {}; ch.commands.native = false;
       }
-      p.channels = merged; migrated = true;
+      if (Object.keys(merged).length > 0) { p.channels = merged; migrated = true; }
     }
     if (hasGlobalProxy || (g.env?.vars && Object.keys(g.env.vars).length > 0)) {
       if (!p.env) p.env = {};
