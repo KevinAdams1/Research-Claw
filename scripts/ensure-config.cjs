@@ -160,6 +160,21 @@ function ensureConfig(filePath) {
     changed = true;
   }
 
+  // 11. Browser — ensure config exists with RC default profile
+  // Added in v0.5.9: Docker images now ship Chromium. Older configs created before
+  // browser support was added have no `browser` key → dashboard shows "未启用".
+  if (!c.browser) {
+    c.browser = {
+      enabled: true,
+      defaultProfile: 'research-claw',
+      profiles: { 'research-claw': { cdpPort: 18800, color: '#EF4444' } },
+    };
+    changed = true;
+  } else if (c.browser.enabled === undefined) {
+    c.browser.enabled = true;
+    changed = true;
+  }
+
   // Write atomically (temp + rename) to prevent corruption on disk-full
   if (changed) {
     const out = JSON.stringify(c, null, 2) + '\n';
