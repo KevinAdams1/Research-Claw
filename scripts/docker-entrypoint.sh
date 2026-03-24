@@ -89,7 +89,7 @@ if [ -f "$GLOBAL_CONFIG" ] && [ -f "$CONFIG_FILE" ]; then
     if (hasGlobalChannels) {
       const merged = { ...g.channels };
       if (p.channels) { for (const [k, v] of Object.entries(p.channels)) merged[k] = v; }
-      const s = v => typeof v === 'string' && v.trim().length > 0;
+      const s = v => typeof v === 'string' && v.trim().length > 0 && !v.includes('<') && !v.includes('YOUR_');
       const hasCredential = (n, c) => {
         if (n === 'defaults' || typeof c !== 'object' || c === null) return true;
         if (n === 'telegram') return s(c.token) || s(c.botToken);

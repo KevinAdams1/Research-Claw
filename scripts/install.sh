@@ -603,7 +603,7 @@ node -e "
     // Channels with empty/missing tokens cause noisy auto-restart loops (10 retries each).
     const hasCredential = (name, ch) => {
       if (name === 'defaults' || typeof ch !== 'object' || ch === null) return true;
-      const s = v => typeof v === 'string' && v.trim().length > 0;
+      const s = v => typeof v === 'string' && v.trim().length > 0 && !v.includes('<') && !v.includes('YOUR_');
       if (name === 'telegram') return s(ch.token) || s(ch.botToken);
       if (name === 'discord') return s(ch.token);
       if (name === 'feishu') {
