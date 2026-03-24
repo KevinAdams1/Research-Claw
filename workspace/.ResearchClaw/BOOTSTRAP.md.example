@@ -247,9 +247,21 @@ AND populate **TOOLS.md** (the L3 environment memo) with detected values:
 - Docker environment (check `/.dockerenv`)
 - Detected text editors (VS Code, Vim, Emacs, etc.)
 - Git availability and configuration
-- Python / R / LaTeX / Pandoc availability → update TOOLS.md `## 本地工具`
+- **Python**: run `python3 --version`. Docker images ship Miniforge3 with a full
+  scientific stack (numpy, pandas, matplotlib, seaborn, scipy, scikit-learn,
+  statsmodels, plotly, networkx, sympy, biopython, openpyxl, xlsxwriter).
+  Native installs: detect whatever the user has.
+  → update TOOLS.md `## 本地工具 > Python`
+- **Browser (Chromium)**: check `/usr/bin/chromium` (Docker) or
+  `/Applications/Google Chrome.app` (macOS). Docker images ship headless
+  Chromium for the OC browser tool (screenshots, navigation, PDF export).
+  → update TOOLS.md `## 本地工具 > Browser`
+- R / LaTeX / Pandoc availability → update TOOLS.md `## 本地工具`
 - GPU/CUDA availability (if detectable)
-- Reference managers: Zotero (`library_zotero_detect`), EndNote (`library_endnote_detect`)
+- **Reference managers**:
+  - Zotero: `library_zotero_detect`. In Docker, also check `/host/zotero/zotero.sqlite`
+    (host Zotero mounted read-only).
+  - EndNote: `library_endnote_detect`. In Docker, check `/host/documents/`.
   → update TOOLS.md `## 参考管理器`
 - AI coding CLIs: `which codex`, `which claude`, `which opencode`
   → update TOOLS.md `## 本地工具 > AI CLI`

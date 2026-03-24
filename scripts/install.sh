@@ -406,6 +406,13 @@ if [ -d "$INSTALL_DIR/.git" ]; then
   [ -f "$_RC_BAK/BOOTSTRAP.md.done" ] && cp "$_RC_BAK/BOOTSTRAP.md.done" "$RC_DIR/BOOTSTRAP.md.done"
   rm -rf "$_RC_BAK"
 
+  # Invalidate pnpm's "already up to date" cache after git pull.
+  # Scenario: a previous pnpm install was aborted (e.g., "Proceed?" prompt got EOF)
+  # but .modules.yaml was already written. Next run: pnpm sees hash match → skips
+  # install → stale packages remain (e.g., sass-embedded instead of sass).
+  # Deleting .modules.yaml forces pnpm to re-verify all packages against the lockfile.
+  rm -f node_modules/.modules.yaml 2>/dev/null || true
+
   ok "Updated"
 else
   info "Cloning to $INSTALL_DIR ..."
@@ -592,16 +599,32 @@ node -e "
     if (p.channels) {
       for (const [k, v] of Object.entries(p.channels)) merged[k] = v;
     }
-    // Safety: force commands.native=false on ALL channels
-    // RC registers 529 commands, exceeding every IM platform's menu limit.
-    // Without this, Telegram enters BOT_COMMANDS_TOO_MUCH retry loop (15+ min block).
+    // Filter: only migrate channels that have valid credentials.
+    // Channels with empty/missing tokens cause noisy auto-restart loops (10 retries each).
+    const hasCredential = (name, ch) => {
+      if (name === 'defaults' || typeof ch !== 'object' || ch === null) return true;
+      const s = v => typeof v === 'string' && v.trim().length > 0 && !v.includes('<') && !v.includes('YOUR_');
+      if (name === 'telegram') return s(ch.token) || s(ch.botToken);
+      if (name === 'discord') return s(ch.token);
+      if (name === 'feishu') {
+        const accs = ch.accounts || {};
+        return Object.values(accs).some(a => a && s(a.appId));
+      }
+      if (name === 'slack') return s(ch.token) || s(ch.appToken);
+      return true; // whatsapp (QR), extensions, unknown — keep
+    };
     for (const [name, ch] of Object.entries(merged)) {
+      if (!hasCredential(name, ch)) { delete merged[name]; continue; }
       if (name === 'defaults' || typeof ch !== 'object' || ch === null) continue;
+      // Safety: force commands.native=false on ALL channels
+      // RC registers 529 commands, exceeding every IM platform's menu limit.
       if (!ch.commands) ch.commands = {};
       ch.commands.native = false;
     }
-    p.channels = merged;
-    migrated = true;
+    if (Object.keys(merged).length > 0) {
+      p.channels = merged;
+      migrated = true;
+    }
   }
 
   // 4. env — HTTP_PROXY, HTTPS_PROXY, custom vars
@@ -1055,7 +1078,7 @@ printf "  ${D}Press Ctrl+C to stop${N}\n\n"
 # Open browser when ready (background)
 # healthz always checks via loopback (works for both bind modes)
 (for _ in $(seq 1 30); do
-  if curl -sf "http://127.0.0.1:$PORT/healthz" &>/dev/null; then
+  if curl -sf --noproxy '*' "http://127.0.0.1:$PORT/healthz" &>/dev/null; then
     if [ "$RC_OS" = mac ]; then
       open "$DASHBOARD_URL" 2>/dev/null || true
     else

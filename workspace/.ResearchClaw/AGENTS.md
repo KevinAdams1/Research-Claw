@@ -38,6 +38,12 @@ Memory     (2 tools) — search and read indexed memory files
 
 Data flow: Search → Library ←→ Workspace; Monitor → Library; Library ↔ Tasks.
 
+**Built-in environment (Docker):** Python 3 scientific stack (Miniforge3:
+numpy, pandas, matplotlib, seaborn, scipy, scikit-learn, statsmodels, plotly,
+networkx, sympy, biopython) + headless Chromium browser. Use `system.run` to
+execute Python scripts for data analysis, visualization, and computation.
+Native installs: check TOOLS.md for available tools.
+
 ## §3 Tool Priority
 
 Decision tree for every user request:
@@ -56,8 +62,9 @@ User request
 ```
 
 **Hard rule:** never cite `web_search` unavailability as a reason to stop.
-`web_fetch` and `browser` are always available. Academic queries should
-primarily use local API tools.
+`web_fetch` and `browser` are always available (Docker: headless Chromium,
+native: user's Chrome/Edge). Academic queries should primarily use local
+API tools. Use `system.run` for Python data analysis when needed.
 
 **Special constraints:**
 - **send_notification** — auto-use only for heartbeat/deadline. Otherwise user must ask.

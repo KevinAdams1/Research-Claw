@@ -8,6 +8,7 @@ FROM node:22-slim
 # Overseas: docker build --build-arg APT_MIRROR=deb.debian.org --build-arg NPM_REGISTRY=https://registry.npmjs.org .
 ARG APT_MIRROR=mirrors.tuna.tsinghua.edu.cn
 ARG NPM_REGISTRY=https://registry.npmmirror.com
+ARG CONDA_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/anaconda
 
 # Debian apt mirror
 RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources
@@ -19,8 +20,10 @@ RUN npm config set registry ${NPM_REGISTRY}
 # python3/make/g++: better-sqlite3 原生编译
 # git/curl/ca-certificates: git+https 依赖拉取
 # psmisc: fuser（--force 端口释放需要）
+# procps: ps（进程管理）
+# wget/xdg-utils: Playwright Chromium 安装依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 make g++ git curl ca-certificates psmisc \
+      python3 make g++ git curl ca-certificates psmisc procps wget xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # pnpm — match version in package.json
@@ -33,12 +36,48 @@ RUN git config --global url."https://github.com/".insteadOf "git@github.com:"
 # 构建时代理（如需翻墙，取消注释）
 # RUN git config --global http.proxy http://host.docker.internal:7890
 
+# ── Chromium (headless) for OC browser tool ──────────────────────────
+# OC's browser tool uses playwright-core (CDP client) and searches for
+# /usr/bin/chromium on Linux. Install Playwright's bundled Chromium with
+# all system dependencies, then symlink for OC auto-discovery.
+# --with-deps installs all required system libraries (libglib, libnss, etc.)
+RUN npx playwright-core@1.58.2 install --with-deps chromium \
+    && CHROMIUM_PATH="$(find /root/.cache/ms-playwright -name chrome -type f | head -1)" \
+    && if [ -n "$CHROMIUM_PATH" ]; then ln -sf "$CHROMIUM_PATH" /usr/bin/chromium; fi \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Miniforge3 (scientific Python) ───────────────────────────────────
+# Provides conda + Python for agent's system.run data analysis/visualization.
+# Installed to /opt/miniforge3 — does not conflict with system python3.
+RUN ARCH="$(uname -m)" \
+    && curl -fsSL "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${ARCH}.sh" \
+       -o /tmp/miniforge.sh \
+    && bash /tmp/miniforge.sh -b -p /opt/miniforge3 \
+    && rm /tmp/miniforge.sh
+
+# Install scientific Python packages via pip (more reliable in Docker than conda).
+# Miniforge provides the base Python; pip handles package installation.
+# China mirror: pip defaults to TUNA via PIP_INDEX_URL if NPM_REGISTRY is npmmirror.
+# Verify with a test import to catch silent install failures.
+RUN PIP_INDEX_URL="$(echo ${NPM_REGISTRY} | grep -q npmmirror && echo https://pypi.tuna.tsinghua.edu.cn/simple || echo https://pypi.org/simple)" \
+    && /opt/miniforge3/bin/pip install --no-cache-dir -i "$PIP_INDEX_URL" \
+      numpy pandas scipy matplotlib seaborn plotly \
+      scikit-learn statsmodels \
+      openpyxl xlsxwriter tabulate \
+      requests beautifulsoup4 \
+      networkx sympy biopython \
+      nbformat jupyter-core \
+    && /opt/miniforge3/bin/python3 -c "import numpy; print(f'numpy {numpy.__version__} OK')"
+
+ENV PATH="/opt/miniforge3/bin:$PATH"
+
 # ── 依赖层（package 文件不变则缓存命中）──────────────────────────────
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY patches/ ./patches/
 COPY dashboard/package.json                          ./dashboard/
 COPY extensions/research-claw-core/package.json     ./extensions/research-claw-core/
 COPY extensions/wentor-connect/package.json          ./extensions/wentor-connect/
+COPY extensions/openclaw-weixin/package.json         ./extensions/openclaw-weixin/
 
 # --node-linker=hoisted: Required in Docker to avoid pnpm symlink issues
 # with better-sqlite3 native module resolution. Native install uses the
