@@ -27,6 +27,7 @@ updated: 2026-03-23
 ## 本地工具
 
 - Python: (未检测)
+- Browser: (未检测)
 - LaTeX: (未检测)
 - Pandoc: (未检测)
 - AI CLI: (未检测)

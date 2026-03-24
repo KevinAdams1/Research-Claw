@@ -26,12 +26,13 @@ services:
       - rc-data:/app/.research-claw      # RC plugin SQLite (library, tasks, monitors)
       - rc-workspace:/app/workspace      # Agent workspace (MEMORY.md, USER.md, files)
       - rc-state:/root/.openclaw         # OC state: sessions (chat history!), logs, plugins, credentials
-      # ── Optional: Mount host reference manager databases (read-only) ──
-      # Enables Zotero/EndNote import from Docker. Uncomment for your OS:
-      # macOS / Linux:
-      #   - ~/Zotero:/host/zotero:ro
-      #   - ~/Documents:/host/documents:ro
-      # Windows (WSL2 backend):
+      # ── Reference manager databases (read-only) ────────────────────
+      # Zotero/EndNote import from Docker. If the host path doesn't exist,
+      # Docker creates an empty directory — no error, import returns empty.
+      # macOS / Linux (default — safe to leave enabled):
+      - ~/Zotero:/host/zotero:ro
+      - ~/Documents:/host/documents:ro
+      # Windows (WSL2 backend) — uncomment these, comment out the above:
       #   - /mnt/c/Users/YOUR_USER/Zotero:/host/zotero:ro
       #   - /mnt/c/Users/YOUR_USER/Documents:/host/documents:ro
     restart: unless-stopped
