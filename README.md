@@ -112,6 +112,40 @@ curl -fsSL https://wentor.ai/install.sh | bash
 
 卡住了自己调试，搞不定给作者发邮件。
 
+**真实案例：HiF8 量化实验** —— 以下截图来自一次实际的 Wan2.1 视频生成模型量化实验推进过程。
+
+#### 自主推进实验
+
+龙虾每 10 分钟自动汇报：环境验证（GPU / CUDA / PyTorch 全链路检查）→ 逐个运行实验 → 记录遇到的问题与解决方案 → 制定下一步计划。你只需要看汇报，不需要手动执行任何命令。
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/实验推进.png" alt="实验推进 — 环境验证与阶段汇总" /></td>
+    <td width="50%"><img src="assets/screenshots/模型准备.PNG" alt="模型准备 — 问题解决与下一步计划" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>30 分钟完整汇总 — GPU A800 环境全绿，已完成 2 个实验</sub></td>
+    <td align="center"><sub>自动排障（5 个问题全部自行解决）并制定后续计划</sub></td>
+  </tr>
+</table>
+
+#### 遇到阻塞，主动找你决策
+
+当模型下载被 HuggingFace 限速（~1MB/s，预计 95 分钟）时，龙虾不会傻等——它发出紧急汇报，分析根因，提出三个方案并给出推荐，等你拍板后继续执行。
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/与人交互寻求帮助.png" alt="紧急汇报 — 下载阻塞" /></td>
+    <td width="50%"><img src="assets/screenshots/与人交互给人方案.png" alt="三选一方案 — 推荐 B" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>检测到严重阻塞，主动发起紧急汇报</sub></td>
+    <td align="center"><sub>给出 A/B/C 三个方案，推荐 B（先用小模型验证流程）</sub></td>
+  </tr>
+</table>
+
+> **Human-in-the-Loop 原则**：涉及外部凭证（API Token）、不可逆操作、或需要资源决策时，龙虾不会擅自行动，而是带着分析和方案来找你——你做导师，它做执行。
+
 ---
 
 ## Dashboard
