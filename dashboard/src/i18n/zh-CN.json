@@ -213,6 +213,7 @@
     "empty": "工作区为空。\n文件将在你和助手创建时出现在此处。",
     "filesChanged": "{{count}} 个文件已修改",
     "dragDrop": "拖放文件到此处添加到工作区",
+    "dropToUpload": "释放以上传文件",
     "contextMenu": {
       "openExternal": "打开文件",
       "openFolder": "打开文件夹",
@@ -347,7 +348,13 @@
     "heartbeatInterval1h": "每 1 小时",
     "heartbeatInterval2h": "每 2 小时",
     "heartbeatInterval4h": "每 4 小时",
-    "aboutGithub": "在 GitHub 上查看"
+    "aboutGithub": "在 GitHub 上查看",
+    "restart": "重启科研龙虾",
+    "restarting": "重启中...",
+    "restartConfirm": "确认重启科研龙虾？",
+    "restartConfirmDesc": "所有进行中的对话将中断，网关将在数秒后自动恢复。",
+    "restartSuccess": "重启信号已发送",
+    "restartFailed": "重启失败 — 请手动重启"
   },
   "setup": {
     "title": "欢迎使用科研龙虾",
