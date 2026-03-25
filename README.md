@@ -112,6 +112,40 @@ curl -fsSL https://wentor.ai/install.sh | bash
 
 卡住了自己调试，搞不定给作者发邮件。
 
+**真实案例：HiF8 量化实验** —— 以下截图来自一次实际的 Wan2.1 视频生成模型量化实验推进过程。
+
+#### 自主推进实验
+
+龙虾每 10 分钟自动汇报：环境验证（GPU / CUDA / PyTorch 全链路检查）→ 逐个运行实验 → 记录遇到的问题与解决方案 → 制定下一步计划。你只需要看汇报，不需要手动执行任何命令。
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/实验推进.png" alt="实验推进 — 环境验证与阶段汇总" /></td>
+    <td width="50%"><img src="assets/screenshots/模型准备.PNG" alt="模型准备 — 问题解决与下一步计划" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>30 分钟完整汇总 — GPU A800 环境全绿，已完成 2 个实验</sub></td>
+    <td align="center"><sub>自动排障（5 个问题全部自行解决）并制定后续计划</sub></td>
+  </tr>
+</table>
+
+#### 遇到阻塞，主动找你决策
+
+当模型下载被 HuggingFace 限速（~1MB/s，预计 95 分钟）时，龙虾不会傻等——它发出紧急汇报，分析根因，提出三个方案并给出推荐，等你拍板后继续执行。
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/与人交互寻求帮助.png" alt="紧急汇报 — 下载阻塞" /></td>
+    <td width="50%"><img src="assets/screenshots/与人交互给人方案.png" alt="三选一方案 — 推荐 B" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>检测到严重阻塞，主动发起紧急汇报</sub></td>
+    <td align="center"><sub>给出 A/B/C 三个方案，推荐 B（先用小模型验证流程）</sub></td>
+  </tr>
+</table>
+
+> **Human-in-the-Loop 原则**：涉及外部凭证（API Token）、不可逆操作、或需要资源决策时，龙虾不会擅自行动，而是带着分析和方案来找你——你做导师，它做执行。
+
 ---
 
 ## Dashboard
@@ -366,6 +400,185 @@ pnpm backup         # 备份数据库
 ```bash
 curl -fsSL https://wentor.ai/install.sh | bash
 ```
+
+### 数据迁移（整机搬家）
+
+科研龙虾的所有记忆、会话历史、文献库、任务和工作区文件都可以完整迁移到另一台电脑。
+
+<details>
+<summary><b>点击展开：完整迁移指南（macOS / Linux / WSL2 / Docker）</b></summary>
+
+#### 数据在哪里？
+
+| 数据 | 路径 | 说明 |
+|:--|:--|:--|
+| **文献库 / 任务 / 监控** | `~/research-claw/.research-claw/library.db` | SQLite 数据库（核心数据，17 张表 + FTS5 全文索引） |
+| **会话历史** | `~/.openclaw/agents/main/sessions/` | 所有聊天记录（.jsonl 文件） |
+| **Agent 记忆** | `~/.openclaw/memory/main.sqlite` | 长期记忆 FTS 数据库 |
+| **工作区文件** | `~/research-claw/workspace/` | MEMORY.md、.ResearchClaw/、用户上传的文件、Git 历史 |
+| **API Key / 模型配置** | `~/research-claw/config/openclaw.json` | 项目级配置（API Key、模型、代理等） |
+| **浏览器数据** | `~/.openclaw/browser/` | 已登录的学术网站 session |
+| **IM 渠道凭证** | `~/.openclaw/credentials/` | Telegram / 飞书 / QQ 等 token |
+
+> **不需要迁移的**：`node_modules/`、`dashboard/dist/`（重新安装会自动生成）；`~/.openclaw/openclaw.json`（全局配置含机器相关绝对路径，新机器上会自动生成）；`~/.openclaw/gateway/`、`~/.openclaw/cron/`（运行时数据，自动重建）。
+
+---
+
+#### 方案一：macOS / Linux 原生安装
+
+**旧机器 — 打包：**
+
+```bash
+# 1. 停止科研龙虾
+pkill -f "run.sh" 2>/dev/null; pkill -f openclaw 2>/dev/null
+
+# 2. 等待 SQLite WAL 落盘（重要！否则可能丢数据）
+sleep 3
+
+# 3. 一键打包所有数据
+tar -czf ~/rc-migration.tar.gz \
+  -C / \
+  "$HOME/.openclaw/agents" \
+  "$HOME/.openclaw/memory" \
+  "$HOME/.openclaw/browser" \
+  "$HOME/.openclaw/credentials" \
+  -C "$HOME/research-claw" \
+  .research-claw \
+  config/openclaw.json \
+  workspace
+```
+
+**新机器 — 恢复：**
+
+```bash
+# 1. 先在新机器上全新安装（安装脚本会创建目录结构）
+curl -fsSL https://wentor.ai/install.sh | bash
+
+# 2. 停止刚安装好的科研龙虾
+pkill -f "run.sh" 2>/dev/null; pkill -f openclaw 2>/dev/null
+
+# 3. 将 rc-migration.tar.gz 复制到新机器后解压覆盖
+cd /
+tar -xzf ~/rc-migration.tar.gz
+
+# 4. 启动
+cd ~/research-claw && pnpm serve
+```
+
+> 如果新旧机器的用户名不同（如旧机器 `alice`，新机器 `bob`），解压后需要手动修正 tar 中的路径。可以用分步复制替代：
+> ```bash
+> # 在新机器上逐个复制
+> scp -r old-mac:~/.openclaw/agents/ ~/.openclaw/agents/
+> scp -r old-mac:~/.openclaw/memory/ ~/.openclaw/memory/
+> scp -r old-mac:~/.openclaw/browser/ ~/.openclaw/browser/
+> scp -r old-mac:~/.openclaw/credentials/ ~/.openclaw/credentials/
+> scp -r old-mac:~/research-claw/.research-claw/ ~/research-claw/.research-claw/
+> scp old-mac:~/research-claw/config/openclaw.json ~/research-claw/config/
+> scp -r old-mac:~/research-claw/workspace/ ~/research-claw/workspace/
+> ```
+
+---
+
+#### 方案二：WSL2（Windows）
+
+WSL2 中的路径与 Linux 相同，但传输文件需要通过 Windows 文件系统中转。
+
+**旧机器 — 打包（在 WSL2 终端中）：**
+
+```bash
+pkill -f "run.sh" 2>/dev/null; pkill -f openclaw 2>/dev/null
+sleep 3
+
+# 打包到 Windows 桌面（方便拷贝）
+tar -czf /mnt/c/Users/$USER/Desktop/rc-migration.tar.gz \
+  -C / \
+  "$HOME/.openclaw/agents" \
+  "$HOME/.openclaw/memory" \
+  "$HOME/.openclaw/browser" \
+  "$HOME/.openclaw/credentials" \
+  -C "$HOME/research-claw" \
+  .research-claw \
+  config/openclaw.json \
+  workspace
+```
+
+**新机器 — 恢复（在 WSL2 终端中）：**
+
+```bash
+# 1. 先安装科研龙虾
+curl -fsSL https://wentor.ai/install.sh | bash
+pkill -f "run.sh" 2>/dev/null; pkill -f openclaw 2>/dev/null
+
+# 2. 将 rc-migration.tar.gz 复制到新机器桌面，然后在 WSL2 中解压
+cd /
+tar -xzf /mnt/c/Users/$USER/Desktop/rc-migration.tar.gz
+
+# 3. 启动
+cd ~/research-claw && pnpm serve
+```
+
+---
+
+#### 方案三：Docker
+
+Docker 的数据在具名 Volume 中，需要用 `docker run` 导出/导入。
+
+**旧机器 — 导出：**
+
+```bash
+# 1. 停止容器
+docker stop research-claw
+
+# 2. 导出 4 个 Volume 到 tar 文件
+for vol in rc-config rc-data rc-workspace rc-state; do
+  docker run --rm -v ${vol}:/data -v ~/:/backup alpine \
+    tar -czf /backup/${vol}.tar.gz -C /data .
+done
+
+# 结果：~/rc-config.tar.gz  ~/rc-data.tar.gz  ~/rc-workspace.tar.gz  ~/rc-state.tar.gz
+```
+
+**新机器 — 导入：**
+
+```bash
+# 1. 先用一键脚本安装（会创建容器和 Volume）
+curl -fsSL https://wentor.ai/docker-install.sh | bash
+
+# 2. 停止容器
+docker stop research-claw
+
+# 3. 将 4 个 tar.gz 复制到新机器后，逐个导入
+for vol in rc-config rc-data rc-workspace rc-state; do
+  # 清空现有 Volume 内容
+  docker run --rm -v ${vol}:/data alpine sh -c "rm -rf /data/*"
+  # 导入旧数据
+  docker run --rm -v ${vol}:/data -v ~/:/backup alpine \
+    tar -xzf /backup/${vol}.tar.gz -C /data
+done
+
+# 4. 启动
+docker start research-claw
+```
+
+Windows Docker 用户：在 PowerShell 中将 `for vol in ...` 替换为逐条执行，Volume 名和命令相同。
+
+---
+
+#### 迁移后验证
+
+启动后在 Dashboard 中检查：
+
+- [ ] **文献库**：论文列表、标签、笔记是否完整
+- [ ] **任务**：待办事项和截止日期是否存在
+- [ ] **工作区**：文件树和版本历史是否正常
+- [ ] **设置**：API Key 和模型配置是否保留
+- [ ] **对话历史**：点击 `/new` 后能否通过历史会话列表回看之前的聊天
+
+> **如果 API Key 丢失**：进入 Settings 面板重新填写即可，其余数据不受影响。
+>
+> **如果连接了 Telegram / 飞书等 IM**：迁移后 bot token 会保留，但可能需要在新机器上重新验证网络连通性。
+
+</details>
 
 ---
 

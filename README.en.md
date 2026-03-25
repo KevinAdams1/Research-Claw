@@ -108,6 +108,40 @@ Draft, confirm, send — all inside the conversation. Tone adjustable on the fly
 
 Hits a wall? It debugs itself. Still stuck? It emails the authors.
 
+**Real case: HiF8 Quantization Experiment** — The screenshots below are from an actual Wan2.1 video generation model quantization workflow.
+
+#### Autonomous Experiment Progression
+
+Research-Claw reports every 10 minutes: verify the environment (GPU / CUDA / PyTorch full-chain check) → run experiments one by one → log problems and solutions → plan next steps. You only need to read the reports.
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/实验推进.png" alt="Experiment progression — environment check and phase summary" /></td>
+    <td width="50%"><img src="assets/screenshots/模型准备.PNG" alt="Model prep — auto-troubleshoot and next-step plan" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>30-min summary — A800 GPU environment all green, 2 experiments done</sub></td>
+    <td align="center"><sub>Auto-resolved 5 issues and planned next steps</sub></td>
+  </tr>
+</table>
+
+#### Blocked? It Comes to You for Decisions
+
+When model download was throttled by HuggingFace (~1 MB/s, ~95 min ETA), Research-Claw didn't just wait — it filed an urgent report, analyzed the root cause, proposed three options with a recommendation, and waited for your call.
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/与人交互寻求帮助.png" alt="Urgent report — download blocked" /></td>
+    <td width="50%"><img src="assets/screenshots/与人交互给人方案.png" alt="Three options — recommends B" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Detected critical blocker, initiated urgent report</sub></td>
+    <td align="center"><sub>A/B/C options presented, recommended B (validate with smaller model first)</sub></td>
+  </tr>
+</table>
+
+> **Human-in-the-Loop**: When external credentials (API tokens), irreversible actions, or resource decisions are involved, Research-Claw doesn't act unilaterally — it brings analysis and options to you. You're the PI; it executes.
+
 ---
 
 ## Dashboard
@@ -345,6 +379,185 @@ pnpm backup         # Backup database
 ```bash
 curl -fsSL https://wentor.ai/install.sh | bash
 ```
+
+### Data Migration (Moving to Another Computer)
+
+All your memory, conversation history, paper library, tasks, and workspace files can be fully migrated to another machine.
+
+<details>
+<summary><b>Click to expand: Full migration guide (macOS / Linux / WSL2 / Docker)</b></summary>
+
+#### Where is the data?
+
+| Data | Path | Description |
+|:--|:--|:--|
+| **Paper library / Tasks / Monitors** | `~/research-claw/.research-claw/library.db` | SQLite database (core data: 17 tables + FTS5 full-text index) |
+| **Conversation history** | `~/.openclaw/agents/main/sessions/` | All chat transcripts (.jsonl files) |
+| **Agent memory** | `~/.openclaw/memory/main.sqlite` | Long-term memory FTS database |
+| **Workspace files** | `~/research-claw/workspace/` | MEMORY.md, .ResearchClaw/, uploaded files, Git history |
+| **API Key / Model config** | `~/research-claw/config/openclaw.json` | Project-level config (API keys, models, proxy, etc.) |
+| **Browser data** | `~/.openclaw/browser/` | Logged-in academic site sessions |
+| **IM channel credentials** | `~/.openclaw/credentials/` | Telegram / Feishu / QQ tokens |
+
+> **Do NOT migrate**: `node_modules/`, `dashboard/dist/` (regenerated on install); `~/.openclaw/openclaw.json` (contains machine-specific absolute paths, auto-generated on new machine); `~/.openclaw/gateway/`, `~/.openclaw/cron/` (runtime data, auto-rebuilt).
+
+---
+
+#### Option 1: macOS / Linux Native Install
+
+**Old machine — pack:**
+
+```bash
+# 1. Stop Research-Claw
+pkill -f "run.sh" 2>/dev/null; pkill -f openclaw 2>/dev/null
+
+# 2. Wait for SQLite WAL to flush (important! prevents data loss)
+sleep 3
+
+# 3. Pack all data into one archive
+tar -czf ~/rc-migration.tar.gz \
+  -C / \
+  "$HOME/.openclaw/agents" \
+  "$HOME/.openclaw/memory" \
+  "$HOME/.openclaw/browser" \
+  "$HOME/.openclaw/credentials" \
+  -C "$HOME/research-claw" \
+  .research-claw \
+  config/openclaw.json \
+  workspace
+```
+
+**New machine — restore:**
+
+```bash
+# 1. Fresh install on the new machine first (creates directory structure)
+curl -fsSL https://wentor.ai/install.sh | bash
+
+# 2. Stop the freshly installed instance
+pkill -f "run.sh" 2>/dev/null; pkill -f openclaw 2>/dev/null
+
+# 3. Copy rc-migration.tar.gz to the new machine, then extract
+cd /
+tar -xzf ~/rc-migration.tar.gz
+
+# 4. Start
+cd ~/research-claw && pnpm serve
+```
+
+> If usernames differ between machines (e.g. `alice` → `bob`), use scp instead of tar:
+> ```bash
+> # Copy each path individually on the new machine
+> scp -r old-mac:~/.openclaw/agents/ ~/.openclaw/agents/
+> scp -r old-mac:~/.openclaw/memory/ ~/.openclaw/memory/
+> scp -r old-mac:~/.openclaw/browser/ ~/.openclaw/browser/
+> scp -r old-mac:~/.openclaw/credentials/ ~/.openclaw/credentials/
+> scp -r old-mac:~/research-claw/.research-claw/ ~/research-claw/.research-claw/
+> scp old-mac:~/research-claw/config/openclaw.json ~/research-claw/config/
+> scp -r old-mac:~/research-claw/workspace/ ~/research-claw/workspace/
+> ```
+
+---
+
+#### Option 2: WSL2 (Windows)
+
+Paths inside WSL2 are the same as Linux. Transfer files via the Windows filesystem.
+
+**Old machine — pack (in WSL2 terminal):**
+
+```bash
+pkill -f "run.sh" 2>/dev/null; pkill -f openclaw 2>/dev/null
+sleep 3
+
+# Pack to the Windows desktop for easy transfer
+tar -czf /mnt/c/Users/$USER/Desktop/rc-migration.tar.gz \
+  -C / \
+  "$HOME/.openclaw/agents" \
+  "$HOME/.openclaw/memory" \
+  "$HOME/.openclaw/browser" \
+  "$HOME/.openclaw/credentials" \
+  -C "$HOME/research-claw" \
+  .research-claw \
+  config/openclaw.json \
+  workspace
+```
+
+**New machine — restore (in WSL2 terminal):**
+
+```bash
+# 1. Install Research-Claw first
+curl -fsSL https://wentor.ai/install.sh | bash
+pkill -f "run.sh" 2>/dev/null; pkill -f openclaw 2>/dev/null
+
+# 2. Copy rc-migration.tar.gz to the new machine's desktop, then extract
+cd /
+tar -xzf /mnt/c/Users/$USER/Desktop/rc-migration.tar.gz
+
+# 3. Start
+cd ~/research-claw && pnpm serve
+```
+
+---
+
+#### Option 3: Docker
+
+Docker data lives in named volumes. Export/import using `docker run`.
+
+**Old machine — export:**
+
+```bash
+# 1. Stop the container
+docker stop research-claw
+
+# 2. Export all 4 volumes to tar files
+for vol in rc-config rc-data rc-workspace rc-state; do
+  docker run --rm -v ${vol}:/data -v ~/:/backup alpine \
+    tar -czf /backup/${vol}.tar.gz -C /data .
+done
+
+# Result: ~/rc-config.tar.gz  ~/rc-data.tar.gz  ~/rc-workspace.tar.gz  ~/rc-state.tar.gz
+```
+
+**New machine — import:**
+
+```bash
+# 1. Install via one-click script (creates container and volumes)
+curl -fsSL https://wentor.ai/docker-install.sh | bash
+
+# 2. Stop the container
+docker stop research-claw
+
+# 3. Copy the 4 tar.gz files to the new machine, then import
+for vol in rc-config rc-data rc-workspace rc-state; do
+  # Clear existing volume contents
+  docker run --rm -v ${vol}:/data alpine sh -c "rm -rf /data/*"
+  # Import old data
+  docker run --rm -v ${vol}:/data -v ~/:/backup alpine \
+    tar -xzf /backup/${vol}.tar.gz -C /data
+done
+
+# 4. Start
+docker start research-claw
+```
+
+Windows Docker users: replace the `for vol in ...` loop with individual commands in PowerShell. Volume names and commands are the same.
+
+---
+
+#### Post-Migration Checklist
+
+After starting, verify in the Dashboard:
+
+- [ ] **Library**: Papers, tags, and notes are intact
+- [ ] **Tasks**: To-dos and deadlines are present
+- [ ] **Workspace**: File tree and version history work correctly
+- [ ] **Settings**: API key and model config are preserved
+- [ ] **Chat history**: Click `/new` and check if previous sessions are accessible
+
+> **If API keys are missing**: Re-enter them in the Settings panel. All other data is unaffected.
+>
+> **If using Telegram / Feishu / other IM**: Bot tokens are preserved, but you may need to verify network connectivity on the new machine.
+
+</details>
 
 ---
 
