@@ -9,13 +9,14 @@ import { useGatewayStore } from '../../stores/gateway';
 const mockModalConfirm = vi.fn();
 const mockMessageSuccess = vi.fn();
 const mockMessageError = vi.fn();
+const mockMessageWarning = vi.fn();
 vi.mock('antd', async () => {
   const actual = await vi.importActual<typeof import('antd')>('antd');
   const MockApp = Object.assign(
     (props: Record<string, unknown>) => (actual.App as unknown as (p: unknown) => unknown)(props),
     { ...actual.App, useApp: () => ({
       modal: { confirm: (...args: unknown[]) => mockModalConfirm(...args) },
-      message: { success: mockMessageSuccess, error: mockMessageError },
+      message: { success: mockMessageSuccess, error: mockMessageError, warning: mockMessageWarning },
       notification: {},
     }) },
   );
@@ -325,5 +326,101 @@ describe('PR #18: syncNeeded — form sync gating', () => {
 
     // User's edit should be preserved (syncNeeded was never set to true since save failed)
     expect(screen.getByDisplayValue('attempted-change')).toBeTruthy();
+  });
+});
+
+// ============================================================
+// Restart button in settings panel
+// ============================================================
+
+describe('Restart Research-Claw button', () => {
+  beforeEach(() => {
+    mockModalConfirm.mockReset();
+    mockMessageSuccess.mockReset();
+    mockMessageError.mockReset();
+    useConfigStore.setState({
+      theme: 'dark',
+      locale: 'en',
+      systemPromptAppend: '',
+      bootState: 'ready',
+      gatewayConfig: makeGatewayConfig(),
+      gatewayConfigLoading: false,
+      _configRetryCount: 0,
+    });
+    useGatewayStore.setState({
+      client: createMockClient(),
+      state: 'connected',
+      serverVersion: '0.5.10',
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('renders restart button in about section', () => {
+    render(<SettingsPanel />);
+    expect(screen.getByText('settings.restart')).toBeTruthy();
+  });
+
+  it('opens confirm modal when restart button is clicked', () => {
+    render(<SettingsPanel />);
+    const restartBtn = screen.getByText('settings.restart');
+    fireEvent.click(restartBtn);
+    expect(mockModalConfirm).toHaveBeenCalledTimes(1);
+    expect(mockModalConfirm.mock.calls[0][0]).toHaveProperty('title', 'settings.restartConfirm');
+  });
+
+  it('calls config.get + config.apply on confirm (no-op restart)', async () => {
+    const mockRequest = vi.fn().mockImplementation((method: string) => {
+      if (method === 'config.get') {
+        return Promise.resolve({
+          config: makeGatewayConfig(),
+          raw: '{"test":true}',
+          hash: 'abc123',
+        });
+      }
+      if (method === 'config.apply') {
+        return Promise.resolve({});
+      }
+      return Promise.resolve({});
+    });
+
+    useGatewayStore.setState({ client: createMockClient(mockRequest) });
+
+    render(<SettingsPanel />);
+    const restartBtn = screen.getByText('settings.restart');
+    fireEvent.click(restartBtn);
+
+    // Invoke the onOk callback from the confirm modal
+    const confirmCall = mockModalConfirm.mock.calls[0][0] as { onOk: () => Promise<void> };
+    await confirmCall.onOk();
+
+    // Should have called config.get then config.apply with same raw
+    expect(mockRequest).toHaveBeenCalledWith('config.get', {});
+    expect(mockRequest).toHaveBeenCalledWith('config.apply', {
+      raw: '{"test":true}',
+      baseHash: 'abc123',
+    });
+    expect(mockMessageSuccess).toHaveBeenCalledWith('settings.restartSuccess');
+  });
+
+  it('shows error message when restart fails', async () => {
+    const mockRequest = vi.fn().mockImplementation((method: string) => {
+      if (method === 'config.get') {
+        return Promise.reject(new Error('Network error'));
+      }
+      return Promise.resolve({});
+    });
+
+    useGatewayStore.setState({ client: createMockClient(mockRequest) });
+
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByText('settings.restart'));
+
+    const confirmCall = mockModalConfirm.mock.calls[0][0] as { onOk: () => Promise<void> };
+    await confirmCall.onOk();
+
+    expect(mockMessageError).toHaveBeenCalledWith('settings.restartFailed');
   });
 });

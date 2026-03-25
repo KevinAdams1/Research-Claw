@@ -213,6 +213,7 @@
     "empty": "Workspace is empty.\nFiles will appear here as you and the agent create them.",
     "filesChanged": "{{count}} files changed",
     "dragDrop": "Drop files here to add to workspace",
+    "dropToUpload": "Release to upload files",
     "contextMenu": {
       "openExternal": "Open File",
       "openFolder": "Open Folder",
@@ -347,7 +348,13 @@
     "heartbeatInterval1h": "Every 1 hour",
     "heartbeatInterval2h": "Every 2 hours",
     "heartbeatInterval4h": "Every 4 hours",
-    "aboutGithub": "View on GitHub"
+    "aboutGithub": "View on GitHub",
+    "restart": "Restart Research-Claw",
+    "restarting": "Restarting...",
+    "restartConfirm": "Restart Research-Claw?",
+    "restartConfirmDesc": "All active conversations will be interrupted. The gateway will recover automatically in a few seconds.",
+    "restartSuccess": "Restart signal sent",
+    "restartFailed": "Restart failed — please restart manually"
   },
   "setup": {
     "title": "Welcome to Research-Claw",

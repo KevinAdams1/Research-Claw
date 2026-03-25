@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 import WorkspacePanel from './WorkspacePanel';
 import { useGatewayStore } from '../../stores/gateway';
@@ -136,5 +136,88 @@ describe('WorkspacePanel', () => {
     render(<WorkspacePanel />);
 
     expect(await screen.findByText('workspace.dragDrop')).toBeTruthy();
+  });
+});
+
+// ============================================================
+// External file drag-over waiting state
+// ============================================================
+
+describe('WorkspacePanel — external file drag-over state', () => {
+  beforeEach(() => {
+    mockRequest.mockReset();
+    mockRequest.mockImplementation((method: string) => {
+      if (method === 'rc.ws.tree') {
+        return Promise.resolve({
+          tree: [{ name: 'file.tex', path: 'file.tex', type: 'file' }],
+          workspace_root: '/workspace',
+        });
+      }
+      if (method === 'rc.ws.history') {
+        return Promise.resolve({ commits: [], total: 0, has_more: false });
+      }
+      return Promise.resolve({});
+    });
+    useConfigStore.setState({ theme: 'dark' });
+    useGatewayStore.setState({
+      client: { isConnected: true, request: mockRequest } as any,
+      state: 'connected',
+    });
+  });
+
+  it('shows "dropToUpload" text when external files are dragged over', async () => {
+    render(<WorkspacePanel />);
+    await screen.findByText('workspace.dragDrop'); // default state
+
+    // Simulate external file drag enter
+    const panel = screen.getByText('workspace.dragDrop').closest('div[style*="height: 100%"]')!;
+    const dragEnterEvent = new Event('dragenter', { bubbles: true });
+    Object.defineProperty(dragEnterEvent, 'dataTransfer', {
+      value: { types: ['Files'], dropEffect: 'none', files: [] },
+    });
+    act(() => { panel.dispatchEvent(dragEnterEvent); });
+
+    expect(screen.getByText('workspace.dropToUpload')).toBeTruthy();
+  });
+
+  it('hides "dropToUpload" after drag leave', async () => {
+    render(<WorkspacePanel />);
+    await screen.findByText('workspace.dragDrop');
+
+    const panel = screen.getByText('workspace.dragDrop').closest('div[style*="height: 100%"]')!;
+
+    // Enter
+    const enterEvent = new Event('dragenter', { bubbles: true });
+    Object.defineProperty(enterEvent, 'dataTransfer', {
+      value: { types: ['Files'], dropEffect: 'none', files: [] },
+    });
+    act(() => { panel.dispatchEvent(enterEvent); });
+    expect(screen.getByText('workspace.dropToUpload')).toBeTruthy();
+
+    // Leave
+    const leaveEvent = new Event('dragleave', { bubbles: true });
+    Object.defineProperty(leaveEvent, 'dataTransfer', {
+      value: { types: ['Files'], dropEffect: 'none', files: [] },
+    });
+    act(() => { panel.dispatchEvent(leaveEvent); });
+    expect(screen.queryByText('workspace.dropToUpload')).toBeNull();
+    expect(screen.getByText('workspace.dragDrop')).toBeTruthy();
+  });
+
+  it('does NOT show "dropToUpload" for internal workspace drags', async () => {
+    render(<WorkspacePanel />);
+    await screen.findByText('workspace.dragDrop');
+
+    const panel = screen.getByText('workspace.dragDrop').closest('div[style*="height: 100%"]')!;
+
+    // Internal drag (has text/x-workspace-path type)
+    const internalEvent = new Event('dragenter', { bubbles: true });
+    Object.defineProperty(internalEvent, 'dataTransfer', {
+      value: { types: ['text/x-workspace-path', 'Files'], dropEffect: 'none', files: [] },
+    });
+    act(() => { panel.dispatchEvent(internalEvent); });
+
+    // Should still show default drag zone, not dropToUpload
+    expect(screen.queryByText('workspace.dropToUpload')).toBeNull();
   });
 });

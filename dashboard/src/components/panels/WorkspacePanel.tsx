@@ -865,6 +865,10 @@ export default function WorkspacePanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollRafRef = useRef<number | null>(null);
 
+  // External file drag-over detection (OS → upload zone)
+  const [externalDragOver, setExternalDragOver] = useState(false);
+  const dragEnterCounterRef = useRef(0);
+
   // Drag-and-drop: track source path for self/ancestor guard (Fix #3)
   const [dragSrcPath, setDragSrcPath] = useState<string | null>(null);
   // Move loading state (Fix #4)
@@ -1136,8 +1140,55 @@ export default function WorkspacePanel() {
     [uploading, uploadOneFile, loadData, t, message],
   );
 
+  // --- External file drag-over detection (panel-level) ---
+  const isExternalFileDrag = useCallback((e: React.DragEvent) => {
+    return e.dataTransfer.types.includes('Files') && !e.dataTransfer.types.includes('text/x-workspace-path');
+  }, []);
+
+  const handlePanelDragEnter = useCallback((e: React.DragEvent) => {
+    if (!isExternalFileDrag(e)) return;
+    dragEnterCounterRef.current++;
+    if (dragEnterCounterRef.current === 1) {
+      setExternalDragOver(true);
+    }
+  }, [isExternalFileDrag]);
+
+  const handlePanelDragOver = useCallback((e: React.DragEvent) => {
+    if (!isExternalFileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, [isExternalFileDrag]);
+
+  const handlePanelDragLeave = useCallback((e: React.DragEvent) => {
+    if (!isExternalFileDrag(e)) return;
+    dragEnterCounterRef.current--;
+    if (dragEnterCounterRef.current <= 0) {
+      dragEnterCounterRef.current = 0;
+      setExternalDragOver(false);
+    }
+  }, [isExternalFileDrag]);
+
+  const handlePanelDrop = useCallback((e: React.DragEvent) => {
+    if (!isExternalFileDrag(e)) return;
+    e.preventDefault();
+    dragEnterCounterRef.current = 0;
+    setExternalDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleUpload(files[0], files);
+    }
+  }, [isExternalFileDrag, handleUpload]);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }} onDragEnd={handlePanelDragEnd}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+      onDragEnd={handlePanelDragEnd}
+      onDragEnter={handlePanelDragEnter}
+      onDragOver={handlePanelDragOver}
+      onDragLeave={handlePanelDragLeave}
+      onDrop={handlePanelDrop}
+    >
       <RecentChanges commits={commits} tokens={tokens} hasMore={hasMoreCommits} onLoadMore={loadMoreCommits} loadingMore={loadingMoreCommits} />
 
       {commits.length > 0 && tree.length > 0 && (
@@ -1337,6 +1388,34 @@ export default function WorkspacePanel() {
                 <span style={{ color: tokens.text.muted, fontSize: 12 }}>
                   {t('workspace.uploading', { defaultValue: 'Uploading...' })}
                 </span>
+              </div>
+            </div>
+          );
+        }
+
+        if (externalDragOver && !showRootDrop) {
+          return (
+            <div style={{ padding: '8px 16px', borderTop: `1px solid ${tokens.border.default}` }}>
+              <div
+                style={{
+                  padding: '12px 0',
+                  border: '1px solid rgba(239, 68, 68, 0.7)',
+                  borderRadius: 4,
+                  textAlign: 'center',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  transition: 'border 0.15s, background 0.15s',
+                }}
+              >
+                <p style={{
+                  color: '#F87171',
+                  fontSize: 12,
+                  margin: 0,
+                  fontWeight: 500,
+                  transition: 'color 0.15s',
+                }}>
+                  <UploadOutlined style={{ fontSize: 16, marginRight: 4 }} />
+                  {t('workspace.dropToUpload')}
+                </p>
               </div>
             </div>
           );

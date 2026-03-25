@@ -10,7 +10,7 @@ import {
   Spin,
   Typography,
 } from 'antd';
-import { CopyOutlined, KeyOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CopyOutlined, KeyOutlined, PoweroffOutlined, ReloadOutlined } from '@ant-design/icons';
 import OAuthModal from '../OAuthModal';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '../../stores/config';
@@ -63,10 +63,23 @@ function SettingRow({
 
 function AboutSection() {
   const { t } = useTranslation();
-  const { message } = App.useApp();
+  const { modal, message } = App.useApp();
   const serverVersion = useGatewayStore((s) => s.serverVersion);
   const configTheme = useConfigStore((s) => s.theme);
   const tokens = useMemo(() => getThemeTokens(configTheme), [configTheme]);
+  const [restarting, setRestarting] = useState(false);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reset restarting state when gateway reconnects with fresh config
+  const gatewayConfigForReset = useConfigStore((s) => s.gatewayConfig);
+  const restartNonceRef = useRef(0);
+  const configSeenAtStartRef = useRef<unknown>(null);
+  useEffect(() => {
+    if (restarting && gatewayConfigForReset && gatewayConfigForReset !== configSeenAtStartRef.current) {
+      setRestarting(false);
+      if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
+    }
+  }, [gatewayConfigForReset, restarting]);
 
   const handleCopyDiagnostics = async () => {
     const diagnostics = [
@@ -85,6 +98,55 @@ function AboutSection() {
     } catch {
       message.error(t('settings.copyFailed'));
     }
+  };
+
+  const handleRestart = () => {
+    const modalTokens = getThemeTokens(configTheme);
+    modal.confirm({
+      title: t('settings.restartConfirm'),
+      content: t('settings.restartConfirmDesc'),
+      okText: t('settings.restart'),
+      okButtonProps: { danger: true },
+      cancelText: t('settings.cancel'),
+      centered: true,
+      styles: {
+        mask: { backdropFilter: 'blur(4px)' },
+        content: {
+          background: modalTokens.bg.surface,
+          borderRadius: 12,
+          border: `1px solid ${modalTokens.border.default}`,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          padding: '20px 24px',
+        },
+        header: { background: 'transparent', borderBottom: 'none', padding: 0, marginBottom: 8 },
+        body: { padding: 0, color: modalTokens.text.secondary },
+        footer: { borderTop: 'none', marginTop: 16, padding: 0 },
+      },
+      onOk: async () => {
+        const client = useGatewayStore.getState().client;
+        if (!client?.isConnected) return;
+        try {
+          const snapshot = await client.request<{
+            parsed?: Record<string, unknown>;
+            config?: Record<string, unknown>;
+            raw?: string | null;
+            hash?: string;
+          }>('config.get', {});
+          const raw = snapshot.raw ?? JSON.stringify(snapshot.parsed ?? snapshot.config ?? {});
+          await client.request('config.apply', { raw, baseHash: snapshot.hash });
+          message.success(t('settings.restartSuccess'));
+          configSeenAtStartRef.current = useConfigStore.getState().gatewayConfig;
+          setRestarting(true);
+          // Safety timeout: reset after 30s if gateway never reconnects
+          restartTimerRef.current = setTimeout(() => {
+            setRestarting(false);
+            message.warning(t('settings.restartFailed'));
+          }, 30_000);
+        } catch {
+          message.error(t('settings.restartFailed'));
+        }
+      },
+    });
   };
 
   const gatewayConfig = useConfigStore((s) => s.gatewayConfig);
@@ -162,6 +224,18 @@ function AboutSection() {
         block
       >
         {t('settings.aboutDiagnostics')}
+      </Button>
+
+      <Button
+        icon={<PoweroffOutlined />}
+        size="small"
+        danger
+        block
+        loading={restarting}
+        style={{ marginTop: 8 }}
+        onClick={handleRestart}
+      >
+        {restarting ? t('settings.restarting') : t('settings.restart')}
       </Button>
 
       <div style={{ marginTop: 8, textAlign: 'center' }}>
