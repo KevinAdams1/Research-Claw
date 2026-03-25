@@ -412,7 +412,7 @@ curl -fsSL https://wentor.ai/install.sh | bash
 
 | 数据 | 路径 | 说明 |
 |:--|:--|:--|
-| **文献库 / 任务 / 监控** | `~/.research-claw/library.db` | SQLite 数据库（核心数据，17 张表 + FTS5 全文索引） |
+| **文献库 / 任务 / 监控** | `~/research-claw/.research-claw/library.db` | SQLite 数据库（核心数据，17 张表 + FTS5 全文索引） |
 | **会话历史** | `~/.openclaw/agents/main/sessions/` | 所有聊天记录（.jsonl 文件） |
 | **Agent 记忆** | `~/.openclaw/memory/main.sqlite` | 长期记忆 FTS 数据库 |
 | **工作区文件** | `~/research-claw/workspace/` | MEMORY.md、.ResearchClaw/、用户上传的文件、Git 历史 |
@@ -420,7 +420,7 @@ curl -fsSL https://wentor.ai/install.sh | bash
 | **浏览器数据** | `~/.openclaw/browser/` | 已登录的学术网站 session |
 | **IM 渠道凭证** | `~/.openclaw/credentials/` | Telegram / 飞书 / QQ 等 token |
 
-> **不需要迁移的**：`node_modules/`、`dashboard/dist/`（重新安装会生成）；`~/.openclaw/openclaw.json`（全局配置包含绝对路径，需要在新机器上重新生成）。
+> **不需要迁移的**：`node_modules/`、`dashboard/dist/`（重新安装会自动生成）；`~/.openclaw/openclaw.json`（全局配置含机器相关绝对路径，新机器上会自动生成）；`~/.openclaw/gateway/`、`~/.openclaw/cron/`（运行时数据，自动重建）。
 
 ---
 
@@ -438,12 +438,12 @@ sleep 3
 # 3. 一键打包所有数据
 tar -czf ~/rc-migration.tar.gz \
   -C / \
-  "$HOME/.research-claw" \
   "$HOME/.openclaw/agents" \
   "$HOME/.openclaw/memory" \
   "$HOME/.openclaw/browser" \
   "$HOME/.openclaw/credentials" \
   -C "$HOME/research-claw" \
+  .research-claw \
   config/openclaw.json \
   workspace
 ```
@@ -468,11 +468,11 @@ cd ~/research-claw && pnpm serve
 > 如果新旧机器的用户名不同（如旧机器 `alice`，新机器 `bob`），解压后需要手动修正 tar 中的路径。可以用分步复制替代：
 > ```bash
 > # 在新机器上逐个复制
-> scp -r old-mac:~/.research-claw/ ~/.research-claw/
 > scp -r old-mac:~/.openclaw/agents/ ~/.openclaw/agents/
 > scp -r old-mac:~/.openclaw/memory/ ~/.openclaw/memory/
 > scp -r old-mac:~/.openclaw/browser/ ~/.openclaw/browser/
 > scp -r old-mac:~/.openclaw/credentials/ ~/.openclaw/credentials/
+> scp -r old-mac:~/research-claw/.research-claw/ ~/research-claw/.research-claw/
 > scp old-mac:~/research-claw/config/openclaw.json ~/research-claw/config/
 > scp -r old-mac:~/research-claw/workspace/ ~/research-claw/workspace/
 > ```
@@ -492,12 +492,12 @@ sleep 3
 # 打包到 Windows 桌面（方便拷贝）
 tar -czf /mnt/c/Users/$USER/Desktop/rc-migration.tar.gz \
   -C / \
-  "$HOME/.research-claw" \
   "$HOME/.openclaw/agents" \
   "$HOME/.openclaw/memory" \
   "$HOME/.openclaw/browser" \
   "$HOME/.openclaw/credentials" \
   -C "$HOME/research-claw" \
+  .research-claw \
   config/openclaw.json \
   workspace
 ```
