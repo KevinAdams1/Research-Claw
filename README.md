@@ -242,6 +242,7 @@ curl -fsSL https://wentor.ai/install.sh | bash
 | 平台 | 方案 | 依赖 |
 |:--|:--|:--|
 | macOS / Linux | 一键安装脚本（推荐） | Git · Node.js 22（均自动安装） |
+| macOS / Linux | 手动安装（源码） | Git · Node.js 22+ · [pnpm](https://pnpm.io/installation) 9 |
 | macOS / Linux / Windows | Docker 一键安装 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
 
 所有平台均需 LLM API Key（推荐 Anthropic Claude / OpenAI，支持国内中转 API）。
@@ -280,9 +281,11 @@ irm https://wentor.ai/docker-install.ps1 | iex
 
 #### 手动安装（源码）
 
+> 需要 Git、Node.js 22+ 和 [pnpm](https://pnpm.io/installation) 9。一键脚本会自动安装这些依赖，手动安装需要自行准备。
+
 ```bash
 git clone https://github.com/wentorai/Research-Claw.git
-cd Research-Claw
+cd Research-Claw          # ⚠️ 必须进入项目目录，否则 pnpm install 会报错
 pnpm install && pnpm build
 cp config/openclaw.example.json config/openclaw.json
 pnpm serve
