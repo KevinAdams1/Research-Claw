@@ -242,6 +242,7 @@ Four layers of defense-in-depth. The first three are hard constraints enforced i
 | Platform | Method | Prerequisites |
 |:--|:--|:--|
 | macOS / Linux | One-click script (recommended) | Git · Node.js 22 (auto-installed) |
+| macOS / Linux | Manual install (source) | Git · Node.js 22+ · [pnpm](https://pnpm.io/installation) 9 |
 | macOS / Linux / Windows | Docker one-click | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
 
 All platforms require an LLM API key (Anthropic Claude / OpenAI recommended).
@@ -280,9 +281,11 @@ After install, the browser opens `http://127.0.0.1:28789` automatically. Follow 
 
 #### Manual install (source)
 
+> Requires Git, Node.js 22+, and [pnpm](https://pnpm.io/installation) 9. The one-click script installs these automatically; for manual install you need them pre-installed.
+
 ```bash
 git clone https://github.com/wentorai/Research-Claw.git
-cd Research-Claw
+cd Research-Claw          # ⚠️ You must be inside the project directory, or pnpm install will fail
 pnpm install && pnpm build
 cp config/openclaw.example.json config/openclaw.json
 pnpm serve
