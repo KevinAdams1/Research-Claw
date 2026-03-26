@@ -201,7 +201,9 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
         // Starred tab: client-filter to only papers with rating > 0
         if (activeTab === 'starred') {
           items = items.filter((p) => (p.rating ?? 0) > 0);
-          total = items.length < PAGE_SIZE ? items.length : result.total;
+          // Use server-side starred_count from tabCounts when available for accurate total
+          const cachedStarred = get().tabCounts?.starred;
+          total = cachedStarred ?? (items.length < PAGE_SIZE ? items.length : result.total);
         }
 
         set({

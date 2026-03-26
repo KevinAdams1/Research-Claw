@@ -72,44 +72,24 @@ describe('LibraryPanel', () => {
     expect(screen.getByText('Test Paper on Transformers')).toBeTruthy();
   });
 
-  it('renders sub-tabs with counts', () => {
-    useLibraryStore.setState({
-      papers: [
-        {
-          id: '1',
-          title: 'Paper 1',
-          authors: [],
-          year: 2025,
-          tags: [],
-          read_status: 'unread',
-          added_at: '2025-01-01T00:00:00Z',
-          updated_at: '2025-01-01T00:00:00Z',
-          abstract: null, doi: null, url: null, arxiv_id: null, pdf_path: null,
-          source: null, source_id: null, venue: null, rating: null, notes: null,
-          bibtex_key: null, metadata: {},
-        },
-        {
-          id: '2',
-          title: 'Paper 2',
-          authors: [],
-          year: 2025,
-          tags: [],
-          read_status: 'read',
-          added_at: '2025-01-01T00:00:00Z',
-          updated_at: '2025-01-01T00:00:00Z',
-          abstract: null, doi: null, url: null, arxiv_id: null, pdf_path: null,
-          source: null, source_id: null, venue: null, rating: null, notes: null,
-          bibtex_key: null, metadata: {},
-        },
-      ],
-      total: 2,
-    });
-
+  it('renders sub-tabs without counts when tabCounts is null', () => {
+    useLibraryStore.setState({ papers: [], total: 0, tabCounts: null });
     render(<LibraryPanel />);
-    // Check sub-tab labels exist
-    expect(screen.getByText(/library\.inbox/)).toBeTruthy();
-    expect(screen.getByText(/library\.archive/)).toBeTruthy();
-    expect(screen.getByText(/library\.starred/)).toBeTruthy();
+    expect(screen.getByText('library.inbox')).toBeTruthy();
+    expect(screen.getByText('library.archive')).toBeTruthy();
+    expect(screen.getByText('library.starred')).toBeTruthy();
+  });
+
+  it('renders sub-tabs with counts from tabCounts', () => {
+    useLibraryStore.setState({
+      papers: [],
+      total: 0,
+      tabCounts: { inbox: 5, archive: 12, starred: 3 },
+    });
+    render(<LibraryPanel />);
+    expect(screen.getByText('library.inbox (5)')).toBeTruthy();
+    expect(screen.getByText('library.archive (12)')).toBeTruthy();
+    expect(screen.getByText('library.starred (3)')).toBeTruthy();
   });
 
   it('renders search input', () => {

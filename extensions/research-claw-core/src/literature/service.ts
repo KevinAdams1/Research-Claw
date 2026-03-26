@@ -172,6 +172,7 @@ export interface LibraryStats {
   total_tags: number;
   total_reading_minutes: number;
   papers_with_pdf: number;
+  starred_count: number;
   average_rating: number | null;
 }
 
