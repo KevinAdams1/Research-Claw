@@ -1669,6 +1669,13 @@ export class LiteratureService {
       )
       .get() as { avg_rating: number | null };
 
+    // Starred count (papers with rating > 0)
+    const starredRow = this.db
+      .prepare(
+        `SELECT COUNT(*) as cnt FROM rc_papers WHERE ${NOT_DELETED} AND rating IS NOT NULL AND rating > 0`,
+      )
+      .get() as { cnt: number };
+
     return {
       total: totalRow.cnt,
       by_status,
@@ -1677,6 +1684,7 @@ export class LiteratureService {
       total_tags: tagsRow.cnt,
       total_reading_minutes: readingRow.total,
       papers_with_pdf: pdfRow.cnt,
+      starred_count: starredRow.cnt,
       average_rating:
         ratingRow.avg_rating != null
           ? Math.round(ratingRow.avg_rating * 100) / 100

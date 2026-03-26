@@ -273,6 +273,8 @@ export default function LibraryPanel() {
   const loadPapers = useLibraryStore((s) => s.loadPapers);
   const loadMorePapers = useLibraryStore((s) => s.loadMorePapers);
   const loadTags = useLibraryStore((s) => s.loadTags);
+  const loadStats = useLibraryStore((s) => s.loadStats);
+  const tabCounts = useLibraryStore((s) => s.tabCounts);
   const tags = useLibraryStore((s) => s.tags);
   const filters = useLibraryStore((s) => s.filters);
   const setFilters = useLibraryStore((s) => s.setFilters);
@@ -288,9 +290,10 @@ export default function LibraryPanel() {
   // Load data when gateway connection is established (or re-established)
   useEffect(() => {
     if (connState === 'connected') {
-      console.log('[LibraryPanel] connected → loading papers & tags');
+      console.log('[LibraryPanel] connected → loading papers, tags & stats');
       loadPapers();
       loadTags();
+      loadStats();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connState]);
@@ -378,9 +381,9 @@ export default function LibraryPanel() {
           value={activeTab}
           onChange={(v) => setActiveTab(v as 'inbox' | 'archive' | 'starred')}
           options={[
-            { label: t('library.inbox'), value: 'inbox' },
-            { label: t('library.archive'), value: 'archive' },
-            { label: t('library.starred'), value: 'starred' },
+            { label: tabCounts ? `${t('library.inbox')} (${tabCounts.inbox})` : t('library.inbox'), value: 'inbox' },
+            { label: tabCounts ? `${t('library.archive')} (${tabCounts.archive})` : t('library.archive'), value: 'archive' },
+            { label: tabCounts ? `${t('library.starred')} (${tabCounts.starred})` : t('library.starred'), value: 'starred' },
           ]}
           block
           size="small"
