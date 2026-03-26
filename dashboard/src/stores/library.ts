@@ -79,6 +79,12 @@ const TAB_STATUS_MAP: Record<'inbox' | 'archive', ReadStatus[]> = {
 
 type TabKey = 'inbox' | 'archive' | 'starred';
 
+export interface TabCounts {
+  inbox: number;
+  archive: number;
+  starred: number;
+}
+
 interface LibraryState {
   papers: Paper[];
   tags: Tag[];
@@ -90,10 +96,12 @@ interface LibraryState {
   searchQuery: string;
   activeTab: TabKey;
   filters: PaperFilter;
+  tabCounts: TabCounts | null;
 
   loadPapers: (filter?: PaperFilter) => Promise<void>;
   loadMorePapers: () => Promise<void>;
   loadTags: () => Promise<void>;
+  loadStats: () => Promise<void>;
   setSearchQuery: (q: string) => void;
   setActiveTab: (tab: TabKey) => void;
   updatePaperStatus: (id: string, status: ReadStatus) => Promise<void>;
@@ -150,6 +158,7 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
   searchQuery: '',
   activeTab: 'inbox',
   filters: {},
+  tabCounts: null,
 
   loadPapers: async (filter?: PaperFilter) => {
     const client = useGatewayStore.getState().client;
@@ -270,6 +279,25 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
     }
   },
 
+  loadStats: async () => {
+    const client = useGatewayStore.getState().client;
+    if (!client?.isConnected) return;
+    try {
+      const stats = await client.request<{
+        total: number;
+        by_status: Record<string, number>;
+        starred_count?: number;
+      }>('rc.lit.stats', {});
+      const bs = stats.by_status ?? {};
+      const inbox = (bs.unread ?? 0) + (bs.reading ?? 0);
+      const archive = (bs.read ?? 0) + (bs.reviewed ?? 0);
+      const starred = stats.starred_count ?? 0;
+      set({ tabCounts: { inbox, archive, starred } });
+    } catch {
+      /* non-fatal — tabs just won't show counts */
+    }
+  },
+
   setSearchQuery: (q: string) => {
     set({ searchQuery: q });
   },
@@ -296,6 +324,7 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
     }));
     try {
       await client.request('rc.lit.status', { id, status });
+      get().loadStats();
     } catch {
       // Revert on failure — reload
       get().loadPapers();
@@ -311,6 +340,7 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
     }));
     try {
       await client.request('rc.lit.rate', { id, rating });
+      get().loadStats();
     } catch {
       get().loadPapers();
     }
@@ -346,8 +376,9 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
         papers: s.papers.filter((p) => p.id !== id),
         total: s.total - 1,
       }));
-      // Refresh tags so counts and visibility stay in sync
+      // Refresh tags and stats so counts and visibility stay in sync
       get().loadTags();
+      get().loadStats();
     } catch {
       // Reload to restore consistent state
       get().loadPapers();
