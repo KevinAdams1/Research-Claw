@@ -567,3 +567,74 @@ describe('GAP-4: Tag bar visibility and clear button', () => {
     expect(screen.getAllByText('tag-14').length).toBeGreaterThan(0);
   });
 });
+
+// ============================================================
+// GAP-5: loadStats populates tabCounts from rc.lit.stats
+// ============================================================
+
+describe('GAP-5: loadStats tab counts', () => {
+  beforeEach(resetStores);
+
+  it('derives inbox/archive/starred counts from rc.lit.stats response', async () => {
+    // Real payload shape matching rc.lit.stats (service.ts:getStats)
+    setupMethodRouter({
+      'rc.lit.stats': {
+        total: 20,
+        by_status: { unread: 8, reading: 2, read: 7, reviewed: 3 },
+        by_year: { '2025': 15, '2024': 5 },
+        by_source: { arxiv: 12, manual: 8 },
+        total_tags: 5,
+        total_reading_minutes: 120,
+        papers_with_pdf: 10,
+        starred_count: 4,
+        average_rating: 3.5,
+      },
+    });
+
+    await act(async () => {
+      await useLibraryStore.getState().loadStats();
+    });
+
+    const { tabCounts } = useLibraryStore.getState();
+    expect(tabCounts).toEqual({
+      inbox: 10,    // unread(8) + reading(2)
+      archive: 10,  // read(7) + reviewed(3)
+      starred: 4,   // from starred_count
+    });
+  });
+
+  it('handles missing by_status gracefully (all zeros)', async () => {
+    setupMethodRouter({
+      'rc.lit.stats': {
+        total: 0,
+        by_status: {},
+        by_year: {},
+        by_source: {},
+        total_tags: 0,
+        total_reading_minutes: 0,
+        papers_with_pdf: 0,
+        starred_count: 0,
+        average_rating: null,
+      },
+    });
+
+    await act(async () => {
+      await useLibraryStore.getState().loadStats();
+    });
+
+    const { tabCounts } = useLibraryStore.getState();
+    expect(tabCounts).toEqual({ inbox: 0, archive: 0, starred: 0 });
+  });
+
+  it('tabCounts remains null when RPC fails', async () => {
+    mockGatewayClient.request.mockReset();
+    mockGatewayClient.request.mockRejectedValue(new Error('Network error'));
+    useLibraryStore.setState({ tabCounts: null });
+
+    await act(async () => {
+      await useLibraryStore.getState().loadStats();
+    });
+
+    expect(useLibraryStore.getState().tabCounts).toBeNull();
+  });
+});
