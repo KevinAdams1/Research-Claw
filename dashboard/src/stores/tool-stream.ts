@@ -18,6 +18,10 @@ export interface PendingTool {
   name: string;
   phase: 'start' | 'running' | 'result' | 'end';
   startedAt: number;
+  /** Timestamp of the most recent event for this tool. Used by stale-stream
+   *  watchdog to distinguish hung tools (no events) from legitimately
+   *  long-running ones (still receiving phase/update events). */
+  lastEventAt: number;
 }
 
 export interface AgentActivity {
@@ -117,28 +121,28 @@ export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
         // to prevent memory leaks when phase:"end" events are lost.
         const now = Date.now();
         const evictStale = (tools: PendingTool[]) =>
-          tools.filter((t) => now - t.startedAt < STALE_TOOL_MS);
+          tools.filter((t) => now - t.lastEventAt < STALE_TOOL_MS);
 
         switch (phase) {
           case 'start':
             set((s) => ({
               pendingTools: [
                 ...evictStale(s.pendingTools),
-                { toolCallId, name: name ?? 'unknown', phase: 'start', startedAt: now },
+                { toolCallId, name: name ?? 'unknown', phase: 'start', startedAt: now, lastEventAt: now },
               ],
             }));
             break;
           case 'running':
             set((s) => ({
               pendingTools: evictStale(s.pendingTools).map((t) =>
-                t.toolCallId === toolCallId ? { ...t, phase: 'running' } : t,
+                t.toolCallId === toolCallId ? { ...t, phase: 'running', lastEventAt: now } : t,
               ),
             }));
             break;
           case 'result':
             set((s) => ({
               pendingTools: evictStale(s.pendingTools).map((t) =>
-                t.toolCallId === toolCallId ? { ...t, phase: 'result' } : t,
+                t.toolCallId === toolCallId ? { ...t, phase: 'result', lastEventAt: now } : t,
               ),
             }));
             break;
@@ -150,7 +154,7 @@ export const useToolStreamStore = create<ToolStreamState>()((set, get) => ({
             }, 800);
             set((s) => ({
               pendingTools: evictStale(s.pendingTools).map((t) =>
-                t.toolCallId === toolCallId ? { ...t, phase: 'end' } : t,
+                t.toolCallId === toolCallId ? { ...t, phase: 'end', lastEventAt: now } : t,
               ),
             }));
             break;

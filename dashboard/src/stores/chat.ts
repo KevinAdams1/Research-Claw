@@ -33,8 +33,17 @@ const GAP_DEBOUNCE_MS = 500;
  * can detect mid-stream connection deaths (where streamText is non-null but no
  * more deltas arrive), not just the "no first delta" case.
  *
- * The watchdog skips recovery when tools are actively executing, because tool
- * calls can legitimately take minutes without producing chat deltas.
+ * Tool-aware recovery (Fix 1 — Plan B):
+ * Instead of unconditionally skipping recovery when tools are pending, the
+ * watchdog now checks each tool's `lastEventAt`. If ALL pending tools have
+ * received no events for > STALE_TOOL_MS (120s), they are considered hung and
+ * forcibly evicted, allowing recovery to proceed. This prevents a single hung
+ * tool (e.g. SSH timeout) from blocking recovery indefinitely.
+ *
+ * Reconnect-aware timeout (Fix 3):
+ * After a WS reconnect (_reconnectedAt is set), the watchdog uses a shorter
+ * timeout (RECONNECT_STALE_MS = 15s) to speed up recovery when the run
+ * completed during the disconnect window and no more deltas will arrive.
  *
  * Backup: the tick watchdog (client.ts) detects dead connections at the transport
  * layer and forces reconnect → loadHistory(), so this watchdog mainly covers the
@@ -43,6 +52,10 @@ const GAP_DEBOUNCE_MS = 500;
 let _staleStreamWatchdog: ReturnType<typeof setInterval> | null = null;
 const STALE_STREAM_TIMEOUT_MS = 60_000;
 const STALE_WATCHDOG_CHECK_MS = 15_000;
+/** Shorter stale timeout used after WS reconnect (Fix 3). */
+const RECONNECT_STALE_MS = 15_000;
+/** Max age (ms) for a pending tool with no events before watchdog treats it as hung. */
+const WATCHDOG_TOOL_STALE_MS = 120_000;
 
 function stopStaleStreamWatchdog() {
   if (_staleStreamWatchdog) {
@@ -61,18 +74,29 @@ function startStaleStreamWatchdog(get: () => ChatState) {
     }
     const lastActivity = s._lastDeltaAt ?? s._streamStartedAt;
     if (!lastActivity) return;
+
+    // Fix 3: use shorter timeout after reconnect
+    const effectiveTimeout = s._reconnectedAt ? RECONNECT_STALE_MS : STALE_STREAM_TIMEOUT_MS;
     const gap = Date.now() - lastActivity;
-    if (gap > STALE_STREAM_TIMEOUT_MS) {
-      // Skip recovery if tools are actively executing (tool calls can take minutes)
-      if (useToolStreamStore.getState().pendingTools.length > 0) return;
+    if (gap > effectiveTimeout) {
+      // Fix 1 (Plan B): check tool staleness via lastEventAt
+      const pendingTools = useToolStreamStore.getState().pendingTools;
+      if (pendingTools.length > 0) {
+        const now = Date.now();
+        const allStale = pendingTools.every(t => now - t.lastEventAt >= WATCHDOG_TOOL_STALE_MS);
+        if (!allStale) return; // some tools still active — keep waiting
+        // All tools are hung — force-evict and proceed with recovery
+        useToolStreamStore.setState({ pendingTools: [] });
+      }
 
       stopStaleStreamWatchdog();
-      console.log(`[Chat] Stale streaming detected (${Math.round(gap / 1000)}s since last activity) — recovering via loadHistory`);
+      console.log(`[Chat] Stale streaming detected (${Math.round(gap / 1000)}s since last activity, reconnect=${!!s._reconnectedAt}) — recovering via loadHistory`);
       useChatStore.setState({
         streaming: false,
         streamText: null,
         runId: null,
         _streamStartedAt: null, _lastDeltaAt: null,
+        _reconnectedAt: null,
       });
       useChatStore.getState().loadHistory();
     }
@@ -283,6 +307,10 @@ interface ChatState {
   /** Timestamp of last received chat delta. Used by stale-stream watchdog to detect
    *  mid-stream deaths (connection alive but no more deltas arriving). */
   _lastDeltaAt: number | null;
+  /** Timestamp of the most recent WS reconnect while a run was in-flight.
+   *  When set, the stale-stream watchdog uses a shorter timeout (RECONNECT_STALE_MS)
+   *  to speed up recovery. Cleared on first delta/final/aborted/error after reconnect. */
+  _reconnectedAt: number | null;
 
   send: (text: string, attachments?: ChatAttachment[]) => Promise<void>;
   abort: () => void;
@@ -313,7 +341,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   tokensOut: 0,
   _pendingGapReload: false,
   _pendingUserMsgs: _restoredPendingMsgs,
-  _streamStartedAt: null, _lastDeltaAt: null,
+  _streamStartedAt: null, _lastDeltaAt: null, _reconnectedAt: null,
 
   onGapDetected: () => {
     if (!get().streaming && !get().sending) {
@@ -737,6 +765,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             streaming: true,
             streamText: !current || deltaText.length >= current.length ? deltaText : current,
             _lastDeltaAt: Date.now(),
+            // Fix 3: clear reconnect flag on first successful delta
+            _reconnectedAt: null,
           };
         });
         break;
@@ -747,7 +777,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           // MiniMax and some providers send final without a message body.
           // Clear streaming state and reload history to show the result.
           if (event.runId === runId || (get().streaming && !runId)) {
-            set({ streaming: false, streamText: null, runId: null, _pendingGapReload: false, _streamStartedAt: null, _lastDeltaAt: null });
+            set({ streaming: false, streamText: null, runId: null, _pendingGapReload: false, _streamStartedAt: null, _lastDeltaAt: null, _reconnectedAt: null });
             get().loadHistory();
             setTimeout(() => {
               useLibraryStore.getState().loadPapers();
@@ -782,7 +812,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             streamText: null,
             runId: null,
             _pendingUserMsgs: [],
-            _streamStartedAt: null, _lastDeltaAt: null,
+            _streamStartedAt: null, _lastDeltaAt: null, _reconnectedAt: null,
           }));
           // After a full conversation turn, refresh panel data
           // (the LLM may have used tools that modified library/tasks/workspace)
@@ -834,9 +864,9 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             ...(isQueueDrainResponse
               // Don't clear _pendingUserMessages here — more queue-drain responses
               // may follow. Let loadHistory() handle them via the 3-min expiry.
-              ? { streaming: false, streamText: null, runId: null, _streamStartedAt: null, _lastDeltaAt: null }
+              ? { streaming: false, streamText: null, runId: null, _streamStartedAt: null, _lastDeltaAt: null, _reconnectedAt: null }
               : s.streaming && !s.runId
-                ? { streaming: false, streamText: null }
+                ? { streaming: false, streamText: null, _reconnectedAt: null }
                 : {}),
           }));
 
@@ -882,10 +912,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             streamText: null,
             runId: null,
             _pendingUserMsgs: [],
-            _streamStartedAt: null, _lastDeltaAt: null,
+            _streamStartedAt: null, _lastDeltaAt: null, _reconnectedAt: null,
           }));
         } else {
-          set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null, _lastDeltaAt: null });
+          set({ streaming: false, streamText: null, runId: null, _pendingUserMsgs: [], _streamStartedAt: null, _lastDeltaAt: null, _reconnectedAt: null });
         }
         // Deferred gap recovery
         if (get()._pendingGapReload) {
@@ -905,7 +935,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           streamText: null,
           runId: null,
           _pendingUserMsgs: [],
-          _streamStartedAt: null, _lastDeltaAt: null,
+          _streamStartedAt: null, _lastDeltaAt: null, _reconnectedAt: null,
           lastError: event.errorMessage ?? 'Unknown streaming error',
         });
         // Deferred gap recovery
@@ -935,7 +965,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       tokensOut: 0,
       _pendingGapReload: false,
       _pendingUserMsgs: [],
-      _streamStartedAt: null, _lastDeltaAt: null,
+      _streamStartedAt: null, _lastDeltaAt: null, _reconnectedAt: null,
     });
   },
 
@@ -960,3 +990,9 @@ useChatStore.subscribe(
     }
   },
 );
+
+/** @internal Exported for tests only — start/stop the stale-stream watchdog. */
+export const _testWatchdog = {
+  start: () => startStaleStreamWatchdog(useChatStore.getState as () => ChatState),
+  stop: stopStaleStreamWatchdog,
+};
