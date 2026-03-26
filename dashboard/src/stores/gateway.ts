@@ -63,11 +63,14 @@ export const useGatewayStore = create<GatewayState>()((set, get) => ({
         void import('./chat').then(({ useChatStore }) => {
           const { runId } = useChatStore.getState();
           if (runId) {
-            // Pending user-initiated run — preserve state, clear partial stream
-            useChatStore.setState({ streamText: null });
+            // Pending user-initiated run — preserve state, clear partial stream.
+            // Fix 3: set _reconnectedAt so the stale-stream watchdog uses a shorter
+            // timeout (15s vs 60s) for faster recovery if the run completed during
+            // the disconnect window and no more deltas will arrive.
+            useChatStore.setState({ streamText: null, _reconnectedAt: Date.now() });
           } else {
             // No pending run — reset orphaned state (original behavior)
-            useChatStore.setState({ streaming: false, streamText: null, runId: null });
+            useChatStore.setState({ streaming: false, streamText: null, runId: null, _reconnectedAt: null });
           }
         });
         // Reset retry counter for fresh evaluation on (re)connection
