@@ -175,6 +175,14 @@ function ensureConfig(filePath) {
     changed = true;
   }
 
+  // 12. Session reset — override OC default "daily 4AM" with idle-based reset.
+  // Scientific workflows span days; daily reset silently archives the transcript,
+  // causing issue #31 ("会话记录被覆盖"). 4320 min = 72 hours idle before reset.
+  if (!c.session || !c.session.reset || c.session.reset.mode === 'daily') {
+    c.session = { reset: { mode: 'idle', idleMinutes: 4320 } };
+    changed = true;
+  }
+
   // Write atomically (temp + rename) to prevent corruption on disk-full
   if (changed) {
     const out = JSON.stringify(c, null, 2) + '\n';
